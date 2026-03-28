@@ -210,11 +210,23 @@
                             Grace Period
                         </span>
 
-                        <div class="text-yellow-500" wire:ignore>
-                            <x-countdown :expires="$grace_end">
-                                <span x-text="timer.minutes">{{ $component->minutes() }}</span>m :
-                                <span x-text="timer.seconds">{{ $component->seconds() }}</span>s
-                            </x-countdown>
+                        <div class="text-yellow-500" wire:ignore
+                            x-data="{
+                                expiry: new Date('{{ $grace_end->toIso8601String() }}').getTime(),
+                                minutes: 0,
+                                seconds: 0,
+                                init() {
+                                    this.update();
+                                    setInterval(() => this.update(), 1000);
+                                },
+                                update() {
+                                    let diff = Math.max(0, Math.floor((this.expiry - Date.now()) / 1000));
+                                    this.minutes = Math.floor(diff / 60);
+                                    this.seconds = diff % 60;
+                                }
+                            }">
+                            <span x-text="minutes">0</span>m :
+                            <span x-text="seconds">0</span>s
                         </div>
 
                     @elseif ($has_check_out)
@@ -226,13 +238,29 @@
                     @else
 
                         <h1>Time:</h1>
-                        <div class="text-red-500" wire:ignore>
-                            <x-countdown :expires="$check_out_date">
-                                <span x-text="timer.days">{{ $component->days() }}</span>d :
-                                <span x-text="timer.hours">{{ $component->hours() }}</span>h :
-                                <span x-text="timer.minutes">{{ $component->minutes() }}</span>m :
-                                <span x-text="timer.seconds">{{ $component->seconds() }}</span>s
-                            </x-countdown>
+                        <div class="text-red-500" wire:ignore
+                            x-data="{
+                                expiry: new Date('{{ $check_out_date->toIso8601String() }}').getTime(),
+                                days: 0,
+                                hours: 0,
+                                minutes: 0,
+                                seconds: 0,
+                                init() {
+                                    this.update();
+                                    setInterval(() => this.update(), 1000);
+                                },
+                                update() {
+                                    let diff = Math.max(0, Math.floor((this.expiry - Date.now()) / 1000));
+                                    this.days = Math.floor(diff / 86400);
+                                    this.hours = Math.floor((diff % 86400) / 3600);
+                                    this.minutes = Math.floor((diff % 3600) / 60);
+                                    this.seconds = diff % 60;
+                                }
+                            }">
+                            <span x-text="days">0</span>d :
+                            <span x-text="hours">0</span>h :
+                            <span x-text="minutes">0</span>m :
+                            <span x-text="seconds">0</span>s
                         </div>
 
                     @endif
