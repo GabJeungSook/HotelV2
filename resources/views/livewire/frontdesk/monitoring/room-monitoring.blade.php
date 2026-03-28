@@ -210,7 +210,7 @@
                             Grace Period
                         </span>
 
-                        <div class="text-yellow-500">
+                        <div class="text-yellow-500" wire:ignore>
                             <x-countdown :expires="$grace_end">
                                 <span x-text="timer.minutes">{{ $component->minutes() }}</span>m :
                                 <span x-text="timer.seconds">{{ $component->seconds() }}</span>s
@@ -226,7 +226,7 @@
                     @else
 
                         <h1>Time:</h1>
-                        <div class="text-red-500">
+                        <div class="text-red-500" wire:ignore>
                             <x-countdown :expires="$check_out_date">
                                 <span x-text="timer.days">{{ $component->days() }}</span>d :
                                 <span x-text="timer.hours">{{ $component->hours() }}</span>h :
