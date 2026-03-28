@@ -247,35 +247,10 @@ class RoomMonitoring extends Component
         return view('livewire.frontdesk.monitoring.room-monitoring', [
              'rooms' => $this->searchRooms(),
             'kiosks' => $this->searchKiosk(),
-            'checkOutKiosks' =>$this->searchCheckOutKiosk(),
-            'types' => Type::where(
-                'branch_id',
-                auth()->user()->branch_id
-            )->get(),
-            // 'rooms' => Room::where('branch_id', auth()->user()->branch_id)
-            //     ->where('status', 'Available')
-            //     ->when($this->type_id, function ($query) {
-            //         $query->where('type_id', $this->type_id);
-            //     })
-            //     ->get(),
-            'ratess' => Rate::where('branch_id', auth()->user()->branch_id)
-                ->when($this->type_id, function ($query) {
-                    $query->where('type_id', $this->type_id);
-                })
-                ->get(),
-            'roomss' => Room::where('branch_id', auth()->user()->branch_id)
-                ->where('status', 'Available')
-                ->when($this->type_id, function ($query) {
-                    $query->where('type_id', $this->type_id);
-                })
-                ->get(),
-                'floors' => Floor::where('branch_id', auth()->user()->branch_id)
-                ->orderBy('number', 'asc')
-                ->get(),
-                'guests' => Guest::whereHas('checkInDetail', function ($query) {
-                $query->where('is_check_out', false);
-            })->get(),
-            'foods' => Menu::where('branch_id', auth()->user()->branch_id)->get(),
+            // 'checkOutKiosks' =>$this->searchCheckOutKiosk(), // section commented out in Blade
+            'foods' => $this->food_beverages_modal
+                ? Menu::where('branch_id', auth()->user()->branch_id)->get()
+                : collect(),
         ]);
     }
 
@@ -339,7 +314,7 @@ class RoomMonitoring extends Component
     {
         // ---->
 
-        return TemporaryCheckInKiosk::with('guest')
+        return TemporaryCheckInKiosk::with(['guest', 'guest.room'])
             ->where('branch_id', auth()->user()->branch_id)
             ->where('is_opened', false)
             ->where(function ($query) {
@@ -464,7 +439,13 @@ class RoomMonitoring extends Component
             return $query->where('rooms.number', 'like', $this->search);
         })
 
-        ->with('floor')
+        ->with([
+            'floor',
+            'type.rates',
+            'checkInDetails.guest',
+            'latestCheckInDetail.guest',
+            'newGuestReports',
+        ])
 
         ->leftJoin('checkin_details', function ($join) {
             $join->on('rooms.id', '=', 'checkin_details.room_id');
