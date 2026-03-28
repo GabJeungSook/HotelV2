@@ -142,6 +142,14 @@
                     </tr>
                 </tbody>
             </table>
+            <div class="mt-2 flex gap-4">
+                <div class="bg-yellow-50 border border-yellow-300 rounded px-3 py-1.5 text-xs text-yellow-800">
+                    This is number of check-in in Frontdesk shift
+                </div>
+                <div class="bg-yellow-50 border border-yellow-300 rounded px-3 py-1.5 text-xs text-yellow-800">
+                    Over-all based on cleaning time finished
+                </div>
+            </div>
         </div>
 
         {{-- ==================== UNOCCUPIED ROOMS ==================== --}}
@@ -214,6 +222,7 @@
                                 <th class="border border-gray-300 px-2 py-1 text-right">Drinks</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Misc.</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Deposit</th>
+                                <th class="border border-gray-300 px-2 py-1 text-center">Duty Time</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -230,17 +239,31 @@
                                 <td class="border border-gray-300 px-2 py-1 text-right"></td>
                                 <td class="border border-gray-300 px-2 py-1 text-right"></td>
                                 <td class="border border-gray-300 px-2 py-1 text-right"></td>
+                                <td class="border border-gray-300 px-2 py-1 text-center"></td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
             @endforeach
+
+            <div class="mt-2 flex gap-4">
+                <div class="bg-yellow-50 border border-yellow-300 rounded px-3 py-1.5 text-xs text-yellow-800">
+                    Duration of cleaning time, from the time of check-out to finish cleaning.
+                </div>
+                <div class="bg-yellow-50 border border-yellow-300 rounded px-3 py-1.5 text-xs text-yellow-800">
+                    Time done cleaning.
+                </div>
+            </div>
         </div>
 
         {{-- ==================== ROOM BOY ACTIVITY LOGS ==================== --}}
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">ROOM BOY ACTIVITY LOGS</h3>
+
+            <div class="bg-yellow-50 border border-yellow-300 rounded px-3 py-1.5 text-xs text-yellow-800 mb-3">
+                All Roomboy assigned for cleaning during this shift must have their individual names and records here.
+            </div>
 
             <div class="mb-4">
                 <h4 class="text-sm font-bold mb-1">NAME: </h4>
@@ -264,6 +287,14 @@
                         @endfor
                     </tbody>
                 </table>
+                <div class="mt-2 flex gap-4">
+                    <div class="bg-yellow-50 border border-yellow-300 rounded px-3 py-1.5 text-xs text-yellow-800">
+                        Cleaned rooms
+                    </div>
+                    <div class="bg-yellow-50 border border-yellow-300 rounded px-3 py-1.5 text-xs text-yellow-800">
+                        Date/Time Cleaned rooms
+                    </div>
+                </div>
             </div>
         </div>
 
