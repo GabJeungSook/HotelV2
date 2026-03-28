@@ -13,7 +13,7 @@
       <x-native-select wire:model="filter_floor">
         <option selected hidden>Select Floors</option>
         <option value="">All</option>
-        @foreach ($floors as $floor)
+        @foreach ($this->floors as $floor)
           <option value="{{ $floor->id }}" class="uppercase">{{ $floor->numberWithFormat() }}</option>
         @endforeach
       </x-native-select>
@@ -91,7 +91,7 @@
         <tbody class="divide-y divide-gray-200">
           @forelse ($rooms as $room)
             @php
-            $latest_checkInDetails = $room->checkInDetails->sortByDesc('created_at')->first();
+            $latest_checkInDetails = $room->latestCheckInDetail;
             $has_check_out = $room->latestCheckInDetail?->guest->has_kiosk_check_out;
             // if($room->checkInDetails->first() != null)
             if($room->latestCheckInDetail != null)
@@ -688,7 +688,7 @@
               <div class="space-y-4">
                 <x-native-select label="Item" wire:model="food_id">
                   <option>Select Item</option>
-                  @forelse($foods as $food)
+                  @forelse($this->foods as $food)
                     <option value="{{ $food->id }}">{{ $food->name }}</option>
                   @empty
                     <option>No Items Yet</option>

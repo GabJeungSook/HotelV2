@@ -242,40 +242,55 @@ class RoomMonitoring extends Component
         // return redirect()->route('kitchen.transactions');
     }
 
+    public function getTypesProperty()
+    {
+        return Type::where('branch_id', auth()->user()->branch_id)->get();
+    }
+
+    public function getRatessProperty()
+    {
+        return Rate::where('branch_id', auth()->user()->branch_id)
+            ->when($this->type_id, function ($query) {
+                $query->where('type_id', $this->type_id);
+            })
+            ->get();
+    }
+
+    public function getRoomssProperty()
+    {
+        return Room::where('branch_id', auth()->user()->branch_id)
+            ->where('status', 'Available')
+            ->when($this->type_id, function ($query) {
+                $query->where('type_id', $this->type_id);
+            })
+            ->get();
+    }
+
+    public function getFloorsProperty()
+    {
+        return Floor::where('branch_id', auth()->user()->branch_id)
+            ->orderBy('number', 'asc')
+            ->get();
+    }
+
+    public function getGuestsProperty()
+    {
+        return Guest::whereHas('checkInDetail', function ($query) {
+            $query->where('is_check_out', false);
+        })->get();
+    }
+
+    public function getFoodsProperty()
+    {
+        return Menu::where('branch_id', auth()->user()->branch_id)->get();
+    }
+
     public function render()
     {
         return view('livewire.frontdesk.monitoring.room-monitoring', [
-             'rooms' => $this->searchRooms(),
+            'rooms' => $this->searchRooms(),
             'kiosks' => $this->searchKiosk(),
-            'checkOutKiosks' =>$this->searchCheckOutKiosk(),
-            'types' => Type::where(
-                'branch_id',
-                auth()->user()->branch_id
-            )->get(),
-            // 'rooms' => Room::where('branch_id', auth()->user()->branch_id)
-            //     ->where('status', 'Available')
-            //     ->when($this->type_id, function ($query) {
-            //         $query->where('type_id', $this->type_id);
-            //     })
-            //     ->get(),
-            'ratess' => Rate::where('branch_id', auth()->user()->branch_id)
-                ->when($this->type_id, function ($query) {
-                    $query->where('type_id', $this->type_id);
-                })
-                ->get(),
-            'roomss' => Room::where('branch_id', auth()->user()->branch_id)
-                ->where('status', 'Available')
-                ->when($this->type_id, function ($query) {
-                    $query->where('type_id', $this->type_id);
-                })
-                ->get(),
-                'floors' => Floor::where('branch_id', auth()->user()->branch_id)
-                ->orderBy('number', 'asc')
-                ->get(),
-                'guests' => Guest::whereHas('checkInDetail', function ($query) {
-                $query->where('is_check_out', false);
-            })->get(),
-            'foods' => Menu::where('branch_id', auth()->user()->branch_id)->get(),
+            'checkOutKiosks' => $this->searchCheckOutKiosk(),
         ]);
     }
 
@@ -298,10 +313,10 @@ class RoomMonitoring extends Component
 
     public function checkInGuest()
     {
-        $transaction = Guest::whereYear(
-            'created_at',
-            \Carbon\Carbon::today()->year
-        )->count();
+        $transaction = Guest::whereBetween('created_at', [
+            Carbon::now()->startOfYear(),
+            Carbon::now()->endOfYear(),
+        ])->count();
         $transaction += 1;
         $transaction_code =
             auth()->user()->branch_id .
@@ -316,20 +331,18 @@ class RoomMonitoring extends Component
                 'room_id' => 'required',
                 'rate_id' => 'required',
             ]);
+            $room = Room::find($this->room_id);
+            $rate = Rate::with('stayingHour')->find($this->rate_id);
             $this->checkInDetails = [
                 'transaction_code' => $transaction_code,
                 'guest_name' => $this->name,
                 'guest_contact_number' => $this->contact_number,
                 'room_id' => $this->room_id,
-                'room' => Room::where('id', $this->room_id)
-                    ->first()
-                    ->numberWithFormat(),
+                'room' => $room->numberWithFormat(),
                 'type_id' => $this->type_id,
                 'rate_id' => $this->rate_id,
-                'rate' => Rate::where('id', $this->rate_id)->first()
-                    ->stayingHour->number,
-                'room_rate' => Rate::where('id', $this->rate_id)->first()
-                    ->amount,
+                'rate' => $rate->stayingHour->number,
+                'room_rate' => $rate->amount,
             ];
             $this->guestCheckInModal = true;
         }
@@ -359,7 +372,7 @@ class RoomMonitoring extends Component
 
     public function searchCheckOutKiosk()
     {
-          return Room::with('guest')
+          return Room::with(['guest', 'guest.checkInDetail'])
             ->where('branch_id', auth()->user()->branch_id)
             ->whereHas('guest', function ($query) {
                 $query->where('has_kiosk_check_out', true);
@@ -449,7 +462,21 @@ class RoomMonitoring extends Component
 
     public function searchRooms()
     {
-        return Room::where('rooms.branch_id', auth()->user()->branch_id)
+        $branchId = auth()->user()->branch_id;
+
+        $latestCheckin = CheckinDetail::selectRaw('
+                checkin_details.room_id,
+                checkin_details.check_out_at,
+                checkin_details.guest_id
+            ')
+            ->whereRaw('checkin_details.id = (
+                SELECT cd2.id FROM checkin_details cd2
+                WHERE cd2.room_id = checkin_details.room_id
+                AND (cd2.is_check_out = 0 OR cd2.is_check_out IS NULL)
+                ORDER BY cd2.created_at DESC LIMIT 1
+            )');
+
+        return Room::where('rooms.branch_id', $branchId)
         ->where('rooms.status', 'Occupied')
 
         ->when($this->filter_status, function ($query) {
@@ -461,35 +488,28 @@ class RoomMonitoring extends Component
         })
 
         ->when($this->search, function ($query) {
-            return $query->where('rooms.number', 'like', $this->search);
+            return $query->where('rooms.number', 'like', '%' . $this->search . '%');
         })
 
-        ->with('floor')
+        ->with([
+            'floor',
+            'type.rates',
+            'latestCheckInDetail.guest',
+            'newGuestReports' => function ($query) {
+                $query->latest()->limit(1);
+            },
+        ])
 
-        ->leftJoin('checkin_details', function ($join) {
-            $join->on('rooms.id', '=', 'checkin_details.room_id');
+        ->leftJoinSub($latestCheckin, 'lcd', function ($join) {
+            $join->on('rooms.id', '=', 'lcd.room_id');
         })
+        ->leftJoin('guests', 'lcd.guest_id', '=', 'guests.id')
 
-        ->leftJoin('guests', function ($join) {
-            $join->on('checkin_details.guest_id', '=', 'guests.id');
-        })
+        ->select('rooms.*')
+        ->selectRaw('lcd.check_out_at')
+        ->selectRaw('CASE WHEN guests.has_kiosk_check_out = 1 THEN 1 ELSE 0 END AS has_kiosk_priority')
 
-        ->selectRaw('
-            rooms.*,
-            COALESCE(checkin_details.check_out_at, NULL) AS check_out_at,
-            (CASE WHEN rooms.status = "Occupied" THEN 1 ELSE 0 END) AS is_occupied,
-            (CASE WHEN guests.has_kiosk_check_out = 1 THEN 1 ELSE 0 END) AS has_kiosk_priority
-        ')
-
-        ->whereRaw('(checkin_details.is_check_out IS NULL OR checkin_details.is_check_out = 0)')
-
-        ->orderByRaw('
-            has_kiosk_priority DESC,
-            is_occupied DESC,
-            check_out_at ASC
-        ')
-
-        ->distinct()
+        ->orderByRaw('has_kiosk_priority DESC, lcd.check_out_at ASC')
         ->paginate(10);
 
 
