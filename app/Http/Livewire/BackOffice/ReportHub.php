@@ -49,6 +49,10 @@ class ReportHub extends Component
                 'label' => 'Inventory Report',
                 'component' => 'back-office.inventory-report',
             ],
+            'big-boss' => [
+                'label' => 'Big Boss Report',
+                'component' => 'back-office.reports.big-boss-report',
+            ],
         ];
     }
 
