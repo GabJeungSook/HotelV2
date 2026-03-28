@@ -266,12 +266,6 @@ class RoomMonitoring extends Component
             ->get();
     }
 
-    public function getFloorsProperty()
-    {
-        return Floor::where('branch_id', auth()->user()->branch_id)
-            ->orderBy('number', 'asc')
-            ->get();
-    }
 
     public function getGuestsProperty()
     {
@@ -290,7 +284,7 @@ class RoomMonitoring extends Component
         return view('livewire.frontdesk.monitoring.room-monitoring', [
             'rooms' => $this->searchRooms(),
             'kiosks' => $this->searchKiosk(),
-            'checkOutKiosks' => $this->searchCheckOutKiosk(),
+            // 'checkOutKiosks' => $this->searchCheckOutKiosk(), // HTML-commented out in Blade
         ]);
     }
 
@@ -352,7 +346,7 @@ class RoomMonitoring extends Component
     {
         // ---->
 
-        return TemporaryCheckInKiosk::with('guest')
+        return TemporaryCheckInKiosk::with(['guest', 'guest.room'])
             ->where('branch_id', auth()->user()->branch_id)
             ->where('is_opened', false)
             ->where(function ($query) {
@@ -496,7 +490,7 @@ class RoomMonitoring extends Component
             'type.rates',
             'latestCheckInDetail.guest',
             'newGuestReports' => function ($query) {
-                $query->latest()->limit(1);
+                $query->latest();
             },
         ])
 

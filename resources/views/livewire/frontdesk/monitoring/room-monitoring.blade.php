@@ -13,7 +13,7 @@
       <x-native-select wire:model="filter_floor">
         <option selected hidden>Select Floors</option>
         <option value="">All</option>
-        @foreach ($this->floors as $floor)
+        @foreach ($floors as $floor)
           <option value="{{ $floor->id }}" class="uppercase">{{ $floor->numberWithFormat() }}</option>
         @endforeach
       </x-native-select>
@@ -706,6 +706,7 @@
     </x-modal>
 
     <x-modal wire:model.defer="food_beverages_modal" align="center">
+        @if($food_beverages_modal)
         <x-card>
           <div>
             <div class="header flex space-x-1 border-b items-end justify-between py-0.5">
@@ -749,6 +750,7 @@
             </div>
           </x-slot>
         </x-card>
+        @endif
       </x-modal>
 
   </div>
