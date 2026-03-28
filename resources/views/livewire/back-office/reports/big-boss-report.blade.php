@@ -88,82 +88,38 @@
         {{-- ==================== SUMMARY TABLE ==================== --}}
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">SUMMARY</h3>
-            <table class="w-full border-collapse border border-gray-300 text-sm">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-3 py-2 text-left">DETAILS</th>
-                        <th class="border border-gray-300 px-3 py-2 text-center">FIRST FLOOR</th>
-                        <th class="border border-gray-300 px-3 py-2 text-center">SECOND FLOOR</th>
-                        <th class="border border-gray-300 px-3 py-2 text-center">THIRD FLOOR</th>
-                        <th class="border border-gray-300 px-3 py-2 text-center">FOURTH FLOOR</th>
-                        <th class="border border-gray-300 px-3 py-2 text-center">FIFTH FLOOR</th>
-                        <th class="border border-gray-300 px-3 py-2 text-center">NO ROOM</th>
-                        <th class="border border-gray-300 px-3 py-2 text-center">TOTAL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="border border-gray-300 px-3 py-2 font-semibold">ROOM</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                    </tr>
-                    <tr>
-                        <td class="border border-gray-300 px-3 py-2 font-semibold">FOODS</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                    </tr>
-                    <tr>
-                        <td class="border border-gray-300 px-3 py-2 font-semibold">DRINKS</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                    </tr>
-                    <tr>
-                        <td class="border border-gray-300 px-3 py-2 font-semibold">MISCELLANEOUS</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                    </tr>
-                    <tr class="bg-gray-50">
-                        <td class="border border-gray-300 px-3 py-2 font-bold">GROSS TOTAL</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center font-bold"></td>
-                    </tr>
-                    <tr class="bg-gray-50">
-                        <td class="border border-gray-300 px-3 py-2 font-bold">TOTAL DEPOSIT</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-center font-bold"></td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse border border-gray-300 text-sm">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="border border-gray-300 px-3 py-2 text-left">DETAILS</th>
+                            @foreach($floors as $floor)
+                                <th class="border border-gray-300 px-3 py-2 text-center">{{ strtoupper($floor->numberWithFormat()) }}</th>
+                            @endforeach
+                            <th class="border border-gray-300 px-3 py-2 text-center">NO ROOM</th>
+                            <th class="border border-gray-300 px-3 py-2 text-center">TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($summaryRows as $row)
+                            <tr class="{{ in_array($row['label'], ['GROSS TOTAL', 'TOTAL DEPOSIT']) ? 'bg-gray-50' : '' }}">
+                                <td class="border border-gray-300 px-3 py-2 {{ in_array($row['label'], ['GROSS TOTAL', 'TOTAL DEPOSIT']) ? 'font-bold' : 'font-semibold' }}">{{ $row['label'] }}</td>
+                                @foreach($floors as $floor)
+                                    <td class="border border-gray-300 px-3 py-2 text-center">
+                                        {{ ($row['floors'][$floor->id] ?? 0) > 0 ? number_format($row['floors'][$floor->id], 2) : '' }}
+                                    </td>
+                                @endforeach
+                                <td class="border border-gray-300 px-3 py-2 text-center">
+                                    {{ ($row['no_room'] ?? 0) > 0 ? number_format($row['no_room'], 2) : '' }}
+                                </td>
+                                <td class="border border-gray-300 px-3 py-2 text-center {{ in_array($row['label'], ['GROSS TOTAL', 'TOTAL DEPOSIT']) ? 'font-bold' : '' }}">
+                                    {{ $row['total'] > 0 ? number_format($row['total'], 2) : '' }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
             <p class="text-xs text-gray-500 mt-1 italic">Those Foods and Drinks that was not charge in individual rooms. Process through POS</p>
         </div>
 
@@ -179,15 +135,15 @@
                 <tbody>
                     <tr>
                         <td class="border border-gray-300 px-3 py-2">TOTAL NEW GUEST</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
+                        <td class="border border-gray-300 px-3 py-2 text-center">{{ $totalNewGuest }}</td>
                     </tr>
                     <tr>
                         <td class="border border-gray-300 px-3 py-2">TOTAL EXTENDED GUEST</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
+                        <td class="border border-gray-300 px-3 py-2 text-center">{{ $totalExtendedGuest }}</td>
                     </tr>
                     <tr>
                         <td class="border border-gray-300 px-3 py-2">TOTAL # OF UNOCCUPIED ROOM</td>
-                        <td class="border border-gray-300 px-3 py-2 text-center"></td>
+                        <td class="border border-gray-300 px-3 py-2 text-center">{{ $totalUnoccupiedRooms }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -196,19 +152,19 @@
         {{-- ==================== UNOCCUPIED ROOMS ==================== --}}
         <div class="mb-4">
             <h3 class="text-sm font-bold mb-1">UNOCCUPIED ROOMS</h3>
-            <p class="border-b border-gray-400 pb-1 text-sm min-h-[1.5rem]"></p>
+            <p class="border-b border-gray-400 pb-1 text-sm min-h-[1.5rem]">{{ $unoccupiedRoomNumbers }}</p>
         </div>
 
         {{-- ==================== ROOM CLEANING ORDER ==================== --}}
         <div class="mb-4">
             <h3 class="text-sm font-bold mb-1">ROOM CLEANING ORDER</h3>
-            <p class="border-b border-gray-400 pb-1 text-sm min-h-[1.5rem]"></p>
+            <p class="border-b border-gray-400 pb-1 text-sm min-h-[1.5rem]">{{ $cleaningOrder }}</p>
         </div>
 
         {{-- ==================== ROOM UNDER REPAIR ==================== --}}
         <div class="mb-6">
             <h3 class="text-sm font-bold mb-1">ROOM UNDER REPAIR</h3>
-            <p class="border-b border-gray-400 pb-1 text-sm min-h-[1.5rem]"></p>
+            <p class="border-b border-gray-400 pb-1 text-sm min-h-[1.5rem]">{{ $maintenanceRooms }}</p>
         </div>
 
         {{-- ==================== EXPENSES ==================== --}}
@@ -224,17 +180,21 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @for ($i = 1; $i <= 7; $i++)
+                    @forelse($expenses as $i => $expense)
                     <tr>
-                        <td class="border border-gray-300 px-3 py-2">{{ $i }}.</td>
-                        <td class="border border-gray-300 px-3 py-2"></td>
-                        <td class="border border-gray-300 px-3 py-2"></td>
-                        <td class="border border-gray-300 px-3 py-2 text-right"></td>
+                        <td class="border border-gray-300 px-3 py-2">{{ $i + 1 }}.</td>
+                        <td class="border border-gray-300 px-3 py-2">{{ $expense->expenseCategory?->name ?? '' }}</td>
+                        <td class="border border-gray-300 px-3 py-2">{{ $expense->description ?? '' }}</td>
+                        <td class="border border-gray-300 px-3 py-2 text-right">{{ number_format($expense->amount, 2) }}</td>
                     </tr>
-                    @endfor
+                    @empty
+                    <tr>
+                        <td colspan="4" class="border border-gray-300 px-3 py-2 text-center text-gray-400 italic">No expenses</td>
+                    </tr>
+                    @endforelse
                     <tr class="bg-gray-50">
                         <td colspan="3" class="border border-gray-300 px-3 py-2 font-bold text-right">TOTAL EXPENSES</td>
-                        <td class="border border-gray-300 px-3 py-2 text-right font-bold"></td>
+                        <td class="border border-gray-300 px-3 py-2 text-right font-bold">{{ number_format($expensesTotal, 2) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -244,9 +204,9 @@
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">FRONTDESK CHART</h3>
 
-            @foreach (['1st Floor', '2nd Floor', '3rd Floor', '4th Floor', '5th Floor'] as $floor)
+            @foreach($frontdeskChart as $floorGroup)
             <div class="mb-4">
-                <h4 class="text-sm font-bold mb-1">{{ $floor }}</h4>
+                <h4 class="text-sm font-bold mb-1">{{ $floorGroup['floor']->numberWithFormat() }}</h4>
                 <div class="overflow-x-auto">
                     <table class="w-full border-collapse border border-gray-300 text-xs">
                         <thead>
@@ -267,21 +227,27 @@
                             </tr>
                         </thead>
                         <tbody>
+                            @forelse($floorGroup['rooms'] as $room)
                             <tr>
-                                <td class="border border-gray-300 px-2 py-1">&nbsp;</td>
-                                <td class="border border-gray-300 px-2 py-1"></td>
-                                <td class="border border-gray-300 px-2 py-1"></td>
-                                <td class="border border-gray-300 px-2 py-1"></td>
-                                <td class="border border-gray-300 px-2 py-1"></td>
-                                <td class="border border-gray-300 px-2 py-1"></td>
-                                <td class="border border-gray-300 px-2 py-1"></td>
-                                <td class="border border-gray-300 px-2 py-1 text-right"></td>
-                                <td class="border border-gray-300 px-2 py-1 text-right"></td>
-                                <td class="border border-gray-300 px-2 py-1 text-right"></td>
-                                <td class="border border-gray-300 px-2 py-1 text-right"></td>
-                                <td class="border border-gray-300 px-2 py-1 text-right"></td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['number'] }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['type'] }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['rate'] ? number_format($room['rate'], 0) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['status'] }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['guest'] }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['check_in'] }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['check_out'] }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['room_rate'] > 0 ? number_format($room['room_rate'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['foods'] > 0 ? number_format($room['foods'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['drinks'] > 0 ? number_format($room['drinks'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['misc'] > 0 ? number_format($room['misc'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['deposit'] > 0 ? number_format($room['deposit'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-center"></td>
                             </tr>
+                            @empty
+                            <tr>
+                                <td colspan="13" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
+                            </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
@@ -310,8 +276,9 @@
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">ROOM BOY ACTIVITY LOGS</h3>
 
+            @forelse($roomboyLogs as $log)
             <div class="mb-4">
-                <h4 class="text-sm font-bold mb-1">NAME: </h4>
+                <h4 class="text-sm font-bold mb-1">NAME: {{ $log['name'] }}</h4>
                 <table class="w-full border-collapse border border-gray-300 text-sm">
                     <thead>
                         <tr class="bg-gray-100">
@@ -322,17 +289,20 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @for ($i = 1; $i <= 5; $i++)
+                        @foreach($log['entries'] as $entry)
                         <tr>
-                            <td class="border border-gray-300 px-3 py-1">{{ $i }}</td>
-                            <td class="border border-gray-300 px-3 py-1"></td>
-                            <td class="border border-gray-300 px-3 py-1"></td>
-                            <td class="border border-gray-300 px-3 py-1"></td>
+                            <td class="border border-gray-300 px-3 py-1">{{ $entry['number'] }}</td>
+                            <td class="border border-gray-300 px-3 py-1">{{ $entry['room_number'] }}</td>
+                            <td class="border border-gray-300 px-3 py-1">{{ $entry['floor_number'] }}</td>
+                            <td class="border border-gray-300 px-3 py-1">{{ $entry['date_time'] }}</td>
                         </tr>
-                        @endfor
+                        @endforeach
                     </tbody>
                 </table>
             </div>
+            @empty
+            <p class="text-sm text-gray-400 italic">No room boy activity during this shift.</p>
+            @endforelse
         </div>
 
         {{-- ==================== SIGNATURES ==================== --}}

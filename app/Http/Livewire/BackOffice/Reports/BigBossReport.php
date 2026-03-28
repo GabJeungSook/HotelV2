@@ -4,6 +4,14 @@ namespace App\Http\Livewire\BackOffice\Reports;
 
 use Livewire\Component;
 use App\Models\ShiftLog;
+use App\Models\Floor;
+use App\Models\Room;
+use App\Models\Transaction;
+use App\Models\CheckinDetail;
+use App\Models\NewGuestReport;
+use App\Models\ExtendedGuestReport;
+use App\Models\CleaningHistory;
+use App\Models\Expense;
 use Carbon\Carbon;
 
 class BigBossReport extends Component
@@ -21,7 +29,250 @@ class BigBossReport extends Component
 
     public function updatedSelectedShiftLogId()
     {
-        // Re-render with selected session data
+        // triggers re-render
+    }
+
+    public function render()
+    {
+        $session = $this->getSelectedSession();
+        $reportData = $this->generateReport($session);
+
+        return view('livewire.back-office.reports.big-boss-report', array_merge(
+            ['selectedSession' => $session],
+            $reportData
+        ));
+    }
+
+    private function generateReport(?array $session): array
+    {
+        $empty = [
+            'floors' => collect(),
+            'summaryRows' => [],
+            'totalNewGuest' => 0,
+            'totalExtendedGuest' => 0,
+            'totalUnoccupiedRooms' => 0,
+            'unoccupiedRoomNumbers' => '',
+            'cleaningOrder' => '',
+            'maintenanceRooms' => '',
+            'expenses' => collect(),
+            'expensesTotal' => 0,
+            'frontdeskChart' => [],
+            'roomboyLogs' => [],
+        ];
+
+        if (!$session) {
+            return $empty;
+        }
+
+        $branchId = auth()->user()->branch_id;
+        $timeIn = Carbon::parse($session['time_in']);
+        $timeOut = Carbon::parse($session['time_out']);
+
+        $floors = Floor::where('branch_id', $branchId)->orderBy('number')->get();
+        $allRooms = Room::where('branch_id', $branchId)->with(['floor', 'type'])->get();
+
+        // Occupying guest IDs during this shift
+        $occupyingDetails = CheckinDetail::query()
+            ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
+            ->where('check_in_at', '<=', $timeOut)
+            ->where(function ($q) use ($timeIn) {
+                $q->whereNull('check_out_at')
+                  ->orWhere('check_out_at', '>=', $timeIn);
+            })
+            ->with(['guest', 'room.floor', 'room.type', 'rate'])
+            ->get();
+
+        $occupyingIds = $occupyingDetails->pluck('id')->toArray();
+        $occupiedRoomIds = $occupyingDetails->pluck('room_id')->unique()->toArray();
+
+        // All transactions for occupying guests in this shift
+        $transactions = empty($occupyingIds) ? collect() : Transaction::query()
+            ->whereIn('checkin_detail_id', $occupyingIds)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->get();
+
+        // ===== SUMMARY TABLE =====
+        $summaryRows = $this->buildSummaryRows($floors, $transactions);
+
+        // ===== STATISTICS =====
+        $totalNewGuest = NewGuestReport::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->count();
+
+        $totalExtendedGuest = ExtendedGuestReport::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->count();
+
+        $unoccupiedRooms = $allRooms->whereNotIn('id', $occupiedRoomIds);
+        $totalUnoccupiedRooms = $unoccupiedRooms->count();
+        $unoccupiedRoomNumbers = $unoccupiedRooms->sortBy('number')->pluck('number')->implode(', ');
+
+        // ===== CLEANING ORDER =====
+        $cleaningHistories = CleaningHistory::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->with(['room', 'user'])
+            ->orderBy('created_at')
+            ->get();
+
+        $cleaningOrder = $cleaningHistories->pluck('room.number')->unique()->implode(', ');
+
+        // ===== ROOMS UNDER REPAIR =====
+        $maintenanceRooms = $allRooms->where('status', 'Maintenance')
+            ->sortBy('number')->pluck('number')->implode(', ');
+
+        // ===== EXPENSES =====
+        $expenses = Expense::whereBetween('created_at', [$timeIn, $timeOut])
+            ->with('expenseCategory')
+            ->get();
+        $expensesTotal = (float) $expenses->sum('amount');
+
+        // ===== FRONTDESK CHART =====
+        $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions);
+
+        // ===== ROOM BOY ACTIVITY LOGS =====
+        $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories);
+
+        return [
+            'floors' => $floors,
+            'summaryRows' => $summaryRows,
+            'totalNewGuest' => $totalNewGuest,
+            'totalExtendedGuest' => $totalExtendedGuest,
+            'totalUnoccupiedRooms' => $totalUnoccupiedRooms,
+            'unoccupiedRoomNumbers' => $unoccupiedRoomNumbers,
+            'cleaningOrder' => $cleaningOrder,
+            'maintenanceRooms' => $maintenanceRooms,
+            'expenses' => $expenses,
+            'expensesTotal' => $expensesTotal,
+            'frontdeskChart' => $frontdeskChart,
+            'roomboyLogs' => $roomboyLogs,
+        ];
+    }
+
+    private function buildSummaryRows($floors, $transactions): array
+    {
+        $categories = [
+            'ROOM' => [1, 6],        // Check In + Extend
+            'FOODS' => [9],           // Food and Beverages
+            'DRINKS' => [],           // No separate type
+            'MISCELLANEOUS' => [4, 8], // Damages + Amenities
+        ];
+
+        $rows = [];
+        $grossPerFloor = [];
+        foreach ($floors as $floor) {
+            $grossPerFloor[$floor->id] = 0;
+        }
+        $grossTotal = 0;
+
+        foreach ($categories as $label => $typeIds) {
+            $row = ['label' => $label, 'floors' => [], 'total' => 0];
+            foreach ($floors as $floor) {
+                $amount = empty($typeIds) ? 0 : (float) $transactions
+                    ->whereIn('transaction_type_id', $typeIds)
+                    ->where('floor_id', $floor->id)
+                    ->sum('payable_amount');
+                $row['floors'][$floor->id] = $amount;
+                $row['total'] += $amount;
+                $grossPerFloor[$floor->id] += $amount;
+            }
+            // NO ROOM column (transactions without a floor match)
+            $noRoom = empty($typeIds) ? 0 : (float) $transactions
+                ->whereIn('transaction_type_id', $typeIds)
+                ->whereNotIn('floor_id', $floors->pluck('id')->toArray())
+                ->sum('payable_amount');
+            $row['no_room'] = $noRoom;
+            $row['total'] += $noRoom;
+            $grossTotal += $row['total'];
+            $rows[] = $row;
+        }
+
+        // Gross Total row
+        $grossRow = ['label' => 'GROSS TOTAL', 'floors' => $grossPerFloor, 'no_room' => 0, 'total' => $grossTotal];
+        $noRoomGross = collect($rows)->sum('no_room');
+        $grossRow['no_room'] = $noRoomGross;
+        $rows[] = $grossRow;
+
+        // Deposit row
+        $depositRow = ['label' => 'TOTAL DEPOSIT', 'floors' => [], 'total' => 0, 'no_room' => 0];
+        foreach ($floors as $floor) {
+            $amount = (float) $transactions
+                ->where('transaction_type_id', 2)
+                ->where('floor_id', $floor->id)
+                ->sum('payable_amount');
+            $depositRow['floors'][$floor->id] = $amount;
+            $depositRow['total'] += $amount;
+        }
+        $rows[] = $depositRow;
+
+        return $rows;
+    }
+
+    private function buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions): array
+    {
+        $chart = [];
+
+        foreach ($floors as $floor) {
+            $floorRooms = $allRooms->where('floor_id', $floor->id)->sortBy('number');
+            $floorData = [];
+
+            foreach ($floorRooms as $room) {
+                $checkin = $occupyingDetails->where('room_id', $room->id)->sortByDesc('created_at')->first();
+
+                $roomTxns = $transactions->where('room_id', $room->id);
+
+                $status = $checkin ? 'Occupied' : $room->status;
+                if ($checkin && $checkin->check_in_at < $transactions->min('created_at')) {
+                    $status = 'Forwarded';
+                }
+
+                $floorData[] = [
+                    'number' => $room->number,
+                    'type' => $room->type->name ?? '',
+                    'rate' => $checkin?->rate?->amount ?? '',
+                    'status' => $checkin ? 'Occupied' : $room->status,
+                    'guest' => $checkin?->guest?->name ?? '',
+                    'check_in' => $checkin?->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
+                    'check_out' => $checkin?->check_out_at ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
+                    'room_rate' => (float) $roomTxns->whereIn('transaction_type_id', [1, 6])->sum('payable_amount'),
+                    'foods' => (float) $roomTxns->where('transaction_type_id', 9)->sum('payable_amount'),
+                    'drinks' => 0,
+                    'misc' => (float) $roomTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),
+                    'deposit' => (float) $roomTxns->where('transaction_type_id', 2)->sum('payable_amount'),
+                ];
+            }
+
+            $chart[] = [
+                'floor' => $floor,
+                'rooms' => $floorData,
+            ];
+        }
+
+        return $chart;
+    }
+
+    private function buildRoomboyLogs($cleaningHistories): array
+    {
+        $grouped = $cleaningHistories->groupBy('user_id');
+        $logs = [];
+
+        foreach ($grouped as $userId => $histories) {
+            $roomboy = $histories->first()->user;
+            $entries = [];
+            foreach ($histories->values() as $i => $h) {
+                $entries[] = [
+                    'number' => $i + 1,
+                    'room_number' => $h->room?->number ?? '',
+                    'floor_number' => $h->room?->floor?->number ?? $h->floor_id,
+                    'date_time' => $h->created_at?->format('n/j/y h:i A') ?? '',
+                ];
+            }
+            $logs[] = [
+                'name' => strtoupper($roomboy?->name ?? 'Unknown'),
+                'entries' => $entries,
+            ];
+        }
+
+        return $logs;
     }
 
     private function loadAvailableShiftSessions(): void
@@ -42,7 +293,6 @@ class BigBossReport extends Component
             if (!isset($sessions[$key])) {
                 $sessions[$key] = [
                     'id' => $log->id,
-                    'logs' => [],
                     'log_ids' => [],
                     'time_in' => $log->time_in,
                     'time_out' => $log->time_out,
@@ -52,7 +302,6 @@ class BigBossReport extends Component
                 ];
             }
 
-            $sessions[$key]['logs'][] = $log;
             $sessions[$key]['log_ids'][] = $log->id;
             $sessions[$key]['frontdesks'][] = $log->frontdesk?->name ?? 'Unknown';
 
@@ -68,7 +317,6 @@ class BigBossReport extends Component
             ->sortBy('time_in')
             ->map(function ($s) {
                 $frontdeskNames = implode(', ', array_unique($s['frontdesks']));
-
                 return [
                     'id' => $s['log_ids'][0],
                     'log_ids' => $s['log_ids'],
@@ -99,12 +347,5 @@ class BigBossReport extends Component
     {
         return collect($this->availableShiftSessions)
             ->firstWhere('id', $this->selectedShiftLogId);
-    }
-
-    public function render()
-    {
-        return view('livewire.back-office.reports.big-boss-report', [
-            'selectedSession' => $this->getSelectedSession(),
-        ]);
     }
 }
