@@ -494,7 +494,7 @@ class RoomMonitoring extends Component
             },
         ])
 
-        ->leftJoinSub($latestCheckin, 'lcd', function ($join) {
+        ->joinSub($latestCheckin, 'lcd', function ($join) {
             $join->on('rooms.id', '=', 'lcd.room_id');
         })
         ->leftJoin('guests', 'lcd.guest_id', '=', 'guests.id')
