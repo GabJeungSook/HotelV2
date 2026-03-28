@@ -67,6 +67,11 @@ class Room extends Model
         });
     }
 
+    public function lastCheckInDetail()
+    {
+        return $this->hasOne(CheckinDetail::class)->latestOfMany('created_at');
+    }
+
     public function checkInDetail()
     {
         return $this->hasOne(CheckinDetail::class);

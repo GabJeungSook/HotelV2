@@ -489,12 +489,13 @@ class RoomMonitoring extends Component
             'floor',
             'type.rates',
             'latestCheckInDetail.guest',
+            'lastCheckInDetail.guest',
             'newGuestReports' => function ($query) {
                 $query->latest();
             },
         ])
 
-        ->joinSub($latestCheckin, 'lcd', function ($join) {
+        ->leftJoinSub($latestCheckin, 'lcd', function ($join) {
             $join->on('rooms.id', '=', 'lcd.room_id');
         })
         ->leftJoin('guests', 'lcd.guest_id', '=', 'guests.id')

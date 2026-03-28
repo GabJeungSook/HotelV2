@@ -91,16 +91,13 @@
         <tbody class="divide-y divide-gray-200">
           @forelse ($rooms as $room)
             @php
-            $latest_checkInDetails = $room->latestCheckInDetail;
-            $has_check_out = $room->latestCheckInDetail?->guest->has_kiosk_check_out;
-            // if($room->checkInDetails->first() != null)
-            if($room->latestCheckInDetail != null)
+            $activeCheckIn = $room->latestCheckInDetail ?? $room->lastCheckInDetail;
+            $has_check_out = $activeCheckIn?->guest->has_kiosk_check_out;
+            if($activeCheckIn != null)
             {
-                $check_out_date = Carbon\Carbon::parse($room->latestCheckInDetail->check_out_at);
-                // $check_out_date = Carbon\Carbon::parse($room->checkInDetails->first()->check_out_at);
+                $check_out_date = Carbon\Carbon::parse($activeCheckIn->check_out_at);
                 $one_hour_before = $check_out_date->subHour();
                 $date_now = Carbon\Carbon::now();
-                // $is_true = $date_now->isSameHour($one_hour_before);
                 $is_true = $date_now->gt($check_out_date);
             }else{
                 $check_out_date = null;
@@ -129,23 +126,23 @@
              </td> --}}
              <td class="whitespace-nowrap px-3 py-3 text-sm text-gray-500">
                 {{ $room->type->name }}
-                <p class="text-sm text-gray-500 font-normal">  ₱ {{ $room->status ===  'Occupied' ? number_format($room->latestCheckInDetail?->guest->static_amount, 2) ?? 0.00 : number_format($room->type->rates->first()->amount, 2) }}</p>
+                <p class="text-sm text-gray-500 font-normal">  ₱ {{ $room->status ===  'Occupied' ? number_format($activeCheckIn?->guest->static_amount, 2) ?? 0.00 : number_format($room->type->rates->first()->amount, 2) }}</p>
              </td>
              <td class="whitespace-nowrap px-3 py-3 text-sm text-gray-500">
                 {{-- @if ($room->status == 'Occupied' && $room->checkInDetails->first() != null) --}}
-                @if ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
+                @if ($room->status == 'Occupied' && $activeCheckIn != null)
                     {{-- {{ $room->guest->first()->name }} --}}
-                    {{ $room->latestCheckInDetail->guest->name }}
+                    {{ $activeCheckIn->guest->name }}
                     <p class="text-sm text-gray-500 font-normal">
                         {{-- {{ $room->guest->first()->contact }} --}}
-                        {{ $room->latestCheckInDetail->guest->contact }}
+                        {{ $activeCheckIn->guest->contact }}
                     </p>
                 @endif
 
              </td>
              <td class="whitespace-nowrap px-3 py-3 text-sm text-gray-500">
                 {{-- @if ($room->status == 'Occupied' && $room->checkInDetails->first() != null) --}}
-                @if ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
+                @if ($room->status == 'Occupied' && $activeCheckIn != null)
                     {{ $room->newGuestReports->first()?->shift }}
                 @endif
 
@@ -188,7 +185,7 @@
 
                 @php
                 //   $check_out_date = Carbon\Carbon::parse($room->checkInDetails->first()->check_out_at ?? null);
-                  $check_out_date = Carbon\Carbon::parse($room->latestCheckInDetail->check_out_at ?? null);
+                  $check_out_date = Carbon\Carbon::parse($activeCheckIn->check_out_at ?? null);
                 @endphp
 
                 @if ($room->status == 'Occupied')
@@ -271,22 +268,22 @@
 
               <td class="whitespace-nowrap rounded-r-lg px-3 py-3 text-sm text-gray-500">
                 {{-- @if ($room->status == 'Occupied' && $room->checkInDetails->first() != null) --}}
-                @if ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
+                @if ($room->status == 'Occupied' && $activeCheckIn != null)
                   <div class="flex space-x-2">
                     @if($is_true)
                     {{-- <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->guest->first()->id]) }}" sm icon="" label="Extend" negative /> --}}
-                    <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->latestCheckInDetail->guest_id]) }}" sm icon="" label="Extend" negative />
+                    <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $activeCheckIn->guest_id]) }}" sm icon="" label="Extend" negative />
 
                     @endif
                     {{-- <x-button wire:click="viewDetails({{ $room->guest->first()->id }})" sm icon="eye" warning /> --}}
-                    <x-button wire:click="viewDetails({{ $room->latestCheckInDetail->guest_id }})" sm icon="eye" warning />
+                    <x-button wire:click="viewDetails({{ $activeCheckIn->guest_id }})" sm icon="eye" warning />
                     {{-- <x-button href="{{ route('frontdesk.manage-guest', ['id' => $room->checkInDetails->first()->guest_id]) }}" label="Manage" class="hidden" positive sm right-icon="arrow-narrow-right" /> --}}
                         @if (auth()->user()->hasRole('frontdesk'))
                         {{-- <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->guest->first()->id]) }}" label="Manage" positive sm right-icon="arrow-narrow-right" /> --}}
-                        <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->latestCheckInDetail->guest_id]) }}" label="Manage" positive sm right-icon="arrow-narrow-right" />
+                        <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $activeCheckIn->guest_id]) }}" label="Manage" positive sm right-icon="arrow-narrow-right" />
                         @else
                         {{-- <x-button wire:click="addTransaction({{$room->guest->first()->id}})" label="Add Transaction" slate sm right-icon="arrow-narrow-right" /> --}}
-                        <x-button wire:click="addTransaction({{$room->latestCheckInDetail->guest_id}})" label="Add Transaction" slate sm right-icon="arrow-narrow-right" />
+                        <x-button wire:click="addTransaction({{$activeCheckIn->guest_id}})" label="Add Transaction" slate sm right-icon="arrow-narrow-right" />
                         @endif
                   </div>
                 @elseif($room->status == 'Reserved')
