@@ -1,5 +1,24 @@
 <div class="max-w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
 
+    {{-- Shift Selector --}}
+    <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 p-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select Shift</label>
+                <select wire:model="selectedShiftLogId"
+                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">-- Select a completed shift --</option>
+                    @foreach($availableShiftSessions as $session)
+                        <option value="{{ $session['id'] }}">{{ $session['label'] }}</option>
+                    @endforeach
+                </select>
+                @if(empty($availableShiftSessions))
+                    <p class="text-xs text-gray-500 mt-1">No completed shifts found.</p>
+                @endif
+            </div>
+        </div>
+    </div>
+
     {{-- Report Content --}}
     <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden p-8">
 
@@ -44,23 +63,23 @@
                 <tbody>
                     <tr>
                         <td class="py-1 font-semibold w-48">DATE</td>
-                        <td class="py-1"></td>
+                        <td class="py-1">{{ $selectedSession['date_formatted'] ?? '' }}</td>
                     </tr>
                     <tr>
                         <td class="py-1 font-semibold">FRONTDESK</td>
-                        <td class="py-1"></td>
+                        <td class="py-1">{{ $selectedSession['frontdesks'] ?? '' }}</td>
                     </tr>
                     <tr>
                         <td class="py-1 font-semibold">SHIFT</td>
-                        <td class="py-1"></td>
+                        <td class="py-1">{{ $selectedSession['shift_type'] ?? '' }}</td>
                     </tr>
                     <tr>
                         <td class="py-1 font-semibold">TIME LOGGED IN</td>
-                        <td class="py-1"></td>
+                        <td class="py-1">{{ $selectedSession['time_in_formatted'] ?? '' }}</td>
                     </tr>
                     <tr>
                         <td class="py-1 font-semibold">TIME LOGGED OUT</td>
-                        <td class="py-1"></td>
+                        <td class="py-1">{{ $selectedSession['time_out_formatted'] ?? '' }}</td>
                     </tr>
                 </tbody>
             </table>
