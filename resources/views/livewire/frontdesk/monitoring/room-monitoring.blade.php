@@ -91,13 +91,16 @@
         <tbody class="divide-y divide-gray-200">
           @forelse ($rooms as $room)
             @php
-            $activeCheckIn = $room->latestCheckInDetail ?? $room->lastCheckInDetail;
-            $has_check_out = $activeCheckIn?->guest->has_kiosk_check_out;
-            if($activeCheckIn != null)
+            $latest_checkInDetails = $room->checkInDetails->sortByDesc('created_at')->first();
+            $has_check_out = $room->latestCheckInDetail?->guest->has_kiosk_check_out;
+            // if($room->checkInDetails->first() != null)
+            if($room->latestCheckInDetail != null)
             {
-                $check_out_date = Carbon\Carbon::parse($activeCheckIn->check_out_at);
+                $check_out_date = Carbon\Carbon::parse($room->latestCheckInDetail->check_out_at);
+                // $check_out_date = Carbon\Carbon::parse($room->checkInDetails->first()->check_out_at);
                 $one_hour_before = $check_out_date->subHour();
                 $date_now = Carbon\Carbon::now();
+                // $is_true = $date_now->isSameHour($one_hour_before);
                 $is_true = $date_now->gt($check_out_date);
             }else{
                 $check_out_date = null;
@@ -126,23 +129,23 @@
              </td> --}}
              <td class="whitespace-nowrap px-3 py-3 text-sm text-gray-500">
                 {{ $room->type->name }}
-                <p class="text-sm text-gray-500 font-normal">  ₱ {{ $room->status ===  'Occupied' ? number_format($activeCheckIn?->guest->static_amount, 2) ?? 0.00 : number_format($room->type->rates->first()->amount, 2) }}</p>
+                <p class="text-sm text-gray-500 font-normal">  ₱ {{ $room->status ===  'Occupied' ? number_format($room->latestCheckInDetail?->guest->static_amount, 2) ?? 0.00 : number_format($room->type->rates->first()->amount, 2) }}</p>
              </td>
              <td class="whitespace-nowrap px-3 py-3 text-sm text-gray-500">
                 {{-- @if ($room->status == 'Occupied' && $room->checkInDetails->first() != null) --}}
-                @if ($room->status == 'Occupied' && $activeCheckIn != null)
+                @if ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
                     {{-- {{ $room->guest->first()->name }} --}}
-                    {{ $activeCheckIn->guest->name }}
+                    {{ $room->latestCheckInDetail->guest->name }}
                     <p class="text-sm text-gray-500 font-normal">
                         {{-- {{ $room->guest->first()->contact }} --}}
-                        {{ $activeCheckIn->guest->contact }}
+                        {{ $room->latestCheckInDetail->guest->contact }}
                     </p>
                 @endif
 
              </td>
              <td class="whitespace-nowrap px-3 py-3 text-sm text-gray-500">
                 {{-- @if ($room->status == 'Occupied' && $room->checkInDetails->first() != null) --}}
-                @if ($room->status == 'Occupied' && $activeCheckIn != null)
+                @if ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
                     {{ $room->newGuestReports->first()?->shift }}
                 @endif
 
@@ -185,7 +188,7 @@
 
                 @php
                 //   $check_out_date = Carbon\Carbon::parse($room->checkInDetails->first()->check_out_at ?? null);
-                  $check_out_date = Carbon\Carbon::parse($activeCheckIn->check_out_at ?? null);
+                  $check_out_date = Carbon\Carbon::parse($room->latestCheckInDetail->check_out_at ?? null);
                 @endphp
 
                 @if ($room->status == 'Occupied')
@@ -207,23 +210,11 @@
                             Grace Period
                         </span>
 
-                        <div class="text-yellow-500" wire:ignore
-                            x-data="{
-                                expiry: new Date('{{ $grace_end->toIso8601String() }}').getTime(),
-                                minutes: 0,
-                                seconds: 0,
-                                init() {
-                                    this.update();
-                                    setInterval(() => this.update(), 1000);
-                                },
-                                update() {
-                                    let diff = Math.max(0, Math.floor((this.expiry - Date.now()) / 1000));
-                                    this.minutes = Math.floor(diff / 60);
-                                    this.seconds = diff % 60;
-                                }
-                            }">
-                            <span x-text="minutes">0</span>m :
-                            <span x-text="seconds">0</span>s
+                        <div class="text-yellow-500">
+                            <x-countdown :expires="$grace_end">
+                                <span x-text="timer.minutes">{{ $component->minutes() }}</span>m :
+                                <span x-text="timer.seconds">{{ $component->seconds() }}</span>s
+                            </x-countdown>
                         </div>
 
                     @elseif ($has_check_out)
@@ -235,29 +226,13 @@
                     @else
 
                         <h1>Time:</h1>
-                        <div class="text-red-500" wire:ignore
-                            x-data="{
-                                expiry: new Date('{{ $check_out_date->toIso8601String() }}').getTime(),
-                                days: 0,
-                                hours: 0,
-                                minutes: 0,
-                                seconds: 0,
-                                init() {
-                                    this.update();
-                                    setInterval(() => this.update(), 1000);
-                                },
-                                update() {
-                                    let diff = Math.max(0, Math.floor((this.expiry - Date.now()) / 1000));
-                                    this.days = Math.floor(diff / 86400);
-                                    this.hours = Math.floor((diff % 86400) / 3600);
-                                    this.minutes = Math.floor((diff % 3600) / 60);
-                                    this.seconds = diff % 60;
-                                }
-                            }">
-                            <span x-text="days">0</span>d :
-                            <span x-text="hours">0</span>h :
-                            <span x-text="minutes">0</span>m :
-                            <span x-text="seconds">0</span>s
+                        <div class="text-red-500">
+                            <x-countdown :expires="$check_out_date">
+                                <span x-text="timer.days">{{ $component->days() }}</span>d :
+                                <span x-text="timer.hours">{{ $component->hours() }}</span>h :
+                                <span x-text="timer.minutes">{{ $component->minutes() }}</span>m :
+                                <span x-text="timer.seconds">{{ $component->seconds() }}</span>s
+                            </x-countdown>
                         </div>
 
                     @endif
@@ -268,22 +243,22 @@
 
               <td class="whitespace-nowrap rounded-r-lg px-3 py-3 text-sm text-gray-500">
                 {{-- @if ($room->status == 'Occupied' && $room->checkInDetails->first() != null) --}}
-                @if ($room->status == 'Occupied' && $activeCheckIn != null)
+                @if ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
                   <div class="flex space-x-2">
                     @if($is_true)
                     {{-- <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->guest->first()->id]) }}" sm icon="" label="Extend" negative /> --}}
-                    <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $activeCheckIn->guest_id]) }}" sm icon="" label="Extend" negative />
+                    <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->latestCheckInDetail->guest_id]) }}" sm icon="" label="Extend" negative />
 
                     @endif
                     {{-- <x-button wire:click="viewDetails({{ $room->guest->first()->id }})" sm icon="eye" warning /> --}}
-                    <x-button wire:click="viewDetails({{ $activeCheckIn->guest_id }})" sm icon="eye" warning />
+                    <x-button wire:click="viewDetails({{ $room->latestCheckInDetail->guest_id }})" sm icon="eye" warning />
                     {{-- <x-button href="{{ route('frontdesk.manage-guest', ['id' => $room->checkInDetails->first()->guest_id]) }}" label="Manage" class="hidden" positive sm right-icon="arrow-narrow-right" /> --}}
                         @if (auth()->user()->hasRole('frontdesk'))
                         {{-- <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->guest->first()->id]) }}" label="Manage" positive sm right-icon="arrow-narrow-right" /> --}}
-                        <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $activeCheckIn->guest_id]) }}" label="Manage" positive sm right-icon="arrow-narrow-right" />
+                        <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->latestCheckInDetail->guest_id]) }}" label="Manage" positive sm right-icon="arrow-narrow-right" />
                         @else
                         {{-- <x-button wire:click="addTransaction({{$room->guest->first()->id}})" label="Add Transaction" slate sm right-icon="arrow-narrow-right" /> --}}
-                        <x-button wire:click="addTransaction({{$activeCheckIn->guest_id}})" label="Add Transaction" slate sm right-icon="arrow-narrow-right" />
+                        <x-button wire:click="addTransaction({{$room->latestCheckInDetail->guest_id}})" label="Add Transaction" slate sm right-icon="arrow-narrow-right" />
                         @endif
                   </div>
                 @elseif($room->status == 'Reserved')
@@ -380,7 +355,60 @@
 
         </ul>
       </div>
-{{-- CHECKED-OUT FROM KIOSK section - disabled --}}
+<!--
+        <div class="mt-3 p-4 border rounded-lg overflow-auto h-64 bg-white shadow sm:rounded-md">
+        <div>
+          <div class="header font-bold text-gray-700">CHECKED-OUT FROM KIOSK</div>
+        </div>
+        <div class="mt-5" x-animate>
+                  <ul role="list" class="divide-y divide-gray-200 " x-animate>
+          @forelse($checkOutKiosks as $kiosk)
+            <li x-animate class="transition duration-300 ease-in-out" >
+                <a href="#" class="block hover:bg-red-50" >
+                  <div class="flex justify-between items-center px-4 py-4 sm:px-6 bg-gray-50">
+                    <div class="flex min-w-0 flex-1 items-center">
+
+                      <div class="min-w-0 flex-1 px-4 md:grid md:grid-cols-2 md:gap-4">
+                        <div class="flex items-center">
+                          <p class="truncate text-sm font-medium text-green-500 uppercase">{{ $kiosk->guest->first()->name }}
+                            (ROOM #{{ $kiosk->guest->first()->room->number }})
+                          </p>
+                        </div>
+                        <div class="hidden md:block">
+                          <div>
+                            <p class="flex items-center text-sm text-green-500">
+                              <svg class="mr-1.5 w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
+                              </svg>
+                              {{ $kiosk->guest->first()->qr_code }}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <div></div>
+                      <div>
+
+                          <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $kiosk->guest->first()->id]) }}" label="Manage" positive sm right-icon="" />
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              </li>
+          @empty
+            <div class="flex justify-center items-center mt-20 text-gray-600 text-4xl">
+              <span>No Data Found</span>
+            </div>
+          @endforelse
+
+        </ul>
+        </div>
+      </div> -->
 
       {{-- FOR RESERVATIONS --}}
 
@@ -650,7 +678,6 @@
     </x-modal>
 
     <x-modal wire:model.defer="food_beverages_modal" align="center">
-        @if($food_beverages_modal)
         <x-card>
           <div>
             <div class="header flex space-x-1 border-b items-end justify-between py-0.5">
@@ -661,7 +688,7 @@
               <div class="space-y-4">
                 <x-native-select label="Item" wire:model="food_id">
                   <option>Select Item</option>
-                  @forelse($this->foods as $food)
+                  @forelse($foods as $food)
                     <option value="{{ $food->id }}">{{ $food->name }}</option>
                   @empty
                     <option>No Items Yet</option>
@@ -694,7 +721,6 @@
             </div>
           </x-slot>
         </x-card>
-        @endif
       </x-modal>
 
   </div>

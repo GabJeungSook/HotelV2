@@ -60,16 +60,8 @@ class Room extends Model
         return $this->hasOne(CheckinDetail::class)->ofMany([
             'created_at' => 'max',
         ], function ($query) {
-            $query->where(function ($q) {
-                $q->where('is_check_out', false)
-                  ->orWhereNull('is_check_out');
-            });
+            $query->where('is_check_out', false);
         });
-    }
-
-    public function lastCheckInDetail()
-    {
-        return $this->hasOne(CheckinDetail::class)->latestOfMany('created_at');
     }
 
     public function checkInDetail()
