@@ -151,7 +151,9 @@ class BigBossReport extends Component
     private function buildSummaryRows($floors, $transactions): array
     {
         $categories = [
-            'ROOM' => [1, 6],        // Check In + Extend
+            'ROOM' => [1],            // Check In
+            'TRANSFER' => [7],        // Transfer Room
+            'EXTEND' => [6],          // Extend
             'FOODS' => [9],           // Food and Beverages
             'DRINKS' => [],           // No separate type
             'MISCELLANEOUS' => [4, 8], // Damages + Amenities
@@ -233,7 +235,9 @@ class BigBossReport extends Component
                     'guest' => $checkin?->guest?->name ?? '',
                     'check_in' => $checkin?->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
                     'check_out' => $checkin?->check_out_at ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
-                    'room_rate' => (float) $roomTxns->whereIn('transaction_type_id', [1, 6])->sum('payable_amount'),
+                    'room_rate' => (float) $roomTxns->where('transaction_type_id', 1)->sum('payable_amount'),
+                    'transfer' => (float) $roomTxns->where('transaction_type_id', 7)->sum('payable_amount'),
+                    'extend' => (float) $roomTxns->where('transaction_type_id', 6)->sum('payable_amount'),
                     'foods' => (float) $roomTxns->where('transaction_type_id', 9)->sum('payable_amount'),
                     'drinks' => 0,
                     'misc' => (float) $roomTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),

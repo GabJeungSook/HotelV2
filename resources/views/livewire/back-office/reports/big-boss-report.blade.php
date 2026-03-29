@@ -219,6 +219,8 @@
                                 <th class="border border-gray-300 px-2 py-1 text-left">Check-in</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">Check-out</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Room Rate</th>
+                                <th class="border border-gray-300 px-2 py-1 text-right">Transfer</th>
+                                <th class="border border-gray-300 px-2 py-1 text-right">Extend</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Foods</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Drinks</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Misc.</th>
@@ -237,6 +239,8 @@
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_in'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_out'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['room_rate'] > 0 ? number_format($room['room_rate'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['transfer'] > 0 ? number_format($room['transfer'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['extend'] > 0 ? number_format($room['extend'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['foods'] > 0 ? number_format($room['foods'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['drinks'] > 0 ? number_format($room['drinks'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['misc'] > 0 ? number_format($room['misc'], 2) : '' }}</td>
@@ -245,7 +249,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="13" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
+                                <td colspan="15" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
                             </tr>
                             @endforelse
                         </tbody>
