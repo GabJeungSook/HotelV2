@@ -225,17 +225,16 @@
                                 <th class="border border-gray-300 px-2 py-1 text-right">Drinks</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Misc.</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Deposit</th>
-                                <th class="border border-gray-300 px-2 py-1 text-center">Duty Time</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($floorGroup['rooms'] as $room)
-                            <tr>
+                            <tr class="{{ ($room['is_forwarded'] ?? false) ? 'bg-orange-100 text-red-600' : '' }}">
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['number'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['type'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['rate'] ? number_format($room['rate'], 0) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['status'] }}</td>
-                                <td class="border border-gray-300 px-2 py-1">{{ $room['guest'] }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['guest'] }}@if($room['is_forwarded'] ?? false) <span class="font-bold">(FWD)</span>@endif</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_in'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_out'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['room_rate'] > 0 ? number_format($room['room_rate'], 2) : '' }}</td>
@@ -245,11 +244,10 @@
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['drinks'] > 0 ? number_format($room['drinks'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['misc'] > 0 ? number_format($room['misc'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['deposit'] > 0 ? number_format($room['deposit'], 2) : '' }}</td>
-                                <td class="border border-gray-300 px-2 py-1 text-center"></td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="15" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
+                                <td colspan="14" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
                             </tr>
                             @endforelse
                         </tbody>
