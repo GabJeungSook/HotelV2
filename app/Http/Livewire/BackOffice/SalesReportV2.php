@@ -765,6 +765,8 @@ class SalesReportV2 extends Component
                 'cd.check_out_at',
                 'cd.hours_stayed',
                 'tr.payable_amount',
+                'tr.paid_amount',
+                'tr.is_override',
                 'tr.remarks',
                 'tr.created_at as transaction_date',
                 'u.name as processed_by',
@@ -788,7 +790,8 @@ class SalesReportV2 extends Component
 
         return $query->map(function ($row) use ($dateFrom, $shiftLog) {
             // Calculate total excluding deposits (type 2) and cashouts (type 5)
-            $total = in_array($row->transaction_type_id, [2, 5]) ? 0 : (float) $row->payable_amount;
+            $effectiveAmount = $row->is_override ? (float) $row->paid_amount : (float) $row->payable_amount;
+            $total = in_array($row->transaction_type_id, [2, 5]) ? 0 : $effectiveAmount;
 
             // Determine if guest is "Forwarded"
             $isForwarded = $this->isGuestForwarded($row, $shiftLog, $dateFrom);
@@ -819,7 +822,7 @@ class SalesReportV2 extends Component
                     ? Carbon::parse($row->check_out_at)->format('m-d-Y h:iA')
                     : '—',
                 'hours_stayed' => $row->hours_stayed ? $row->hours_stayed . ' hrs' : '—',
-                'amount' => (float) $row->payable_amount,
+                'amount' => $effectiveAmount,
                 'remarks' => $row->remarks,
                 'processed_by' => strtoupper($row->processed_by ?? '—'),
                 'shift' => strtoupper($row->shift ?? '—'),
@@ -828,6 +831,7 @@ class SalesReportV2 extends Component
                     : '—',
                 'total' => $total,
                 'is_forwarded' => $isForwarded,
+                'is_override' => (bool) $row->is_override,
             ];
         })->toArray();
     }
