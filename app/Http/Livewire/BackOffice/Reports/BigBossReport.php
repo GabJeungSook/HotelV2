@@ -274,10 +274,15 @@ class BigBossReport extends Component
                 if ($h->start_time && $h->end_time) {
                     $start = Carbon::parse($h->start_time);
                     $end = Carbon::parse($h->end_time);
-                    $diffMinutes = $start->diffInMinutes($end);
-                    $hours = intdiv($diffMinutes, 60);
-                    $minutes = $diffMinutes % 60;
-                    $elapse = $hours > 0 ? "{$hours} hour" . ($hours > 1 ? 's' : '') . " {$minutes} minutes" : "{$minutes} minutes";
+                    $diffSeconds = $start->diffInSeconds($end);
+                    if ($diffSeconds < 60) {
+                        $elapse = "{$diffSeconds} seconds (OVERRIDE)";
+                    } else {
+                        $diffMinutes = intdiv($diffSeconds, 60);
+                        $hours = intdiv($diffMinutes, 60);
+                        $minutes = $diffMinutes % 60;
+                        $elapse = $hours > 0 ? "{$hours} hour" . ($hours > 1 ? 's' : '') . " {$minutes} minutes" : "{$minutes} minutes";
+                    }
                 }
 
                 $entries[] = [
