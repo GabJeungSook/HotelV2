@@ -212,8 +212,8 @@
                         <thead>
                             <tr class="bg-gray-100">
                                 <th class="border border-gray-300 px-2 py-1 text-left">Room#</th>
-                                <th class="border border-gray-300 px-2 py-1 text-left">Room type</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">Rate</th>
+                                <th class="border border-gray-300 px-2 py-1 text-left">Room type</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">Status</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">Guest</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">Check-in</th>
@@ -231,10 +231,10 @@
                             @forelse($floorGroup['rooms'] as $room)
                             <tr class="{{ ($room['is_forwarded'] ?? false) ? 'bg-orange-100 text-red-600' : '' }}">
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['number'] }}</td>
-                                <td class="border border-gray-300 px-2 py-1">{{ $room['type'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['rate'] ? number_format($room['rate'], 0) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['type'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['status'] }}</td>
-                                <td class="border border-gray-300 px-2 py-1">{{ $room['guest'] }}@if($room['is_forwarded'] ?? false) <span class="font-bold">(FWD)</span>@endif</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $room['guest'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_in'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_out'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['room_rate'] > 0 ? number_format($room['room_rate'], 2) : '' }}</td>
@@ -287,7 +287,8 @@
                             <th class="border border-gray-300 px-3 py-1 text-left w-16">#</th>
                             <th class="border border-gray-300 px-3 py-1 text-left">Room Number</th>
                             <th class="border border-gray-300 px-3 py-1 text-left">Floor Number</th>
-                            <th class="border border-gray-300 px-3 py-1 text-left">Date & Time</th>
+                            <th class="border border-gray-300 px-3 py-1 text-left">Time</th>
+                            <th class="border border-gray-300 px-3 py-1 text-left">Elapse</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -296,7 +297,8 @@
                             <td class="border border-gray-300 px-3 py-1">{{ $entry['number'] }}</td>
                             <td class="border border-gray-300 px-3 py-1">{{ $entry['room_number'] }}</td>
                             <td class="border border-gray-300 px-3 py-1">{{ $entry['floor_number'] }}</td>
-                            <td class="border border-gray-300 px-3 py-1">{{ $entry['date_time'] }}</td>
+                            <td class="border border-gray-300 px-3 py-1">{{ $entry['time'] }}</td>
+                            <td class="border border-gray-300 px-3 py-1">{{ $entry['elapse'] }}</td>
                         </tr>
                         @endforeach
                     </tbody>

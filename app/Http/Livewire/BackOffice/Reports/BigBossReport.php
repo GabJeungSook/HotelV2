@@ -194,16 +194,24 @@ class BigBossReport extends Component
         $grossRow['no_room'] = $noRoomGross;
         $rows[] = $grossRow;
 
-        // Deposit row
+        // Deposit row (guest deposits only, exclude check-in deposits)
+        $guestDeposits = $transactions
+            ->where('transaction_type_id', 2)
+            ->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)');
+
         $depositRow = ['label' => 'TOTAL DEPOSIT', 'floors' => [], 'total' => 0, 'no_room' => 0];
         foreach ($floors as $floor) {
-            $amount = (float) $transactions
-                ->where('transaction_type_id', 2)
+            $amount = (float) $guestDeposits
                 ->where('floor_id', $floor->id)
                 ->sum('payable_amount');
             $depositRow['floors'][$floor->id] = $amount;
             $depositRow['total'] += $amount;
         }
+        $noRoomDeposit = (float) $guestDeposits
+            ->whereNotIn('floor_id', $floors->pluck('id')->toArray())
+            ->sum('payable_amount');
+        $depositRow['no_room'] = $noRoomDeposit;
+        $depositRow['total'] += $noRoomDeposit;
         $rows[] = $depositRow;
 
         return $rows;
@@ -223,7 +231,7 @@ class BigBossReport extends Component
                 $roomTxns = $transactions->where('room_id', $room->id);
 
                 $isForwarded = $checkin && Carbon::parse($checkin->check_in_at)->lt($timeIn);
-                $status = $checkin ? 'Occupied' : 'Available';
+                $status = $checkin ? ($isForwarded ? 'FORWARDED' : 'Occupied') : 'Available';
 
                 $floorData[] = [
                     'number' => $room->number,
@@ -262,11 +270,22 @@ class BigBossReport extends Component
             $roomboy = $histories->first()->user;
             $entries = [];
             foreach ($histories->values() as $i => $h) {
+                $elapse = '';
+                if ($h->start_time && $h->end_time) {
+                    $start = Carbon::parse($h->start_time);
+                    $end = Carbon::parse($h->end_time);
+                    $diffMinutes = $start->diffInMinutes($end);
+                    $hours = intdiv($diffMinutes, 60);
+                    $minutes = $diffMinutes % 60;
+                    $elapse = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+                }
+
                 $entries[] = [
                     'number' => $i + 1,
                     'room_number' => $h->room?->number ?? '',
                     'floor_number' => $h->room?->floor?->number ?? $h->floor_id,
-                    'date_time' => $h->created_at?->format('n/j/y h:i A') ?? '',
+                    'time' => $h->end_time ?? '',
+                    'elapse' => $elapse,
                 ];
             }
             $logs[] = [
