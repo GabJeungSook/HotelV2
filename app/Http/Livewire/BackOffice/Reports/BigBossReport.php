@@ -277,14 +277,14 @@ class BigBossReport extends Component
                     $diffMinutes = $start->diffInMinutes($end);
                     $hours = intdiv($diffMinutes, 60);
                     $minutes = $diffMinutes % 60;
-                    $elapse = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+                    $elapse = $hours > 0 ? "{$hours} hour" . ($hours > 1 ? 's' : '') . " {$minutes} minutes" : "{$minutes} minutes";
                 }
 
                 $entries[] = [
                     'number' => $i + 1,
                     'room_number' => $h->room?->number ?? '',
                     'floor_number' => $h->room?->floor?->number ?? $h->floor_id,
-                    'time' => $h->end_time ?? '',
+                    'time' => $h->end_time ? Carbon::parse($h->end_time)->format('F d, Y g:iA') : '',
                     'elapse' => $elapse,
                 ];
             }
