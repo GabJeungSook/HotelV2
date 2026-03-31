@@ -246,6 +246,7 @@ class BigBossReport extends Component
                     'guest' => $checkin?->guest?->name ?? '',
                     'check_in' => $checkin?->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
                     'check_out' => $checkin?->check_out_at ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
+                    'initial_hours' => $checkin?->number_of_hours ?? '',
                     'is_forwarded' => $isForwarded,
                     'room_rate' => (float) $roomTxns->where('transaction_type_id', 1)->sum('payable_amount'),
                     'transfer' => (float) $roomTxns->where('transaction_type_id', 7)->sum('payable_amount'),
