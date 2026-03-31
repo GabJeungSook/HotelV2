@@ -231,7 +231,9 @@
                         <tbody>
                             @forelse($floorGroup['rooms'] as $room)
                             <tr class="{{ ($room['is_forwarded'] ?? false) ? 'bg-orange-100 text-red-600' : '' }}">
-                                <td class="border border-gray-300 px-2 py-1">{{ $room['number'] }}</td>
+                                @if($room['rowspan'] > 0)
+                                <td class="border border-gray-300 px-2 py-1 align-top" @if($room['rowspan'] > 1) rowspan="{{ $room['rowspan'] }}" @endif>{{ $room['number'] }}</td>
+                                @endif
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['rate'] ? number_format($room['rate'], 0) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['type'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['status'] }}</td>

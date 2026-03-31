@@ -245,6 +245,7 @@ class BigBossReport extends Component
                         'check_out' => '',
                         'initial_hours' => '',
                         'is_forwarded' => false,
+                        'rowspan' => 1,
                         'room_rate' => 0,
                         'transfer' => 0,
                         'extend' => 0,
@@ -254,6 +255,9 @@ class BigBossReport extends Component
                         'deposit' => 0,
                     ];
                 } else {
+                    $checkinCount = $roomCheckins->count();
+                    $isFirst = true;
+
                     foreach ($roomCheckins as $checkin) {
                         $checkinTxns = $transactions->where('checkin_detail_id', $checkin->id);
 
@@ -270,6 +274,7 @@ class BigBossReport extends Component
                             'check_out' => $checkin->check_out_at ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
                             'initial_hours' => $checkin->number_of_hours ?? '',
                             'is_forwarded' => $isForwarded,
+                            'rowspan' => $isFirst ? $checkinCount : 0,
                             'room_rate' => (float) $checkinTxns->where('transaction_type_id', 1)->sum('payable_amount'),
                             'transfer' => (float) $checkinTxns->where('transaction_type_id', 7)->sum('payable_amount'),
                             'extend' => (float) $checkinTxns->where('transaction_type_id', 6)->sum('payable_amount'),
@@ -278,6 +283,8 @@ class BigBossReport extends Component
                             'misc' => (float) $checkinTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),
                             'deposit' => (float) $checkinTxns->where('transaction_type_id', 2)->sum('payable_amount'),
                         ];
+
+                        $isFirst = false;
                     }
                 }
             }
