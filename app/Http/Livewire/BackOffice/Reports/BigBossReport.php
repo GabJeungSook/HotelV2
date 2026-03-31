@@ -315,7 +315,7 @@ class BigBossReport extends Component
                 $cleaning = $cleaningByRoom->get($room->id);
                 $time = '';
                 $elapse = '';
-                $status = '';
+                $status = 'Vacant';
 
                 if ($cleaning) {
                     $time = $cleaning->end_time ? Carbon::parse($cleaning->end_time)->format('g:iA') : '';
