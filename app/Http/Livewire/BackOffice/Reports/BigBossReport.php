@@ -80,7 +80,7 @@ class BigBossReport extends Component
                 $q->whereNull('check_out_at')
                   ->orWhere('check_out_at', '>=', $timeIn);
             })
-            ->with(['guest', 'room.floor', 'room.type', 'rate'])
+            ->with(['guest', 'room.floor', 'room.type', 'rate.stayingHour'])
             ->get();
 
         $occupyingIds = $occupyingDetails->pluck('id')->toArray();
@@ -272,7 +272,7 @@ class BigBossReport extends Component
                             'guest' => $checkin->guest?->name ?? '',
                             'check_in' => $checkin->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
                             'check_out' => $checkin->check_out_at ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
-                            'initial_hours' => $checkin->number_of_hours ?? '',
+                            'initial_hours' => $checkin->rate?->stayingHour?->number ?? '',
                             'is_forwarded' => $isForwarded,
                             'rowspan' => $isFirst ? $checkinCount : 0,
                             'room_rate' => (float) $checkinTxns->where('transaction_type_id', 1)->sum('payable_amount'),
