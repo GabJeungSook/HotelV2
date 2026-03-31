@@ -231,31 +231,55 @@ class BigBossReport extends Component
             $floorData = [];
 
             foreach ($floorRooms as $room) {
-                $checkin = $occupyingDetails->where('room_id', $room->id)->sortByDesc('created_at')->first();
+                $roomCheckins = $occupyingDetails->where('room_id', $room->id)->sortBy('created_at');
 
-                $roomTxns = $transactions->where('room_id', $room->id);
+                if ($roomCheckins->isEmpty()) {
+                    // Available room — single empty row
+                    $floorData[] = [
+                        'number' => $room->number,
+                        'type' => $room->type->name ?? '',
+                        'rate' => '',
+                        'status' => 'Available',
+                        'guest' => '',
+                        'check_in' => '',
+                        'check_out' => '',
+                        'initial_hours' => '',
+                        'is_forwarded' => false,
+                        'room_rate' => 0,
+                        'transfer' => 0,
+                        'extend' => 0,
+                        'foods' => 0,
+                        'drinks' => 0,
+                        'misc' => 0,
+                        'deposit' => 0,
+                    ];
+                } else {
+                    foreach ($roomCheckins as $checkin) {
+                        $checkinTxns = $transactions->where('checkin_detail_id', $checkin->id);
 
-                $isForwarded = $checkin && Carbon::parse($checkin->check_in_at)->lt($timeIn);
-                $status = $checkin ? ($isForwarded ? 'FORWARDED' : 'Occupied') : 'Available';
+                        $isForwarded = Carbon::parse($checkin->check_in_at)->lt($timeIn);
+                        $status = $isForwarded ? 'FORWARDED' : 'Occupied';
 
-                $floorData[] = [
-                    'number' => $room->number,
-                    'type' => $room->type->name ?? '',
-                    'rate' => $checkin?->rate?->amount ?? '',
-                    'status' => $status,
-                    'guest' => $checkin?->guest?->name ?? '',
-                    'check_in' => $checkin?->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
-                    'check_out' => $checkin?->check_out_at ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
-                    'initial_hours' => $checkin?->number_of_hours ?? '',
-                    'is_forwarded' => $isForwarded,
-                    'room_rate' => (float) $roomTxns->where('transaction_type_id', 1)->sum('payable_amount'),
-                    'transfer' => (float) $roomTxns->where('transaction_type_id', 7)->sum('payable_amount'),
-                    'extend' => (float) $roomTxns->where('transaction_type_id', 6)->sum('payable_amount'),
-                    'foods' => (float) $roomTxns->where('transaction_type_id', 9)->sum('payable_amount'),
-                    'drinks' => 0,
-                    'misc' => (float) $roomTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),
-                    'deposit' => (float) $roomTxns->where('transaction_type_id', 2)->sum('payable_amount'),
-                ];
+                        $floorData[] = [
+                            'number' => $room->number,
+                            'type' => $room->type->name ?? '',
+                            'rate' => $checkin->rate?->amount ?? '',
+                            'status' => $status,
+                            'guest' => $checkin->guest?->name ?? '',
+                            'check_in' => $checkin->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
+                            'check_out' => $checkin->check_out_at ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
+                            'initial_hours' => $checkin->number_of_hours ?? '',
+                            'is_forwarded' => $isForwarded,
+                            'room_rate' => (float) $checkinTxns->where('transaction_type_id', 1)->sum('payable_amount'),
+                            'transfer' => (float) $checkinTxns->where('transaction_type_id', 7)->sum('payable_amount'),
+                            'extend' => (float) $checkinTxns->where('transaction_type_id', 6)->sum('payable_amount'),
+                            'foods' => (float) $checkinTxns->where('transaction_type_id', 9)->sum('payable_amount'),
+                            'drinks' => 0,
+                            'misc' => (float) $checkinTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),
+                            'deposit' => (float) $checkinTxns->where('transaction_type_id', 2)->sum('payable_amount'),
+                        ];
+                    }
+                }
             }
 
             $chart[] = [
