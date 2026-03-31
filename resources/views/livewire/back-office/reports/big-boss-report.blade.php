@@ -240,7 +240,7 @@
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['guest'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_in'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_out'] }}</td>
-                                <td class="border border-gray-300 px-2 py-1 text-center">{{ $room['initial_hours'] ?: '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-center">{{ $room['initial_hours'] !== '' ? $room['initial_hours'] : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['room_rate'] > 0 ? number_format($room['room_rate'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['transfer'] > 0 ? number_format($room['transfer'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['extend'] > 0 ? number_format($room['extend'], 2) : '' }}</td>
