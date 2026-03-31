@@ -128,7 +128,7 @@ class BigBossReport extends Component
         $expensesTotal = (float) $expenses->sum('amount');
 
         // ===== FRONTDESK CHART =====
-        $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn);
+        $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn, $timeOut);
 
         // ===== ROOM CLEANING CHART =====
         $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories);
@@ -222,7 +222,7 @@ class BigBossReport extends Component
         return $rows;
     }
 
-    private function buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, Carbon $timeIn): array
+    private function buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, Carbon $timeIn, Carbon $timeOut): array
     {
         $chart = [];
 
@@ -265,7 +265,7 @@ class BigBossReport extends Component
                             : $roomTxns;
 
                         $isForwarded = Carbon::parse($checkin->check_in_at)->lt($timeIn);
-                        $status = $isForwarded ? 'FORWARDED' : 'Occupied';
+                        $status = $isForwarded ? 'FWD' : 'Occupied';
 
                         $floorData[] = [
                             'number' => $room->number,
@@ -274,7 +274,7 @@ class BigBossReport extends Component
                             'status' => $status,
                             'guest' => $checkin->guest?->name ?? '',
                             'check_in' => $checkin->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
-                            'check_out' => $checkin->check_out_at ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
+                            'check_out' => $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut) ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
                             'initial_hours' => $checkin->rate?->stayingHour?->number ?? '',
                             'is_forwarded' => $isForwarded,
                             'rowspan' => $isFirst ? $checkinCount : 0,
