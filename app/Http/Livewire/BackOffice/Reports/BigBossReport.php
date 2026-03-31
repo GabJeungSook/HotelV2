@@ -131,7 +131,7 @@ class BigBossReport extends Component
         $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn, $timeOut);
 
         // ===== ROOM CLEANING CHART =====
-        $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories);
+        $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, $occupiedRoomIds);
 
         // ===== ROOM BOY ACTIVITY LOGS =====
         $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories);
@@ -301,7 +301,7 @@ class BigBossReport extends Component
         return $chart;
     }
 
-    private function buildRoomCleaningChart($floors, $allRooms, $cleaningHistories): array
+    private function buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, array $occupiedRoomIds): array
     {
         // Group cleaning histories by room_id, keep the latest per room
         $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->last());
@@ -315,7 +315,7 @@ class BigBossReport extends Component
                 $cleaning = $cleaningByRoom->get($room->id);
                 $time = '';
                 $elapse = '';
-                $status = 'Vacant';
+                $status = in_array($room->id, $occupiedRoomIds) ? 'In-use' : 'Vacant';
 
                 if ($cleaning) {
                     $time = $cleaning->end_time ? Carbon::parse($cleaning->end_time)->format('g:iA') : '';
