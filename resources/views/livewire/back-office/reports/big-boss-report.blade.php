@@ -274,6 +274,38 @@
             </ol>
         </div>
 
+        {{-- ==================== ROOM CLEANING CHART ==================== --}}
+        <div class="mb-6">
+            <h3 class="text-base font-bold mb-2">ROOM CLEANING CHART</h3>
+            <div class="grid grid-cols-4 gap-2">
+                @foreach($roomCleaningChart as $floorGroup)
+                <div>
+                    <h4 class="text-xs font-bold mb-1">{{ $floorGroup['floor']->numberWithFormat() }}</h4>
+                    <table class="w-full border-collapse border border-gray-300 text-xs">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="border border-gray-300 px-1 py-1 text-left">Room</th>
+                                <th class="border border-gray-300 px-1 py-1 text-left">Time</th>
+                                <th class="border border-gray-300 px-1 py-1 text-left">Elapse</th>
+                                <th class="border border-gray-300 px-1 py-1 text-left">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($floorGroup['rooms'] as $room)
+                            <tr>
+                                <td class="border border-gray-300 px-1 py-1 font-bold">{{ $room['number'] }}</td>
+                                <td class="border border-gray-300 px-1 py-1">{{ $room['time'] }}</td>
+                                <td class="border border-gray-300 px-1 py-1">{{ $room['elapse'] }}</td>
+                                <td class="border border-gray-300 px-1 py-1">{{ $room['status'] }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @endforeach
+            </div>
+        </div>
+
         {{-- ==================== ROOM BOY ACTIVITY LOGS ==================== --}}
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">ROOM BOY ACTIVITY LOGS</h3>

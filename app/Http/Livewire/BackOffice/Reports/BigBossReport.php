@@ -57,6 +57,7 @@ class BigBossReport extends Component
             'expenses' => collect(),
             'expensesTotal' => 0,
             'frontdeskChart' => [],
+            'roomCleaningChart' => [],
             'roomboyLogs' => [],
         ];
 
@@ -129,6 +130,9 @@ class BigBossReport extends Component
         // ===== FRONTDESK CHART =====
         $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn);
 
+        // ===== ROOM CLEANING CHART =====
+        $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories);
+
         // ===== ROOM BOY ACTIVITY LOGS =====
         $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories);
 
@@ -144,6 +148,7 @@ class BigBossReport extends Component
             'expenses' => $expenses,
             'expensesTotal' => $expensesTotal,
             'frontdeskChart' => $frontdeskChart,
+            'roomCleaningChart' => $roomCleaningChart,
             'roomboyLogs' => $roomboyLogs,
         ];
     }
@@ -255,6 +260,59 @@ class BigBossReport extends Component
             $chart[] = [
                 'floor' => $floor,
                 'rooms' => $floorData,
+            ];
+        }
+
+        return $chart;
+    }
+
+    private function buildRoomCleaningChart($floors, $allRooms, $cleaningHistories): array
+    {
+        // Group cleaning histories by room_id, keep the latest per room
+        $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->last());
+
+        $chart = [];
+        foreach ($floors as $floor) {
+            $rooms = $allRooms->where('floor_id', $floor->id)->sortBy('number')->values();
+            $roomData = [];
+
+            foreach ($rooms as $room) {
+                $cleaning = $cleaningByRoom->get($room->id);
+                $time = '';
+                $elapse = '';
+                $status = '';
+
+                if ($cleaning) {
+                    $time = $cleaning->end_time ? Carbon::parse($cleaning->end_time)->format('g:iA') : '';
+
+                    if ($cleaning->start_time && $cleaning->end_time) {
+                        $start = Carbon::parse($cleaning->start_time);
+                        $end = Carbon::parse($cleaning->end_time);
+                        $diffSeconds = $start->diffInSeconds($end);
+                        if ($diffSeconds < 60) {
+                            $elapse = "{$diffSeconds} seconds (OVERRIDE)";
+                        } else {
+                            $diffMinutes = intdiv($diffSeconds, 60);
+                            $hours = intdiv($diffMinutes, 60);
+                            $minutes = $diffMinutes % 60;
+                            $elapse = $hours > 0 ? "{$hours} hour" . ($hours > 1 ? 's' : '') . " {$minutes} minutes" : "{$minutes} minutes";
+                        }
+                    }
+
+                    $status = 'Clean';
+                }
+
+                $roomData[] = [
+                    'number' => $room->number,
+                    'time' => $time,
+                    'elapse' => $elapse,
+                    'status' => $status,
+                ];
+            }
+
+            $chart[] = [
+                'floor' => $floor,
+                'rooms' => $roomData,
             ];
         }
 
