@@ -327,7 +327,7 @@ class CheckIn extends Component
 
     public function redirectToHome()
     {
-        return redirect()->route('kiosk.dashboard');
+        return redirect()->route('kiosk.house-rules');
     }
 
     public function applyDiscount()

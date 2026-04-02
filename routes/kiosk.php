@@ -3,6 +3,9 @@
 Route::prefix('kiosk')
     ->middleware(['auth', 'role:kiosk'])
     ->group(function () {
+        Route::get('/house-rules', function () {
+            return view('kiosk.house-rules');
+        })->name('kiosk.house-rules');
         Route::get('/dashboard', function () {
             return view('kiosk.index');
         })->name('kiosk.dashboard');
