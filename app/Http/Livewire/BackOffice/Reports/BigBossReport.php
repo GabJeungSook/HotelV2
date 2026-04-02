@@ -256,13 +256,10 @@ class BigBossReport extends Component
                     ];
                 } else {
                     $checkinCount = $roomCheckins->count();
-                    $roomTxns = $transactions->where('room_id', $room->id);
                     $isFirst = true;
 
                     foreach ($roomCheckins as $checkin) {
-                        $checkinTxns = $checkinCount > 1
-                            ? $roomTxns->where('checkin_detail_id', $checkin->id)
-                            : $roomTxns;
+                        $checkinTxns = $transactions->where('checkin_detail_id', $checkin->id);
 
                         $isForwarded = Carbon::parse($checkin->check_in_at)->lt($timeIn);
                         $status = $isForwarded ? 'FWD' : 'Occupied';
