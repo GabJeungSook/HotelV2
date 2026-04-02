@@ -367,7 +367,9 @@ class TransferRoom extends Component
             'payable_amount' => $this->new_room_rate,
             'paid_amount' => $this->new_room_rate,
             'change_amount' => 0,
-            'paid_at' => Carbon::now()->toDateTimeString()
+            'paid_at' => Carbon::now()->toDateTimeString(),
+            'room_id' => $this->selected_room_id,
+            'floor_id' => $this->selected_floor_id,
         ]);
 
         TransferedGuestReport::create([
