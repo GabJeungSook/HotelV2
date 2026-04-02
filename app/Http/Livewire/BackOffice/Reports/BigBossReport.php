@@ -131,7 +131,7 @@ class BigBossReport extends Component
         $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn, $timeOut);
 
         // ===== ROOM CLEANING CHART =====
-        $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, $occupiedRoomIds);
+        $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, $occupiedRoomIds, $occupyingDetails);
 
         // ===== ROOM BOY ACTIVITY LOGS =====
         $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories);
@@ -298,7 +298,7 @@ class BigBossReport extends Component
         return $chart;
     }
 
-    private function buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, array $occupiedRoomIds): array
+    private function buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, array $occupiedRoomIds, $occupyingDetails): array
     {
         // Group cleaning histories by room_id, keep the latest per room
         $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->last());
@@ -317,13 +317,23 @@ class BigBossReport extends Component
                 if ($cleaning) {
                     $time = $cleaning->end_time ? Carbon::parse($cleaning->end_time)->format('g:iA') : '';
 
-                    if ($cleaning->start_time && $cleaning->end_time) {
-                        $start = Carbon::parse($cleaning->start_time);
-                        $end = Carbon::parse($cleaning->end_time);
-                        $diffSeconds = $start->diffInSeconds($end);
-                        $totalMinutes = intdiv($diffSeconds, 60);
-                        $remainingSeconds = $diffSeconds % 60;
-                        $elapse = $totalMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                    if ($cleaning->end_time) {
+                        $endTime = Carbon::parse($cleaning->end_time);
+
+                        // Find the checkin_detail for this room that was checked out closest before cleaning
+                        $checkoutDetail = $occupyingDetails
+                            ->where('room_id', $room->id)
+                            ->filter(fn($cd) => $cd->check_out_at && Carbon::parse($cd->check_out_at)->lte($endTime))
+                            ->sortByDesc('check_out_at')
+                            ->first();
+
+                        if ($checkoutDetail && $checkoutDetail->check_out_at) {
+                            $checkoutTime = Carbon::parse($checkoutDetail->check_out_at);
+                            $diffSeconds = $checkoutTime->diffInSeconds($endTime);
+                            $totalMinutes = intdiv($diffSeconds, 60);
+                            $remainingSeconds = $diffSeconds % 60;
+                            $elapse = $totalMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                        }
                     }
 
                     $status = 'Clean';
