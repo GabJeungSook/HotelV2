@@ -1,7 +1,14 @@
 <div class="max-w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
 
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+
     {{-- Shift Selector --}}
-    <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 p-4 mb-6">
+    <div class="no-print bg-white rounded-xl shadow-sm ring-1 ring-gray-200 p-4 mb-6">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Select Shift</label>
@@ -15,6 +22,11 @@
                 @if(empty($availableShiftSessions))
                     <p class="text-xs text-gray-500 mt-1">No completed shifts found.</p>
                 @endif
+            </div>
+            <div class="flex items-end">
+                <button onclick="window.print()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                    Print Report
+                </button>
             </div>
         </div>
     </div>
@@ -230,10 +242,8 @@
                         </thead>
                         <tbody>
                             @forelse($floorGroup['rooms'] as $room)
-                            <tr class="{{ ($room['is_forwarded'] ?? false) ? 'bg-orange-100 text-red-600' : '' }}">
-                                @if($room['rowspan'] > 0)
-                                <td class="border border-gray-300 px-2 py-1 align-top" @if($room['rowspan'] > 1) rowspan="{{ $room['rowspan'] }}" @endif>{{ $room['number'] }}</td>
-                                @endif
+                            <tr class="{{ ($room['is_forwarded'] ?? false) ? 'text-red-600' : '' }}">
+                                <td class="border border-gray-300 px-2 py-1 align-top">{{ $room['rowspan'] > 0 ? $room['number'] : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['rate'] ? number_format($room['rate'], 0) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['type'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['status'] }}</td>
@@ -281,7 +291,7 @@
         {{-- ==================== ROOM CLEANING CHART ==================== --}}
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">ROOM CLEANING CHART</h3>
-            <div class="grid grid-cols-4 gap-2">
+            <div class="grid grid-cols-5 gap-2">
                 @foreach($roomCleaningChart as $floorGroup)
                 <div>
                     <h4 class="text-xs font-bold mb-1">{{ $floorGroup['floor']->numberWithFormat() }}</h4>
@@ -317,24 +327,22 @@
             @forelse($roomboyLogs as $log)
             <div class="mb-4">
                 <h4 class="text-sm font-bold mb-1">NAME: {{ $log['name'] }}</h4>
-                <table class="w-full border-collapse border border-gray-300 text-sm">
+                <table class="max-w-3xl border-collapse border border-gray-300 text-sm">
                     <thead>
                         <tr class="bg-gray-100">
-                            <th class="border border-gray-300 px-3 py-1 text-left w-16">#</th>
-                            <th class="border border-gray-300 px-3 py-1 text-left">Room Number</th>
-                            <th class="border border-gray-300 px-3 py-1 text-left">Floor Number</th>
-                            <th class="border border-gray-300 px-3 py-1 text-left">Time</th>
-                            <th class="border border-gray-300 px-3 py-1 text-left">Elapse</th>
+                            <th class="border border-gray-300 px-2 py-1 text-left w-12">#</th>
+                            <th class="border border-gray-300 px-2 py-1 text-left">Room Number</th>
+                            <th class="border border-gray-300 px-2 py-1 text-left">Floor Number</th>
+                            <th class="border border-gray-300 px-2 py-1 text-left">Time</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($log['entries'] as $entry)
                         <tr>
-                            <td class="border border-gray-300 px-3 py-1">{{ $entry['number'] }}</td>
-                            <td class="border border-gray-300 px-3 py-1">{{ $entry['room_number'] }}</td>
-                            <td class="border border-gray-300 px-3 py-1">{{ $entry['floor_number'] }}</td>
-                            <td class="border border-gray-300 px-3 py-1">{{ $entry['time'] }}</td>
-                            <td class="border border-gray-300 px-3 py-1">{{ $entry['elapse'] }}</td>
+                            <td class="border border-gray-300 px-2 py-1">{{ $entry['number'] }}</td>
+                            <td class="border border-gray-300 px-2 py-1">{{ $entry['room_number'] }}</td>
+                            <td class="border border-gray-300 px-2 py-1">{{ $entry['floor_number'] }}</td>
+                            <td class="border border-gray-300 px-2 py-1">{{ $entry['time'] }}</td>
                         </tr>
                         @endforeach
                     </tbody>
