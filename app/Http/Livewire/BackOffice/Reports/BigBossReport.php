@@ -222,6 +222,17 @@ class BigBossReport extends Component
         return $rows;
     }
 
+    private function roomTypeInitial(string $name): string
+    {
+        $first = strtolower(trim(explode(' ', trim($name))[0]));
+        return match ($first) {
+            'single' => 'S',
+            'double' => 'D',
+            'twin' => 'T',
+            default => $name,
+        };
+    }
+
     private function buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, Carbon $timeIn, Carbon $timeOut): array
     {
         $chart = [];
@@ -237,7 +248,7 @@ class BigBossReport extends Component
                     // Available room — single empty row
                     $floorData[] = [
                         'number' => $room->number,
-                        'type' => $room->type->name ?? '',
+                        'type' => $this->roomTypeInitial($room->type->name ?? ''),
                         'rate' => '',
                         'status' => 'Available',
                         'guest' => '',
@@ -266,7 +277,7 @@ class BigBossReport extends Component
 
                         $floorData[] = [
                             'number' => $room->number,
-                            'type' => $room->type->name ?? '',
+                            'type' => $this->roomTypeInitial($room->type->name ?? ''),
                             'rate' => $checkin->rate?->amount ?? '',
                             'status' => $status,
                             'guest' => $checkin->guest?->name ?? '',
@@ -330,9 +341,14 @@ class BigBossReport extends Component
                         if ($checkoutDetail && $checkoutDetail->check_out_at) {
                             $checkoutTime = Carbon::parse($checkoutDetail->check_out_at);
                             $diffSeconds = $checkoutTime->diffInSeconds($endTime);
-                            $totalMinutes = intdiv($diffSeconds, 60);
+                            $hours = intdiv($diffSeconds, 3600);
+                            $remainingMinutes = intdiv($diffSeconds % 3600, 60);
                             $remainingSeconds = $diffSeconds % 60;
-                            $elapse = $totalMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                            if ($hours > 0) {
+                                $elapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                            } else {
+                                $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                            }
                         }
                     }
 
