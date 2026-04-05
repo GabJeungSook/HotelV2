@@ -14,6 +14,7 @@ class CheckOut extends Component
     public $floors = [];
     public $branchId;
     public $floor_id, $room_id;
+    public $room_number;
     public $qr_code;
     public $guest;
     public $checkInDetail;
@@ -60,6 +61,34 @@ class CheckOut extends Component
     public function selectRoom($room_id)
     {
         $this->room_id = $room_id;
+    }
+
+    public function findRoom()
+    {
+        $this->validate([
+            'room_number' => 'required',
+        ], [
+            'room_number.required' => 'Please enter your room number.',
+        ]);
+
+        $room = Room::where('branch_id', auth()->user()->branch_id)
+            ->where('number', $this->room_number)
+            ->where('status', 'Occupied')
+            ->whereHas('latestCheckInDetail.guest', function ($q) {
+                $q->where('has_kiosk_check_out', 0);
+            })
+            ->first();
+
+        if ($room) {
+            $this->room_id = $room->id;
+            $this->steps = 2;
+        } else {
+            $this->dialog()->error(
+                $title = 'Room Not Found',
+                $description = 'No occupied room found with that number. Please check and try again.'
+            );
+            $this->room_number = null;
+        }
     }
 
     public function validateQR()
