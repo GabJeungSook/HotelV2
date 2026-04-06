@@ -35,7 +35,7 @@
     </div>
 
     {{-- Report Content --}}
-    <div id="report-page-reminders" class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden p-8 mb-6">
+    <div id="report-content" class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden p-8">
 
         {{-- ==================== REMINDERS SA FRONTDESK ==================== --}}
         <div class="mb-6 border-2 border-red-500 rounded p-5">
@@ -66,26 +66,6 @@
                 </ol>
             </div>
         </div>
-
-        {{-- ==================== REMINDERS SA ROOMBOY ==================== --}}
-        <div class="mb-6 border-2 border-red-500 rounded p-5">
-            <h3 class="text-base font-bold text-red-600 mb-3">REMINDERS SA ROOMBOY</h3>
-
-            <ol class="list-decimal list-inside text-sm space-y-2">
-                <li>Tanan trabahante dapat mo greet sa tanan niyang nasugatan co-workers and Guest. Good morning, Good afternoon, Good evening. Ang dili mo follow mag penalty ug 100 pesos kung masakpan.</li>
-                <li>Tanan roomboy dapat motubag sa radyo kung tawagan. Warningan sa maka tulo ug dili patoo advisan nga ipa re asign.</li>
-                <li>Ang pagpanglimyo sa room dapat open pirmete ang purtahan. Kung sirrado nagpasabot nga nagtan-aw ka tv,natulog ug nag aircon sa ato pa willing ka modawat sa mga penalty nga 200 pesos.</li>
-                <li>Ang paglimpyo sa room dapat dili dungan dunganon humano sa ang isa ka room ayha pa mobalhin sa lain nga room nga hugaw. Dapat E report sa frontdesk ang mga rooms nga limpyo na. Katulo warningan, Roomboy nga dili mo obey ug badlongon good as 1 week salary deduction.</li>
-                <li>Ang mga roomboys dapat mo report sa frontdesk kung unsa damage ug kulang sa room aron mapa ayo dayon. Roomboy nga dili mo report sa problema dayon dili mapasudlan ang room automatic xa magbayad sa room.</li>
-                <li>Mangutana ang roomboy sa mga rooms nga unang nag check out. Bawal ang mga unclean room nga e entry nga clean na if masakpan nga mo appear sa computer nga clean na. Penalty equivalent of 100 pesos.</li>
-                <li>Tanan trabahante mag so-ot ug uniform roomboys, cook and laundry wear white uniform. If masakpan nga wala nag uniform mag penalty ug 100pesos.</li>
-                <li>Tanan trabahante nga no assist or mo-entertain sa guest kinahanglan naka uniform. Bawal magtambay sa frontdesk area ug sa lobby. Trabahante nga masakpan 1 week suspension.</li>
-            </ol>
-        </div>
-
-    </div>
-
-    <div id="report-content" class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden p-8">
 
         {{-- ==================== HEADER ==================== --}}
         <div class="text-center mb-6">
@@ -297,6 +277,22 @@
 
         </div>
 
+        {{-- ==================== REMINDERS SA ROOMBOY ==================== --}}
+        <div class="mb-6 border-2 border-red-500 rounded p-5">
+            <h3 class="text-base font-bold text-red-600 mb-3">REMINDERS SA ROOMBOY</h3>
+
+            <ol class="list-decimal list-inside text-sm space-y-2">
+                <li>Tanan trabahante dapat mo greet sa tanan niyang nasugatan co-workers and Guest. Good morning, Good afternoon, Good evening. Ang dili mo follow mag penalty ug 100 pesos kung masakpan.</li>
+                <li>Tanan roomboy dapat motubag sa radyo kung tawagan. Warningan sa maka tulo ug dili patoo advisan nga ipa re asign.</li>
+                <li>Ang pagpanglimyo sa room dapat open pirmete ang purtahan. Kung sirrado nagpasabot nga nagtan-aw ka tv,natulog ug nag aircon sa ato pa willing ka modawat sa mga penalty nga 200 pesos.</li>
+                <li>Ang paglimpyo sa room dapat dili dungan dunganon humano sa ang isa ka room ayha pa mobalhin sa lain nga room nga hugaw. Dapat E report sa frontdesk ang mga rooms nga limpyo na. Katulo warningan, Roomboy nga dili mo obey ug badlongon good as 1 week salary deduction.</li>
+                <li>Ang mga roomboys dapat mo report sa frontdesk kung unsa damage ug kulang sa room aron mapa ayo dayon. Roomboy nga dili mo report sa problema dayon dili mapasudlan ang room automatic xa magbayad sa room.</li>
+                <li>Mangutana ang roomboy sa mga rooms nga unang nag check out. Bawal ang mga unclean room nga e entry nga clean na if masakpan nga mo appear sa computer nga clean na. Penalty equivalent of 100 pesos.</li>
+                <li>Tanan trabahante mag so-ot ug uniform roomboys, cook and laundry wear white uniform. If masakpan nga wala nag uniform mag penalty ug 100pesos.</li>
+                <li>Tanan trabahante nga no assist or mo-entertain sa guest kinahanglan naka uniform. Bawal magtambay sa frontdesk area ug sa lobby. Trabahante nga masakpan 1 week suspension.</li>
+            </ol>
+        </div>
+
         {{-- ==================== ROOM CLEANING CHART ==================== --}}
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">ROOM CLEANING CHART</h3>
@@ -379,48 +375,41 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-    function captureElement(el) {
-        return html2canvas(el, {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            scrollX: 0,
-            scrollY: -window.scrollY,
-            windowWidth: el.scrollWidth,
-            width: el.scrollWidth,
-            height: el.scrollHeight,
-        });
-    }
-
     function exportPDF() {
         const btn = document.getElementById('exportPdfBtn');
         const originalText = btn.textContent;
         btn.textContent = 'Generating...';
         btn.disabled = true;
 
-        const reminders = document.getElementById('report-page-reminders');
-        const report = document.getElementById('report-content');
+        const element = document.getElementById('report-content');
 
-        Promise.all([captureElement(reminders), captureElement(report)]).then(function(canvases) {
+        html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            scrollX: 0,
+            scrollY: -window.scrollY,
+            windowWidth: element.scrollWidth,
+            width: element.scrollWidth,
+            height: element.scrollHeight,
+        }).then(function(canvas) {
             const { jsPDF } = window.jspdf;
+
             const margin = 10;
             const pxToMm = 0.264583;
-            let pdf = null;
+            const pdfWidth = Math.max(340, (canvas.width / 2) * pxToMm + (margin * 2));
+            const imgWidth = pdfWidth - (margin * 2);
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const pdfHeight = imgHeight + (margin * 2);
 
-            canvases.forEach(function(canvas, i) {
-                const pdfWidth = Math.max(340, (canvas.width / 2) * pxToMm + (margin * 2));
-                const imgWidth = pdfWidth - (margin * 2);
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                const pdfHeight = imgHeight + (margin * 2);
-                const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-                if (i === 0) {
-                    pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pdfWidth, pdfHeight] });
-                } else {
-                    pdf.addPage([pdfWidth, pdfHeight]);
-                }
-                pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
+            const pdf = new jsPDF({
+                orientation: 'p',
+                unit: 'mm',
+                format: [pdfWidth, pdfHeight],
             });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
 
             const date = new Date().toISOString().slice(0, 10);
             pdf.save('Daily-Shift-Report-' + date + '.pdf');
