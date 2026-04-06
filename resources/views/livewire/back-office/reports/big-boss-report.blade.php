@@ -395,43 +395,20 @@
         }).then(function(canvas) {
             const { jsPDF } = window.jspdf;
 
-            // Legal size landscape
-            const pageWidth = 355.6;
-            const pageHeight = 215.9;
-            const margin = 8;
+            const margin = 10;
+            const pdfWidth = 356;
+            const contentWidth = pdfWidth - (margin * 2);
+            const contentHeight = (canvas.height * contentWidth) / canvas.width;
+            const pdfHeight = contentHeight + (margin * 2);
 
-            const contentWidth = pageWidth - (margin * 2);
-            const contentHeight = pageHeight - (margin * 2);
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: [pdfWidth, pdfHeight],
+            });
 
-            // Scale: fit canvas width to PDF content width
-            const ratio = contentWidth / canvas.width;
-            const scaledHeight = canvas.height * ratio;
-
-            // How many pixels of the canvas fit per page
-            const canvasPageHeight = contentHeight / ratio;
-
-            const totalPages = Math.ceil(canvas.height / canvasPageHeight);
-            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'legal' });
-
-            for (let page = 0; page < totalPages; page++) {
-                if (page > 0) pdf.addPage();
-
-                // Slice a portion of the source canvas for this page
-                const srcY = page * canvasPageHeight;
-                const srcH = Math.min(canvasPageHeight, canvas.height - srcY);
-
-                const sliceCanvas = document.createElement('canvas');
-                sliceCanvas.width = canvas.width;
-                sliceCanvas.height = srcH;
-
-                const ctx = sliceCanvas.getContext('2d');
-                ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-
-                const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95);
-                const sliceImgHeight = srcH * ratio;
-
-                pdf.addImage(sliceData, 'JPEG', margin, margin, contentWidth, sliceImgHeight);
-            }
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, contentHeight);
 
             const date = new Date().toISOString().slice(0, 10);
             pdf.save('Daily-Shift-Report-' + date + '.pdf');
