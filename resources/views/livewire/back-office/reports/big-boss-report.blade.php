@@ -395,34 +395,42 @@
         }).then(function(canvas) {
             const { jsPDF } = window.jspdf;
 
-            // A4 landscape in mm
-            const pageWidth = 297;
-            const pageHeight = 210;
-            const margin = 10;
+            // Legal size landscape
+            const pageWidth = 355.6;
+            const pageHeight = 215.9;
+            const margin = 8;
 
             const contentWidth = pageWidth - (margin * 2);
             const contentHeight = pageHeight - (margin * 2);
 
-            // Scale canvas to fit page width
-            const imgWidth = contentWidth;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            // Scale: fit canvas width to PDF content width
+            const ratio = contentWidth / canvas.width;
+            const scaledHeight = canvas.height * ratio;
 
-            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            // How many pixels of the canvas fit per page
+            const canvasPageHeight = contentHeight / ratio;
 
-            let position = 0;
-            let remainingHeight = imgHeight;
+            const totalPages = Math.ceil(canvas.height / canvasPageHeight);
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'legal' });
 
-            // First page
-            pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
-            remainingHeight -= contentHeight;
+            for (let page = 0; page < totalPages; page++) {
+                if (page > 0) pdf.addPage();
 
-            // Additional pages if content overflows
-            while (remainingHeight > 0) {
-                position -= contentHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'JPEG', margin, position + margin, imgWidth, imgHeight);
-                remainingHeight -= contentHeight;
+                // Slice a portion of the source canvas for this page
+                const srcY = page * canvasPageHeight;
+                const srcH = Math.min(canvasPageHeight, canvas.height - srcY);
+
+                const sliceCanvas = document.createElement('canvas');
+                sliceCanvas.width = canvas.width;
+                sliceCanvas.height = srcH;
+
+                const ctx = sliceCanvas.getContext('2d');
+                ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+
+                const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95);
+                const sliceImgHeight = srcH * ratio;
+
+                pdf.addImage(sliceData, 'JPEG', margin, margin, contentWidth, sliceImgHeight);
             }
 
             const date = new Date().toISOString().slice(0, 10);
