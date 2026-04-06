@@ -395,20 +395,23 @@
         }).then(function(canvas) {
             const { jsPDF } = window.jspdf;
 
+            // Convert canvas pixels to mm (at 96 DPI, 1px = 0.264583mm, but we used scale:2)
             const margin = 10;
-            const pdfWidth = 356;
-            const contentWidth = pdfWidth - (margin * 2);
-            const contentHeight = (canvas.height * contentWidth) / canvas.width;
-            const pdfHeight = contentHeight + (margin * 2);
+            const pdfWidth = 340;
+            const imgWidth = pdfWidth - (margin * 2);
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const pdfHeight = imgHeight + (margin * 2);
 
+            // jsPDF format: [width, height] — for portrait-like (tall) custom page
+            // use 'p' orientation so format[0]=width, format[1]=height
             const pdf = new jsPDF({
-                orientation: 'landscape',
+                orientation: 'p',
                 unit: 'mm',
                 format: [pdfWidth, pdfHeight],
             });
 
             const imgData = canvas.toDataURL('image/jpeg', 0.95);
-            pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, contentHeight);
+            pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
 
             const date = new Date().toISOString().slice(0, 10);
             pdf.save('Daily-Shift-Report-' + date + '.pdf');
