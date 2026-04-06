@@ -237,7 +237,8 @@
                                 <th class="border border-gray-300 px-2 py-1 text-right">Foods</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Drinks</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Misc.</th>
-                                <th class="border border-gray-300 px-2 py-1 text-right">Deposit</th>
+                                <th class="border border-gray-300 px-2 py-1 text-right">Room Deposit</th>
+                                <th class="border border-gray-300 px-2 py-1 text-right">Guest Deposit</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -257,11 +258,12 @@
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['foods'] > 0 ? number_format($room['foods'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['drinks'] > 0 ? number_format($room['drinks'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['misc'] > 0 ? number_format($room['misc'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['room_deposit'] > 0 ? number_format($room['room_deposit'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['deposit'] > 0 ? number_format($room['deposit'], 2) : '' }}</td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="15" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
+                                <td colspan="16" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
                             </tr>
                             @endforelse
                         </tbody>
