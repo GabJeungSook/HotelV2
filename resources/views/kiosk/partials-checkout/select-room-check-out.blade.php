@@ -12,7 +12,7 @@
     </svg>
   </div>
   <div class="flex justify-center mt-16">
-      <input wire:model="room_number" type="number" id="room_number" class="text-center p-4 text-2xl focus:outline-none w-full mx-14 rounded-md" autofocus autocomplete="off" />
+      <input wire:model="room_number" type="text" id="room_number" class="text-center p-4 text-2xl focus:outline-none w-full mx-14 rounded-md" autofocus autocomplete="off" />
   </div>
   <small class="flex justify-center mt-3 font-medium text-red-600">*Input Your Room Number Here*</small>
 </div>
