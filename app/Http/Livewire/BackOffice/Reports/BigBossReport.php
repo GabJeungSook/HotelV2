@@ -199,22 +199,21 @@ class BigBossReport extends Component
         $grossRow['no_room'] = $noRoomGross;
         $rows[] = $grossRow;
 
-        // Deposit row (guest deposits only, exclude check-in deposits)
+        // Deposit row (guest deposits only, exclude check-in deposits, minus cashouts)
         $guestDeposits = $transactions
             ->where('transaction_type_id', 2)
             ->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)');
+        $cashouts = $transactions->where('transaction_type_id', 5);
 
         $depositRow = ['label' => 'TOTAL DEPOSIT', 'floors' => [], 'total' => 0, 'no_room' => 0];
         foreach ($floors as $floor) {
-            $amount = (float) $guestDeposits
-                ->where('floor_id', $floor->id)
-                ->sum('payable_amount');
+            $amount = (float) $guestDeposits->where('floor_id', $floor->id)->sum('payable_amount')
+                    - (float) $cashouts->where('floor_id', $floor->id)->sum('payable_amount');
             $depositRow['floors'][$floor->id] = $amount;
             $depositRow['total'] += $amount;
         }
-        $noRoomDeposit = (float) $guestDeposits
-            ->whereNotIn('floor_id', $floors->pluck('id')->toArray())
-            ->sum('payable_amount');
+        $noRoomDeposit = (float) $guestDeposits->whereNotIn('floor_id', $floors->pluck('id')->toArray())->sum('payable_amount')
+                       - (float) $cashouts->whereNotIn('floor_id', $floors->pluck('id')->toArray())->sum('payable_amount');
         $depositRow['no_room'] = $noRoomDeposit;
         $depositRow['total'] += $noRoomDeposit;
         $rows[] = $depositRow;
