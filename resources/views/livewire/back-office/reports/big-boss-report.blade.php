@@ -23,16 +23,19 @@
                     <p class="text-xs text-gray-500 mt-1">No completed shifts found.</p>
                 @endif
             </div>
-            <div class="flex items-end">
+            <div class="flex items-end gap-2">
                 <button onclick="window.print()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
                     Print Report
+                </button>
+                <button onclick="exportPDF()" id="exportPdfBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
+                    Export PDF
                 </button>
             </div>
         </div>
     </div>
 
     {{-- Report Content --}}
-    <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden p-8">
+    <div id="report-content" class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden p-8">
 
         {{-- ==================== REMINDERS SA FRONTDESK ==================== --}}
         <div class="mb-6 border-2 border-red-500 rounded p-5">
@@ -368,4 +371,50 @@
         </div>
 
     </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+    function exportPDF() {
+        const btn = document.getElementById('exportPdfBtn');
+        const originalText = btn.textContent;
+        btn.textContent = 'Generating...';
+        btn.disabled = true;
+
+        const element = document.getElementById('report-content');
+
+        html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            windowWidth: element.scrollWidth,
+        }).then(function(canvas) {
+            const { jsPDF } = window.jspdf;
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+            const pdfWidth = 330;
+            const imgWidth = pdfWidth - 20;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const pageHeight = imgHeight + 20;
+
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: [pdfWidth, pageHeight],
+            });
+
+            pdf.addImage(imgData, 'JPEG', 10, 10, imgWidth, imgHeight);
+
+            const date = new Date().toISOString().slice(0, 10);
+            pdf.save('Daily-Shift-Report-' + date + '.pdf');
+
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }).catch(function() {
+            btn.textContent = originalText;
+            btn.disabled = false;
+            alert('Failed to generate PDF. Please try again.');
+        });
+    }
+</script>
 </div>
