@@ -395,9 +395,10 @@
         }).then(function(canvas) {
             const { jsPDF } = window.jspdf;
 
-            // Convert canvas pixels to mm (at 96 DPI, 1px = 0.264583mm, but we used scale:2)
             const margin = 10;
-            const pdfWidth = 340;
+            // Convert canvas pixels to mm: at 96 DPI with scale:2, 1 CSS px = 0.264583mm
+            const pxToMm = 0.264583;
+            const pdfWidth = Math.max(340, (canvas.width / 2) * pxToMm + (margin * 2));
             const imgWidth = pdfWidth - (margin * 2);
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
             const pdfHeight = imgHeight + (margin * 2);
