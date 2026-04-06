@@ -387,30 +387,51 @@
             scale: 2,
             useCORS: true,
             logging: false,
+            scrollX: 0,
+            scrollY: -window.scrollY,
             windowWidth: element.scrollWidth,
+            width: element.scrollWidth,
+            height: element.scrollHeight,
         }).then(function(canvas) {
             const { jsPDF } = window.jspdf;
+
+            // A4 landscape in mm
+            const pageWidth = 297;
+            const pageHeight = 210;
+            const margin = 10;
+
+            const contentWidth = pageWidth - (margin * 2);
+            const contentHeight = pageHeight - (margin * 2);
+
+            // Scale canvas to fit page width
+            const imgWidth = contentWidth;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
             const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
-            const pdfWidth = 330;
-            const imgWidth = pdfWidth - 20;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            const pageHeight = imgHeight + 20;
+            let position = 0;
+            let remainingHeight = imgHeight;
 
-            const pdf = new jsPDF({
-                orientation: 'landscape',
-                unit: 'mm',
-                format: [pdfWidth, pageHeight],
-            });
+            // First page
+            pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
+            remainingHeight -= contentHeight;
 
-            pdf.addImage(imgData, 'JPEG', 10, 10, imgWidth, imgHeight);
+            // Additional pages if content overflows
+            while (remainingHeight > 0) {
+                position -= contentHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'JPEG', margin, position + margin, imgWidth, imgHeight);
+                remainingHeight -= contentHeight;
+            }
 
             const date = new Date().toISOString().slice(0, 10);
             pdf.save('Daily-Shift-Report-' + date + '.pdf');
 
             btn.textContent = originalText;
             btn.disabled = false;
-        }).catch(function() {
+        }).catch(function(err) {
+            console.error(err);
             btn.textContent = originalText;
             btn.disabled = false;
             alert('Failed to generate PDF. Please try again.');
