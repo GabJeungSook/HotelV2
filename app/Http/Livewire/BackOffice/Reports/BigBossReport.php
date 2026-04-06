@@ -294,7 +294,8 @@ class BigBossReport extends Component
                             'drinks' => 0,
                             'misc' => (float) $checkinTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),
                             'room_deposit' => (float) $checkinTxns->where('transaction_type_id', 2)->where('remarks', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount'),
-                            'deposit' => (float) $checkinTxns->where('transaction_type_id', 2)->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount'),
+                            'deposit' => (float) $checkinTxns->where('transaction_type_id', 2)->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount')
+                                     - (float) $checkinTxns->where('transaction_type_id', 5)->sum('payable_amount'),
                         ];
 
                         $isFirst = false;
