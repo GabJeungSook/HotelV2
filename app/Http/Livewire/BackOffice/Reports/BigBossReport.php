@@ -391,7 +391,7 @@ class BigBossReport extends Component
                                 (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 2)->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount')
                                 - (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 5)->sum('payable_amount')
                             ),
-                            'expected_check_out' => (!$checkin->is_check_out && $checkin->check_out_at)
+                            'expected_check_out' => $checkin->check_out_at
                                 ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA')
                                 : '',
                         ];
