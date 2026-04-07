@@ -146,6 +146,17 @@ class CheckInFromKiosk extends Component
 
     public function saveCheckIn()
     {
+        // Prevent duplicate check-in for the same guest/room
+        $alreadyExists = CheckinDetail::where('guest_id', $this->guest->id)
+            ->where('room_id', $this->guest->room_id)
+            ->where('check_in_at', '>=', now()->subMinutes(5))
+            ->exists();
+
+        if ($alreadyExists) {
+            $this->dialog()->error('Duplicate Check-In', 'This guest has already been checked in.');
+            return;
+        }
+
         DB::beginTransaction();
 
         $rate = Rate::where('id', $this->guest->rate_id)->first()->stayingHour->number;

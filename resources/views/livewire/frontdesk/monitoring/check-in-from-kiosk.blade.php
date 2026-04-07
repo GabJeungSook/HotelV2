@@ -115,8 +115,9 @@
                 <button wire:click="cancelCheckIn" class="px-4 py-2 bg-red-500 text-gray-50 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">
                     Cancel
                 </button>
-                <button wire:click="proceedCheckIn" class="px-4 py-2 bg-[#10b981] text-white rounded-md hover:bg-[#0ca06f] focus:outline-none focus:ring-2 focus:ring-[#10b981] focus:ring-opacity-50">
-                    Check-In
+                <button wire:click="proceedCheckIn" wire:loading.attr="disabled" wire:target="proceedCheckIn" class="px-4 py-2 bg-[#10b981] text-white rounded-md hover:bg-[#0ca06f] focus:outline-none focus:ring-2 focus:ring-[#10b981] focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span wire:loading.remove wire:target="proceedCheckIn">Check-In</span>
+                    <span wire:loading wire:target="proceedCheckIn">Processing...</span>
                 </button>
             </div>
         </div>
@@ -163,7 +164,7 @@
         <x-slot name="footer">
           <div class="flex justify-end s gap-x-2">
               <x-button red label="Close" x-on:click="close" />
-              <x-button emerald label="Check-In" wire:click="saveCheckIn" />
+              <x-button emerald label="Check-In" wire:click="saveCheckIn" wire:loading.attr="disabled" spinner="saveCheckIn" />
           </div>
         </x-slot>
       </x-card>
