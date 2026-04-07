@@ -12,6 +12,7 @@ use App\Models\NewGuestReport;
 use App\Models\ExtendedGuestReport;
 use App\Models\CleaningHistory;
 use App\Models\Expense;
+use App\Models\Branch;
 use Carbon\Carbon;
 
 class BigBossReport extends Component
@@ -30,6 +31,44 @@ class BigBossReport extends Component
     public function updatedSelectedShiftLogId()
     {
         // triggers re-render
+    }
+
+    public function exportHtml()
+    {
+        $session = $this->getSelectedSession();
+        if (!$session) {
+            return;
+        }
+
+        $reportData = $this->generateReport($session);
+        $branch = Branch::find(auth()->user()->branch_id);
+        $branchName = $branch->name ?? 'Branch';
+
+        // Calculate gross total for NET INCOME
+        $grossTotal = 0;
+        foreach ($reportData['summaryRows'] as $row) {
+            if ($row['label'] === 'GROSS TOTAL') {
+                $grossTotal = $row['total'];
+                break;
+            }
+        }
+
+        $html = view('livewire.back-office.reports.big-boss-report-export', array_merge(
+            [
+                'selectedSession' => $session,
+                'branchName' => $branchName,
+                'grossTotal' => $grossTotal,
+            ],
+            $reportData
+        ))->render();
+
+        $shiftDate = $session['shift_date'] ?? now()->format('Y-m-d');
+        $shiftType = $session['shift_type'] ?? 'AM';
+        $filename = "{$branchName} {$shiftDate} {$shiftType} SHIFT.html";
+
+        return response()->streamDownload(function () use ($html) {
+            echo $html;
+        }, $filename, ['Content-Type' => 'text/html']);
     }
 
     public function render()

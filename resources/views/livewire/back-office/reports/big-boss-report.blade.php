@@ -27,8 +27,8 @@
                 <button onclick="window.print()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
                     Print Report
                 </button>
-                <button onclick="exportPDF()" id="exportPdfBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
-                    Export PDF
+                <button wire:click="exportHtml" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
+                    Export Z-Read
                 </button>
             </div>
         </div>
@@ -372,56 +372,4 @@
 
     </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script>
-    function exportPDF() {
-        const btn = document.getElementById('exportPdfBtn');
-        const originalText = btn.textContent;
-        btn.textContent = 'Generating...';
-        btn.disabled = true;
-
-        const element = document.getElementById('report-content');
-
-        html2canvas(element, {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            scrollX: 0,
-            scrollY: -window.scrollY,
-            windowWidth: element.scrollWidth,
-            width: element.scrollWidth,
-            height: element.scrollHeight,
-        }).then(function(canvas) {
-            const { jsPDF } = window.jspdf;
-
-            const margin = 10;
-            const pxToMm = 0.264583;
-            const pdfWidth = Math.max(340, (canvas.width / 2) * pxToMm + (margin * 2));
-            const imgWidth = pdfWidth - (margin * 2);
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            const pdfHeight = imgHeight + (margin * 2);
-
-            const pdf = new jsPDF({
-                orientation: 'p',
-                unit: 'mm',
-                format: [pdfWidth, pdfHeight],
-            });
-
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
-            pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
-
-            const date = new Date().toISOString().slice(0, 10);
-            pdf.save('Daily-Shift-Report-' + date + '.pdf');
-
-            btn.textContent = originalText;
-            btn.disabled = false;
-        }).catch(function(err) {
-            console.error(err);
-            btn.textContent = originalText;
-            btn.disabled = false;
-            alert('Failed to generate PDF. Please try again.');
-        });
-    }
-</script>
 </div>
