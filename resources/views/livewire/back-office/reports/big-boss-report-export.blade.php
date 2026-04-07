@@ -410,7 +410,7 @@
                                         <td class="text-center">{{ $room['rowspan'] > 0 ? $room['number'] : '' }}</td>
                                         <td class="text-right">{{ $room['rate'] ? number_format($room['rate'], 2) : '' }}</td>
                                         <td class="text-center">{{ $room['type'] }}</td>
-                                        <td style="color: #dc2626; font-style:italic;">[ FWD: {{ $room['check_in'] }} ]</td>
+                                        <td style="color: #dc2626; font-style:italic;">[ FWD: {{ $room['expected_check_out'] }} ]</td>
                                         <td>{{ $room['guest'] }}</td>
                                         <td class="text-center"><span style="color: #999;">--</span></td>
                                         <td class="text-center">@if($room['check_out'])<span style="color: #dc2626;">{{ $room['check_out'] }}</span>@endif</td>

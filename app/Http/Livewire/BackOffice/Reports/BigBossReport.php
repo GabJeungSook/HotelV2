@@ -246,8 +246,7 @@ class BigBossReport extends Component
         // Deposit row: per-checkin guest deposits minus cashouts, capped at 0
         // This prevents room deposit cashouts from creating negative guest deposit values
         $guestDeposits = $transactions
-            ->where('transaction_type_id', 2)
-            ->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)');
+            ->where('transaction_type_id', 2);
         $cashouts = $transactions->where('transaction_type_id', 5);
 
         // Group by checkin_detail_id and compute capped net deposit
@@ -344,6 +343,7 @@ class BigBossReport extends Component
                         'misc' => 0,
                         'room_deposit' => 0,
                         'deposit' => 0,
+                        'expected_check_out' => '',
                     ];
                 } else {
                     $checkinCount = $roomCheckins->count();
@@ -372,13 +372,16 @@ class BigBossReport extends Component
                             'foods' => (float) $checkinTxns->where('transaction_type_id', 9)->sum('payable_amount'),
                             'drinks' => 0,
                             'misc' => (float) $checkinTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),
-                            'room_deposit' => ($checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut))
+                            'room_deposit' => ($checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut))
                                 ? 0
                                 : (float) $checkinTxns->where('transaction_type_id', 2)->where('remarks', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount'),
                             'deposit' => max(0,
                                 (float) $checkinTxns->where('transaction_type_id', 2)->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount')
                                 - (float) $checkinTxns->where('transaction_type_id', 5)->sum('payable_amount')
                             ),
+                            'expected_check_out' => (!$checkin->is_check_out && $checkin->check_out_at)
+                                ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA')
+                                : '',
                         ];
 
                         $isFirst = false;
