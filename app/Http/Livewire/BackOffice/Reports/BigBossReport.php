@@ -132,7 +132,7 @@ class BigBossReport extends Component
             ->get();
 
         // ===== SUMMARY TABLE =====
-        $summaryRows = $this->buildSummaryRows($floors, $transactions);
+        $summaryRows = $this->buildSummaryRows($floors, $transactions, $occupyingDetails);
 
         // ===== STATISTICS =====
         $totalNewGuest = NewGuestReport::where('branch_id', $branchId)
@@ -192,8 +192,15 @@ class BigBossReport extends Component
         ];
     }
 
-    private function buildSummaryRows($floors, $transactions): array
+    private function buildSummaryRows($floors, $transactions, $occupyingDetails): array
     {
+        // Map checkin_detail_id → room's floor_id (accounts for room transfers)
+        $checkinFloorMap = $occupyingDetails->pluck('room.floor_id', 'id')->toArray();
+        $floorIds = $floors->pluck('id')->toArray();
+
+        // Helper: resolve the correct floor for a transaction via checkin_detail's room
+        $getFloor = fn($t) => $checkinFloorMap[$t->checkin_detail_id] ?? $t->floor_id;
+
         $categories = [
             'ROOM' => [1],            // Check In
             'TRANSFER' => [7],        // Transfer Room
@@ -212,19 +219,19 @@ class BigBossReport extends Component
 
         foreach ($categories as $label => $typeIds) {
             $row = ['label' => $label, 'floors' => [], 'total' => 0];
+            $categoryTxns = empty($typeIds) ? collect() : $transactions->whereIn('transaction_type_id', $typeIds);
+
             foreach ($floors as $floor) {
-                $amount = empty($typeIds) ? 0 : (float) $transactions
-                    ->whereIn('transaction_type_id', $typeIds)
-                    ->where('floor_id', $floor->id)
+                $amount = empty($typeIds) ? 0 : (float) $categoryTxns
+                    ->filter(fn($t) => $getFloor($t) == $floor->id)
                     ->sum('payable_amount');
                 $row['floors'][$floor->id] = $amount;
                 $row['total'] += $amount;
                 $grossPerFloor[$floor->id] += $amount;
             }
-            // NO ROOM column (transactions without a floor match)
-            $noRoom = empty($typeIds) ? 0 : (float) $transactions
-                ->whereIn('transaction_type_id', $typeIds)
-                ->whereNotIn('floor_id', $floors->pluck('id')->toArray())
+            // NO ROOM column (transactions whose resolved floor doesn't match any known floor)
+            $noRoom = empty($typeIds) ? 0 : (float) $categoryTxns
+                ->filter(fn($t) => !in_array($getFloor($t), $floorIds))
                 ->sum('payable_amount');
             $row['no_room'] = $noRoom;
             $row['total'] += $noRoom;
@@ -246,13 +253,13 @@ class BigBossReport extends Component
 
         $depositRow = ['label' => 'TOTAL DEPOSIT', 'floors' => [], 'total' => 0, 'no_room' => 0];
         foreach ($floors as $floor) {
-            $amount = (float) $guestDeposits->where('floor_id', $floor->id)->sum('payable_amount')
-                    - (float) $cashouts->where('floor_id', $floor->id)->sum('payable_amount');
+            $amount = (float) $guestDeposits->filter(fn($t) => $getFloor($t) == $floor->id)->sum('payable_amount')
+                    - (float) $cashouts->filter(fn($t) => $getFloor($t) == $floor->id)->sum('payable_amount');
             $depositRow['floors'][$floor->id] = $amount;
             $depositRow['total'] += $amount;
         }
-        $noRoomDeposit = (float) $guestDeposits->whereNotIn('floor_id', $floors->pluck('id')->toArray())->sum('payable_amount')
-                       - (float) $cashouts->whereNotIn('floor_id', $floors->pluck('id')->toArray())->sum('payable_amount');
+        $noRoomDeposit = (float) $guestDeposits->filter(fn($t) => !in_array($getFloor($t), $floorIds))->sum('payable_amount')
+                       - (float) $cashouts->filter(fn($t) => !in_array($getFloor($t), $floorIds))->sum('payable_amount');
         $depositRow['no_room'] = $noRoomDeposit;
         $depositRow['total'] += $noRoomDeposit;
         $rows[] = $depositRow;
