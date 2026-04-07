@@ -313,6 +313,18 @@ class BigBossReport extends Component
 
     private function buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, Carbon $timeIn, Carbon $timeOut): array
     {
+        // Pre-fetch ALL deposit (type 2) and cashout (type 5) transactions for forwarded guests
+        // since their deposits were created in a previous shift and aren't in $transactions
+        $forwardedIds = $occupyingDetails
+            ->filter(fn($d) => Carbon::parse($d->check_in_at)->lt($timeIn))
+            ->pluck('id')
+            ->toArray();
+
+        $forwardedDepositTxns = empty($forwardedIds) ? collect() : Transaction::query()
+            ->whereIn('checkin_detail_id', $forwardedIds)
+            ->whereIn('transaction_type_id', [2, 5])
+            ->get();
+
         $chart = [];
 
         foreach ($floors as $floor) {
@@ -374,10 +386,10 @@ class BigBossReport extends Component
                             'misc' => (float) $checkinTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),
                             'room_deposit' => ($checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut))
                                 ? 0
-                                : (float) $checkinTxns->where('transaction_type_id', 2)->where('remarks', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount'),
+                                : (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 2)->where('remarks', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount'),
                             'deposit' => max(0,
-                                (float) $checkinTxns->where('transaction_type_id', 2)->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount')
-                                - (float) $checkinTxns->where('transaction_type_id', 5)->sum('payable_amount')
+                                (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 2)->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')->sum('payable_amount')
+                                - (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 5)->sum('payable_amount')
                             ),
                             'expected_check_out' => (!$checkin->is_check_out && $checkin->check_out_at)
                                 ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA')
