@@ -122,6 +122,11 @@ class BigBossReport extends Component
             ->with(['guest', 'room.floor', 'room.type', 'rate.stayingHour'])
             ->get();
 
+        // Remove duplicate checkin_details (same guest, room, and check_in_at)
+        $occupyingDetails = $occupyingDetails->unique(function ($detail) {
+            return $detail->guest_id . '-' . $detail->room_id . '-' . $detail->check_in_at;
+        });
+
         $occupyingIds = $occupyingDetails->pluck('id')->toArray();
         $occupiedRoomIds = $occupyingDetails->pluck('room_id')->unique()->toArray();
 
