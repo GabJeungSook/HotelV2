@@ -352,8 +352,8 @@ class BigBossReport extends Component
                             'deposit' => ($checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut))
                                 ? 0
                                 : max(0,
-                                    (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 2)->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')->when($isForwarded, fn($c) => $c->filter(fn($t) => $t->created_at < $timeIn))->sum('payable_amount')
-                                    - (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 5)->when($isForwarded, fn($c) => $c->filter(fn($t) => $t->created_at < $timeIn))->sum('payable_amount')
+                                    (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 2)->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')->when($isForwarded, fn($c) => $c->filter(fn($t) => $t->created_at <= $timeOut))->sum('payable_amount')
+                                    - (float) ($isForwarded ? $forwardedDepositTxns : $checkinTxns)->where('checkin_detail_id', $checkin->id)->where('transaction_type_id', 5)->when($isForwarded, fn($c) => $c->filter(fn($t) => $t->created_at <= $timeOut))->sum('payable_amount')
                                 ),
                             'expected_check_out' => $checkin->check_out_at
                                 ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA')
