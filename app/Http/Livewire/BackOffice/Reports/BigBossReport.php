@@ -136,8 +136,11 @@ class BigBossReport extends Component
             ->whereBetween('created_at', [$timeIn, $timeOut])
             ->get();
 
+        // ===== FRONTDESK CHART (build first so summary can use its subtotals) =====
+        $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn, $timeOut);
+
         // ===== SUMMARY TABLE =====
-        $summaryRows = $this->buildSummaryRows($floors, $transactions, $occupyingDetails, $timeIn, $timeOut);
+        $summaryRows = $this->buildSummaryRows($floors, $transactions, $occupyingDetails, $timeIn, $timeOut, $frontdeskChart);
 
         // ===== STATISTICS =====
         $totalNewGuest = NewGuestReport::where('branch_id', $branchId)
@@ -171,9 +174,6 @@ class BigBossReport extends Component
             ->get();
         $expensesTotal = (float) $expenses->sum('amount');
 
-        // ===== FRONTDESK CHART =====
-        $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn, $timeOut);
-
         // ===== ROOM CLEANING CHART =====
         $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, $occupiedRoomIds, $occupyingDetails);
 
@@ -197,7 +197,7 @@ class BigBossReport extends Component
         ];
     }
 
-    private function buildSummaryRows($floors, $transactions, $occupyingDetails = null, Carbon $timeIn = null, Carbon $timeOut = null): array
+    private function buildSummaryRows($floors, $transactions, $occupyingDetails = null, Carbon $timeIn = null, Carbon $timeOut = null, array $frontdeskChart = []): array
     {
         $categories = [
             'ROOM' => [1],            // Check In
@@ -243,72 +243,20 @@ class BigBossReport extends Component
         $grossRow['no_room'] = $noRoomGross;
         $rows[] = $grossRow;
 
-        // Deposit row: per-checkin guest deposits minus cashouts, capped at 0
-        // This prevents room deposit cashouts from creating negative guest deposit values
-        $guestDeposits = $transactions
-            ->where('transaction_type_id', 2);
-        $cashouts = $transactions->where('transaction_type_id', 5);
-
-        // Group by checkin_detail_id and compute capped net deposit
-        $depByCheckin = [];
-        foreach ($guestDeposits as $t) {
-            $depByCheckin[$t->checkin_detail_id] = ($depByCheckin[$t->checkin_detail_id] ?? 0) + (float) $t->payable_amount;
-        }
-        $coByCheckin = [];
-        foreach ($cashouts as $t) {
-            $coByCheckin[$t->checkin_detail_id] = ($coByCheckin[$t->checkin_detail_id] ?? 0) + (float) $t->payable_amount;
-        }
-
-        // Get checked-out guest IDs during this shift (their deposits should be 0)
-        $checkedOutIds = [];
-        if ($occupyingDetails && $timeIn && $timeOut) {
-            $checkedOutIds = $occupyingDetails
-                ->filter(fn($d) => $d->is_check_out && $d->check_out_at && Carbon::parse($d->check_out_at)->between($timeIn, $timeOut))
-                ->pluck('id')
-                ->toArray();
-        }
-
-        // Build net deposit per checkin, capping cashouts at guest deposit amount
-        // Exclude checked-out guests (their deposits are settled)
-        $netByCheckin = [];
-        foreach (array_keys($depByCheckin + $coByCheckin) as $cdId) {
-            if (in_array($cdId, $checkedOutIds)) {
-                $netByCheckin[$cdId] = 0;
-                continue;
-            }
-            $dep = $depByCheckin[$cdId] ?? 0;
-            $co = min($coByCheckin[$cdId] ?? 0, $dep);
-            $netByCheckin[$cdId] = $dep - $co;
-        }
-
-        // Map checkin_detail_id to floor_id from transactions
-        $checkinFloor = [];
-        foreach ($transactions as $t) {
-            if ($t->checkin_detail_id && !isset($checkinFloor[$t->checkin_detail_id])) {
-                $checkinFloor[$t->checkin_detail_id] = $t->floor_id;
-            }
-        }
-
-        $floorIds = $floors->pluck('id')->toArray();
+        // TOTAL DEPOSIT row: derived from frontdesk chart subtotals so they always match
+        // Combines room_deposit + guest deposit per floor
         $depositRow = ['label' => 'TOTAL DEPOSIT', 'floors' => [], 'total' => 0, 'no_room' => 0];
         foreach ($floors as $floor) {
-            $amount = 0;
-            foreach ($netByCheckin as $cdId => $net) {
-                if (($checkinFloor[$cdId] ?? null) == $floor->id) {
-                    $amount += $net;
+            $floorDeposit = 0;
+            foreach ($frontdeskChart as $floorGroup) {
+                if ($floorGroup['floor']->id === $floor->id && !empty($floorGroup['subtotal'])) {
+                    $floorDeposit = ($floorGroup['subtotal']['room_deposit'] ?? 0) + ($floorGroup['subtotal']['deposit'] ?? 0);
+                    break;
                 }
             }
-            $depositRow['floors'][$floor->id] = $amount;
-            $depositRow['total'] += $amount;
+            $depositRow['floors'][$floor->id] = $floorDeposit;
+            $depositRow['total'] += $floorDeposit;
         }
-        $noRoomAmount = 0;
-        foreach ($netByCheckin as $cdId => $net) {
-            if (!in_array($checkinFloor[$cdId] ?? null, $floorIds)) {
-                $noRoomAmount += $net;
-            }
-        }
-        $depositRow['no_room'] = $noRoomAmount;
-        $depositRow['total'] += $noRoomAmount;
         $rows[] = $depositRow;
 
         return $rows;
