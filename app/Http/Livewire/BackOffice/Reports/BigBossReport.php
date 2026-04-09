@@ -137,7 +137,7 @@ class BigBossReport extends Component
             ->get();
 
         // ===== SUMMARY TABLE =====
-        $summaryRows = $this->buildSummaryRows($floors, $transactions);
+        $summaryRows = $this->buildSummaryRows($floors, $transactions, $occupyingDetails, $timeIn, $timeOut);
 
         // ===== STATISTICS =====
         $totalNewGuest = NewGuestReport::where('branch_id', $branchId)
@@ -197,7 +197,7 @@ class BigBossReport extends Component
         ];
     }
 
-    private function buildSummaryRows($floors, $transactions): array
+    private function buildSummaryRows($floors, $transactions, $occupyingDetails = null, Carbon $timeIn = null, Carbon $timeOut = null): array
     {
         $categories = [
             'ROOM' => [1],            // Check In
@@ -259,9 +259,23 @@ class BigBossReport extends Component
             $coByCheckin[$t->checkin_detail_id] = ($coByCheckin[$t->checkin_detail_id] ?? 0) + (float) $t->payable_amount;
         }
 
+        // Get checked-out guest IDs during this shift (their deposits should be 0)
+        $checkedOutIds = [];
+        if ($occupyingDetails && $timeIn && $timeOut) {
+            $checkedOutIds = $occupyingDetails
+                ->filter(fn($d) => $d->is_check_out && $d->check_out_at && Carbon::parse($d->check_out_at)->between($timeIn, $timeOut))
+                ->pluck('id')
+                ->toArray();
+        }
+
         // Build net deposit per checkin, capping cashouts at guest deposit amount
+        // Exclude checked-out guests (their deposits are settled)
         $netByCheckin = [];
         foreach (array_keys($depByCheckin + $coByCheckin) as $cdId) {
+            if (in_array($cdId, $checkedOutIds)) {
+                $netByCheckin[$cdId] = 0;
+                continue;
+            }
             $dep = $depByCheckin[$cdId] ?? 0;
             $co = min($coByCheckin[$cdId] ?? 0, $dep);
             $netByCheckin[$cdId] = $dep - $co;
@@ -403,9 +417,22 @@ class BigBossReport extends Component
                 }
             }
 
+            // Floor subtotals
+            $subtotal = [
+                'room_rate' => collect($floorData)->sum('room_rate'),
+                'transfer' => collect($floorData)->sum('transfer'),
+                'extend' => collect($floorData)->sum('extend'),
+                'foods' => collect($floorData)->sum('foods'),
+                'drinks' => collect($floorData)->sum('drinks'),
+                'misc' => collect($floorData)->sum('misc'),
+                'room_deposit' => collect($floorData)->sum('room_deposit'),
+                'deposit' => collect($floorData)->sum('deposit'),
+            ];
+
             $chart[] = [
                 'floor' => $floor,
                 'rooms' => $floorData,
+                'subtotal' => $subtotal,
             ];
         }
 

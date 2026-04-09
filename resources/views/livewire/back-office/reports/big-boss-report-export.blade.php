@@ -449,6 +449,19 @@
                                     <td colspan="16" class="text-center" style="color: #999; font-style: italic;">No rooms</td>
                                 </tr>
                             @endforelse
+                            @if(!empty($floorGroup['subtotal']))
+                                <tr style="background-color: #e5e7eb; font-weight: bold;">
+                                    <td colspan="8" class="text-right">SUBTOTAL</td>
+                                    <td class="text-right">{{ ($floorGroup['subtotal']['room_rate'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['room_rate'], 2) : '' }}</td>
+                                    <td class="text-right">{{ ($floorGroup['subtotal']['transfer'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['transfer'], 2) : '' }}</td>
+                                    <td class="text-right">{{ ($floorGroup['subtotal']['extend'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['extend'], 2) : '' }}</td>
+                                    <td class="text-right">{{ ($floorGroup['subtotal']['foods'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['foods'], 2) : '' }}</td>
+                                    <td class="text-right">{{ ($floorGroup['subtotal']['drinks'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['drinks'], 2) : '' }}</td>
+                                    <td class="text-right">{{ ($floorGroup['subtotal']['misc'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['misc'], 2) : '' }}</td>
+                                    <td class="text-right">{{ ($floorGroup['subtotal']['room_deposit'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['room_deposit'], 2) : '' }}</td>
+                                    <td class="text-right">{{ ($floorGroup['subtotal']['deposit'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['deposit'], 2) : '' }}</td>
+                                </tr>
+                            @endif
                         </tbody>
                     </table>
                 </div>

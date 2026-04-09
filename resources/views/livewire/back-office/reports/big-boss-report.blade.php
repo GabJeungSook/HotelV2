@@ -269,6 +269,19 @@
                                 <td colspan="16" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
                             </tr>
                             @endforelse
+                            @if(!empty($floorGroup['subtotal']))
+                            <tr class="bg-gray-200 font-bold">
+                                <td colspan="8" class="border border-gray-300 px-2 py-1 text-right">SUBTOTAL</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['room_rate'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['room_rate'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['transfer'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['transfer'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['extend'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['extend'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['foods'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['foods'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['drinks'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['drinks'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['misc'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['misc'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['room_deposit'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['room_deposit'], 2) : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['deposit'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['deposit'], 2) : '' }}</td>
+                            </tr>
+                            @endif
                         </tbody>
                     </table>
                 </div>
