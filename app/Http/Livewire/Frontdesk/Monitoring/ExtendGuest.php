@@ -71,7 +71,7 @@ class ExtendGuest extends Component
         $this->current_time_alloted = $this->guest->checkInDetail()->first()->number_of_hours;
 
         $stayingHourIds = Rate::where('branch_id', auth()->user()->branch_id)
-            ->where('type_id', $this->rate->type_id)
+            ->where('room_id', $this->rate->room_id)
             ->distinct()
             ->pluck('staying_hour_id');
 
@@ -113,7 +113,7 @@ class ExtendGuest extends Component
             if (($this->current_time_alloted == 0)
                 && $this->guest->checkInDetail()->first()->next_extension_is_original == true) {
                 $rate = Rate::where('branch_id', auth()->user()->branch_id)
-                    ->where('type_id', $this->rate->type_id)
+                    ->where('room_id', $this->rate->room_id)
                     ->whereHas('stayingHour', function ($query) {
                         $query->where('number', $this->extended_rate->hour);
                     })->first();
@@ -130,7 +130,7 @@ class ExtendGuest extends Component
                 }
 
                 $rate = Rate::where('branch_id', auth()->user()->branch_id)
-                    ->where('type_id', $this->rate->type_id)
+                    ->where('room_id', $this->rate->room_id)
                     ->whereHas('stayingHour', function ($query) use ($total_current_hours) {
                         $query->where('number', $total_current_hours);
                     })->first();

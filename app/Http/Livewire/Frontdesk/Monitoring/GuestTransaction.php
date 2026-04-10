@@ -374,7 +374,9 @@ class GuestTransaction extends Component
 
                 if($is_resettable)
                 {
-                    $reset_rate = Rate::whereHas('stayingHour', function ($query) use ($selectedHour) {
+                    $guest_room_id = Guest::where('id', $this->guest_id)->first()->room_id;
+                    $reset_rate = Rate::where('room_id', $guest_room_id)
+                    ->whereHas('stayingHour', function ($query) use ($selectedHour) {
                         $query->where('number', $selectedHour);
                     })->first();
 
@@ -400,7 +402,9 @@ class GuestTransaction extends Component
 
                 if($remainingGuestHours === 0)
                 {
-                    $reset_rate = Rate::whereHas('stayingHour', function ($query) use ($selectedHour){
+                    $guest_room_id2 = Guest::where('id', $this->guest_id)->first()->room_id;
+                    $reset_rate = Rate::where('room_id', $guest_room_id2)
+                    ->whereHas('stayingHour', function ($query) use ($selectedHour){
                         $query->where('number', $selectedHour);
                     })->first();
 
@@ -438,7 +442,9 @@ class GuestTransaction extends Component
                                             ->first()->amount;
 
 
-                $secondRate = Rate::whereHas('stayingHour', function ($query) use ($newRate) {
+                $guest_room_id3 = Guest::where('id', $this->guest_id)->first()->room_id;
+                $secondRate = Rate::where('room_id', $guest_room_id3)
+                                ->whereHas('stayingHour', function ($query) use ($newRate) {
                                     $query->where('number', $newRate);
                                 })->first();
                 if ($secondRate == null) {
@@ -1483,7 +1489,7 @@ class GuestTransaction extends Component
         $guestss = Guest::where('id', $this->guest_id)->first();
         $hours = $guestss->checkInDetail->hours_stayed;
         $new_room = Rate::where('branch_id', auth()->user()->branch_id)
-            ->where('type_id', $this->type_id)
+            ->where('room_id', $this->room_id)
             ->where('is_available', true)
             ->whereHas('stayingHour', function ($query) use ($hours) {
                 $query
@@ -1691,7 +1697,7 @@ class GuestTransaction extends Component
 
         $new_room = Room::where('id',  $this->room_id)->first();
         CheckinDetail::where('guest_id', $this->guest_id)->update([
-            'type_id' => $this->type_id,
+            'type_id' => Room::find($this->room_id)?->type_id ?? $this->type_id,
             'room_id' => $this->room_id,
         ]);
 

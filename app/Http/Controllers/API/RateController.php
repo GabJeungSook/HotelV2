@@ -12,11 +12,11 @@ class RateController extends Controller
     {
         $request->validate([
             'branch_id' => 'required|integer',
-            'type_id' => 'required|integer',
+            'room_id' => 'required|integer',
         ]);
 
         $rates = Rate::where('branch_id', $request->branch_id)
-                ->where('type_id', $request->type_id)
+                ->where('room_id', $request->room_id)
                 ->with('stayingHour')
                 ->get();
 

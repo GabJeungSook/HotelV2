@@ -23,6 +23,7 @@ class CheckInCo extends Component
     public $contact_number;
     public $type_id;
     public $room_id;
+
     public $rate_id;
     public $is_longStay;
 
@@ -40,8 +41,8 @@ class CheckInCo extends Component
                 })
                 ->get(),
             'rates' => Rate::where('branch_id', auth()->user()->branch_id)
-                ->when($this->type_id, function ($query) {
-                    $query->where('type_id', $this->type_id);
+                ->when($this->room_id, function ($query) {
+                    $query->where('room_id', $this->room_id);
                 })
                 ->get(),
         ]);

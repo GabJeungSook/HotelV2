@@ -15,6 +15,11 @@ class Rate extends Model
         return $this->belongsTo(Type::class);
     }
 
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
+    }
+
     public function guest()
     {
         return $this->hasMany(Guest::class, 'rate_id');

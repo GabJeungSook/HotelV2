@@ -78,13 +78,13 @@
                 <div>
                      <x-native-select label="Rate " wire:model="rate_id">
                      <option hidden selected>Select Rate</option>
-                        @if($type_id)
+                        @if($room_id)
                         @foreach ($rates as $rate)
                         <option value="{{ $rate->id }}">
                             {{ $rate->stayingHour->number . ' Hours - ₱' . number_format($rate->amount, 2) }}</option>
                         @endforeach
                          @else
-                             <option value="" disabled>Select Room Type First</option>
+                             <option value="" disabled>Select Room First</option>
                         @endif
                     </x-native-select>
                     @error('rate_id')

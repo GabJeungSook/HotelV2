@@ -126,7 +126,7 @@ class CheckIn extends Component
     {
         $this->room_id = $room_id;
         $this->rates = Rate::whereBranchId(auth()->user()->branch_id)
-            ->whereTypeId($this->type_id)
+            ->where('room_id', $this->room_id)
             ->with(['stayingHour'])
             ->get();
     }
@@ -176,21 +176,21 @@ class CheckIn extends Component
                 ->first();
 
             $rate_exist = Rate::where('branch_id', auth()->user()->branch_id)
-                ->where('type_id', $this->type_id)
+                ->where('room_id', $this->room_id)
                 ->where('staying_hour_id', $long->id)
                 ->exists();
 
             if ($rate_exist) {
                 $this->room_rate =
                     Rate::where('branch_id', auth()->user()->branch_id)
-                        ->where('type_id', $this->type_id)
+                        ->where('room_id', $this->room_id)
                         ->max('amount') * $this->longstay;
 
                 $this->rate_id = Rate::where(
                     'branch_id',
                     auth()->user()->branch_id
                 )
-                    ->where('type_id', $this->type_id)
+                    ->where('room_id', $this->room_id)
                     ->where('staying_hour_id', $long->id)
                     ->first()->id;
 

@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Admin\Manage;
 
 use App\Models\ActivityLog;
 use App\Models\Branch;
+use App\Models\Room;
 use App\Models\Type;
 use Filament\Tables;
 use Livewire\Component;
@@ -25,7 +26,7 @@ class Rate extends Component implements Tables\Contracts\HasTable
     public $add_modal = false;
     public $add_staying_hour_modal = false;
     public $edit_modal = false;
-    public $amount, $hours_id, $type_id, $rate_id;
+    public $amount, $hours_id, $type_id, $room_id, $rate_id;
     public $search;
     public $has_discount = false;
     public $branch_id;
@@ -56,13 +57,13 @@ class Rate extends Component implements Tables\Contracts\HasTable
     {
         if(auth()->user()->hasRole('superadmin'))
         {
-            return Type::query()
+            return Room::query()
             ->where('branch_id', $this->branch_id)
-            ->with(['rates.stayingHour', 'rates.type']);
+            ->with(['rates.stayingHour', 'type']);
         }else{
-            return Type::query()
+            return Room::query()
             ->where('branch_id', auth()->user()->branch_id)
-            ->with(['rates.stayingHour', 'rates.type']);
+            ->with(['rates.stayingHour', 'type']);
         }
     }
 
@@ -75,8 +76,9 @@ class Rate extends Component implements Tables\Contracts\HasTable
     public function getTableContent()
     {
         return view('custom-table', [
-            'types' => Type::query()
+            'types' => Room::query()
                 ->where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)
+                ->with(['type', 'rates.stayingHour'])
                 ->get(),
         ]);
     }
@@ -124,24 +126,27 @@ class Rate extends Component implements Tables\Contracts\HasTable
         $this->validate([
             'amount' => 'required|regex:/^\d+$/',
             'hours_id' => 'required',
-            'type_id' => 'required',
+            'room_id' => 'required',
         ]);
+
+         $room = Room::find($this->room_id);
 
          rateModel::create([
                 'branch_id' => auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,
                 'amount' => $this->amount,
                 'staying_hour_id' => $this->hours_id,
-                'type_id' => $this->type_id,
+                'type_id' => $room?->type_id,
+                'room_id' => $this->room_id,
             ]);
 
             ActivityLog::create([
                 'branch_id' => auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,
                 'user_id' => auth()->user()->id,
                 'activity' => 'Create Rate',
-                'description' => 'Created rate ' . $this->amount . ' for type ID ' . $this->type_id,
+                'description' => 'Created rate ' . $this->amount . ' for room ID ' . $this->room_id,
             ]);
 
-            $this->reset(['amount', 'hours_id', 'type_id']);
+            $this->reset(['amount', 'hours_id', 'type_id', 'room_id']);
             $this->dialog()->success(
                 $title = 'Rate Saved',
                 $description = 'Rate was successfully saved'
@@ -245,6 +250,7 @@ class Rate extends Component implements Tables\Contracts\HasTable
         $this->amount = $rate->amount;
         $this->hours_id = $rate->staying_hour_id;
         $this->type_id = $rate->type_id;
+        $this->room_id = $rate->room_id;
         $this->rate_id = $rate->id;
         $this->edit_modal = true;
     }
@@ -282,11 +288,11 @@ class Rate extends Component implements Tables\Contracts\HasTable
         $this->validate([
             'amount' => 'required|regex:/^\d+$/',
             'hours_id' => 'required',
-            'type_id' => 'required',
+            'room_id' => 'required',
         ]);
 
         $rate_exists = rateModel::where('staying_hour_id', $this->hours_id)
-            ->where('type_id', $this->type_id)
+            ->where('room_id', $this->room_id)
             ->where('amount', $this->amount)
             ->where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)
             ->where('id', '!=', $this->rate_id)
@@ -309,7 +315,7 @@ class Rate extends Component implements Tables\Contracts\HasTable
                 $description = 'The rate you are trying to add already exists.'
             );
         } elseif (
-            rateModel::where('type_id', $this->type_id)
+            rateModel::where('room_id', $this->room_id)
                 ->where('amount', $this->amount)
                 ->where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)
                 ->where('id', '!=', $this->rate_id)
@@ -322,7 +328,7 @@ class Rate extends Component implements Tables\Contracts\HasTable
         } elseif (
             rateModel::where('staying_hour_id', $this->hours_id)
                 ->where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)
-                ->where('type_id', $this->type_id)
+                ->where('room_id', $this->room_id)
                 ->where('id', '!=', $this->rate_id)
                 ->exists()
         ) {
@@ -334,17 +340,18 @@ class Rate extends Component implements Tables\Contracts\HasTable
             rateModel::where('id', $this->rate_id)->update([
                 'amount' => $this->amount,
                 'staying_hour_id' => $this->hours_id,
-                'type_id' => $this->type_id,
+                'type_id' => Room::find($this->room_id)?->type_id,
+                'room_id' => $this->room_id,
             ]);
 
             ActivityLog::create([
                 'branch_id' => auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,
                 'user_id' => auth()->user()->id,
                 'activity' => 'Update Rate',
-                'description' => 'Updated rate ' . $this->amount . ' for type ID ' . $this->type_id,
+                'description' => 'Updated rate ' . $this->amount . ' for room ID ' . $this->room_id,
             ]);
 
-            $this->reset(['amount', 'hours_id', 'type_id']);
+            $this->reset(['amount', 'hours_id', 'type_id', 'room_id']);
             $this->dialog()->success(
                 $title = 'Rate Saved',
                 $description = 'Rate was successfully saved'

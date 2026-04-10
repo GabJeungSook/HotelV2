@@ -42,15 +42,15 @@
                   </tr>
                 </thead>
                 <tbody class="bg-white">
-                  @forelse ($types as $key => $type)
+                  @forelse ($types as $key => $room)
                     <tr class="border-y border-gray-200">
                       <th colspan="6" scope="colgroup"
                         class="bg-gray-50 px-4 py-2 text-left text-sm font-semibold uppercase text-gray-700 sm:px-6">
-                        {{ $type->name }}
+                        Room {{ $room->number }} ({{ $room->type->name }})
                       </th>
                     </tr>
 
-                    @forelse ($type->rates as $rate)
+                    @forelse ($room->rates as $rate)
                       <tr class="border-t border-gray-200">
                         <td class="whitespace-nowrap w-40 py-2 pl-4 pr-3 text-sm font-medium text-gray-700 sm:pl-6">
 
@@ -60,7 +60,7 @@
                         </td>
                         <td class="whitespace-nowrap px-3 py-2 text-sm text-gray-700">
                           &#8369;{{ number_format($rate->amount, 2) }}</td>
-                        <td class="whitespace-nowrap px-3 py-2 text-sm text-gray-700">{{ $rate->type->name }}</td>
+                        <td class="whitespace-nowrap px-3 py-2 text-sm text-gray-700">Room {{ $rate->room->number ?? '—' }}</td>
                         <td class="whitespace-nowrap px-3 py-2 text-sm text-gray-700">
                           @switch($rate->is_available)
                             @case(1)
@@ -112,10 +112,10 @@
             </x-native-select>
             <x-input wire:model.defer="amount" label="Amount" placeholder="" />
 
-            <x-native-select label="Select Type" wire:model="type_id">
-              <option selected hidden>Select Type</option>
-              @foreach ($types as $type)
-                <option value="{{ $type->id }}">{{ $type->name }} </option>
+            <x-native-select label="Select Room" wire:model="room_id">
+              <option selected hidden>Select Room</option>
+              @foreach ($types as $room)
+                <option value="{{ $room->id }}">Room {{ $room->number }} ({{ $room->type->name }}) </option>
               @endforeach
             </x-native-select>
           </div>
@@ -178,9 +178,6 @@
       </div>
       <div class="flex mt-5 px-4 flex-col space-y-3">
         <x-input wire:model.defer="number" label="Number of Hours" placeholder="" />
-        @php
-          $types = App\Models\Type::where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)->get();
-        @endphp
       </div>
       <x-slot name="footer">
         <div class="flex justify-end gap-x-4">
@@ -212,12 +209,12 @@
         </x-native-select>
         <x-input wire:model.defer="amount" label="Amount" placeholder="" />
         @php
-          $types = App\Models\Type::where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)->get();
+          $rooms = App\Models\Room::where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)->with('type')->get();
         @endphp
-        <x-native-select label="Select Type" wire:model="type_id">
-          <option selected hidden>Select Type</option>
-          @foreach ($types as $type)
-            <option value="{{ $type->id }}">{{ $type->name }} </option>
+        <x-native-select label="Select Room" wire:model="room_id">
+          <option selected hidden>Select Room</option>
+          @foreach ($rooms as $room)
+            <option value="{{ $room->id }}">Room {{ $room->number }} ({{ $room->type->name }}) </option>
           @endforeach
         </x-native-select>
       </div>
@@ -250,12 +247,12 @@
         </x-native-select>
         <x-input wire:model.defer="amount" label="Amount" placeholder="" />
         @php
-          $types = App\Models\Type::where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)->get();
+          $rooms = App\Models\Room::where('branch_id', auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id)->with('type')->get();
         @endphp
-        <x-native-select label="Select Type" wire:model="type_id">
-          <option selected hidden>Select Type</option>
-          @foreach ($types as $type)
-            <option value="{{ $type->id }}">{{ $type->name }} </option>
+        <x-native-select label="Select Room" wire:model="room_id">
+          <option selected hidden>Select Room</option>
+          @foreach ($rooms as $room)
+            <option value="{{ $room->id }}">Room {{ $room->number }} ({{ $room->type->name }}) </option>
           @endforeach
         </x-native-select>
       </div>

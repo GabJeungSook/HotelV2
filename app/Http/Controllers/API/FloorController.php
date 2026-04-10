@@ -50,7 +50,7 @@ class FloorController extends Controller
                 ->when($floorId, fn($q) => $q->where('floor_id', $floorId))
                 ->whereNotIn('id', $temporaryCheckInKiosk)
                 ->whereNotIn('id', $temporaryReserved)
-                ->with(['type.rates'])
+                ->with(['rates.stayingHour', 'type'])
                 ->orderBy('number', 'asc');
         }])
         ->where('branch_id', $branchId)

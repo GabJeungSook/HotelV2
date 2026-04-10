@@ -106,7 +106,7 @@ class TransferRoom extends Component
                   ->count();
         $hours = $this->guest->checkInDetail->hours_stayed;
         $this->new_room  = Rate::where('branch_id', auth()->user()->branch_id)
-                        ->where('type_id', $this->selected_type_id)
+                        ->where('room_id', $this->selected_room_id)
                         ->where('is_available', true)
                         ->whereHas('stayingHour', function ($query) use ($hours) {
                             $query->where('branch_id', auth()->user()->branch_id)->where('number', '=', $hours);
@@ -353,7 +353,7 @@ class TransferRoom extends Component
          Guest::where('id', $this->guest->id)->update([
             'previous_room_id' => $check_in_detail->room_id,
             'room_id' => $this->selected_room_id,
-            'type_id' => $this->selected_type_id,
+            'type_id' => Room::find($this->selected_room_id)?->type_id ?? $this->selected_type_id,
             'rate_id' => $this->new_room ? $this->new_room->id : $this->guest->rate_id,
             'static_amount' => ($this->new_room_rate + $initial_deposit),
         ]);
@@ -383,7 +383,7 @@ class TransferRoom extends Component
         ]);
 
          CheckinDetail::where('guest_id', $this->guest->id)->update([
-            'type_id' => $this->selected_type_id,
+            'type_id' => Room::find($this->selected_room_id)?->type_id ?? $this->selected_type_id,
             'room_id' => $this->selected_room_id,
             'rate_id' => $this->new_room ? $this->new_room->id : $this->guest->rate_id,
             'static_room_amount' => $this->new_room_rate,
