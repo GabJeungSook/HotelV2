@@ -104,6 +104,18 @@ class TransferRoom extends Component
                   ->where('status', 'Available')
                   ->where('type_id', $this->selected_type_id)
                   ->count();
+        $this->new_room = null;
+        $this->new_room_rate = 0;
+        $this->excess_amount = 0;
+        $this->payable_amount = 0;
+    }
+
+    public function updatedSelectedRoomId()
+    {
+        if (!$this->selected_room_id) {
+            return;
+        }
+
         $hours = $this->guest->checkInDetail->hours_stayed;
         $this->new_room  = Rate::where('branch_id', auth()->user()->branch_id)
                         ->where('room_id', $this->selected_room_id)
