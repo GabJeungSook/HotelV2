@@ -224,26 +224,4 @@ class Rate extends Component
         $this->add_staying_hour_modal = true;
     }
 
-    public function toggleDiscount($id)
-    {
-        $this->dialog()->confirm([
-            'title'       => 'Are you Sure?',
-            'description' => 'Do you want to update the discount status of this rate?',
-            'acceptLabel' => 'Yes, update it',
-            'method'      => 'saveDiscount',
-            'params'      => $id,
-        ]);
-    }
-
-    public function saveDiscount($id)
-    {
-        $rate = rateModel::find($id);
-        $rate->has_discount = !$rate->has_discount;
-        $rate->save();
-
-        $this->dialog()->success(
-            $title = 'Discount Updated',
-            $description = 'Discount status has been updated successfully.'
-        );
-    }
 }

@@ -14,6 +14,7 @@ use App\Models\Room;
 use App\Models\StayingHour;
 use App\Models\TemporaryCheckInKiosk;
 use App\Models\Transaction;
+use App\Models\DiscountConfiguration;
 use Carbon\Carbon;
 use DB;
 use Livewire\Component;
@@ -31,6 +32,7 @@ class CheckInFromKiosk extends Component
     public $guest;
     public $has_discount;
     public $discount_amount;
+    public $discount_available = false;
 
     public $is_longStay = false;
     public $total = 0;
@@ -75,6 +77,13 @@ class CheckInFromKiosk extends Component
                 ->first();
             $this->has_discount = $this->guest->has_discount;
             $this->discount_amount = auth()->user()->branch->discount_amount;
+
+            $branch = auth()->user()->branch;
+            $this->discount_available = $branch->discount_enabled && DiscountConfiguration::where('branch_id', $branch->id)
+                ->where('type_id', $this->room->type_id)
+                ->where('staying_hour_id', $this->rate->staying_hour_id)
+                ->where('is_enabled', true)
+                ->exists();
 
             if ($this->has_discount) {
                 $this->total = ($this->guest->static_amount + $this->additional_charges) - $this->discount_amount;

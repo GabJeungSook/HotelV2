@@ -13,6 +13,7 @@ use App\Models\TemporaryCheckInKiosk;
 use Carbon\Carbon;
 use App\Jobs\TerminationInKiosk;
 use App\Models\StayingHour;
+use App\Models\DiscountConfiguration;
 use App\Events\CheckInEvent;
 use App\Models\TemporaryReserved;
 use DB;
@@ -156,8 +157,15 @@ class CheckIn extends Component
                 $this->rate_id
             )->first()->amount;
             $rate = Rate::where('id', $this->rate_id)->first();
-            if ($rate->has_discount && auth()->user()->branch->discount_enabled) {
-                $this->discount_available = true;
+            $branch = auth()->user()->branch;
+            if ($branch->discount_enabled) {
+                $room = Room::find($this->room_id);
+                $discountEnabled = DiscountConfiguration::where('branch_id', $branch->id)
+                    ->where('type_id', $room->type_id)
+                    ->where('staying_hour_id', $rate->staying_hour_id)
+                    ->where('is_enabled', true)
+                    ->exists();
+                $this->discount_available = $discountEnabled;
             }
 
             $this->steps = 4;
