@@ -5,7 +5,6 @@ namespace Tests\Feature\Admin;
 use App\Http\Livewire\Admin\Manage\Rate as RateComponent;
 use App\Models\Branch;
 use App\Models\Floor;
-use App\Models\Frontdesk;
 use App\Models\Rate;
 use App\Models\Room;
 use App\Models\StayingHour;
@@ -25,7 +24,9 @@ class ManageRateTest extends TestCase
     protected Floor $floor;
     protected Type $roomType;
     protected Room $room;
-    protected StayingHour $stayingHour;
+    protected Room $room2;
+    protected StayingHour $stayingHour6;
+    protected StayingHour $stayingHour12;
 
     protected function setUp(): void
     {
@@ -59,9 +60,22 @@ class ManageRateTest extends TestCase
             'status' => 'available',
         ]);
 
-        $this->stayingHour = StayingHour::create([
+        $this->room2 = Room::create([
+            'branch_id' => $this->branch->id,
+            'floor_id' => $this->floor->id,
+            'type_id' => $this->roomType->id,
+            'number' => 102,
+            'status' => 'available',
+        ]);
+
+        $this->stayingHour6 = StayingHour::create([
             'branch_id' => $this->branch->id,
             'number' => 6,
+        ]);
+
+        $this->stayingHour12 = StayingHour::create([
+            'branch_id' => $this->branch->id,
+            'number' => 12,
         ]);
     }
 
@@ -75,67 +89,97 @@ class ManageRateTest extends TestCase
     }
 
     /** @test */
-    public function can_create_rate_for_room()
+    public function bulk_set_rates_creates_rates_for_selected_rooms()
     {
         $this->actingAs($this->user);
 
-        Livewire::test(RateComponent::class)
-            ->set('amount', 250)
-            ->set('hours_id', $this->stayingHour->id)
-            ->set('room_id', $this->room->id)
-            ->call('saveRate');
+        $component = Livewire::test(RateComponent::class)
+            ->set('selected_rooms', [(string) $this->room->id, (string) $this->room2->id])
+            ->call('openRateModal');
 
+        // Set 6hr rate to 250
+        $rateAmounts = $component->get('rate_amounts');
+        $rateAmounts[$this->stayingHour6->id]['amount'] = 250;
+        $rateAmounts[$this->stayingHour12->id]['amount'] = 400;
+
+        $component->set('rate_amounts', $rateAmounts)
+            ->call('applyRates');
+
+        // Both rooms should have rates for both staying hours
         $this->assertDatabaseHas('rates', [
-            'amount' => 250,
-            'staying_hour_id' => $this->stayingHour->id,
             'room_id' => $this->room->id,
-            'type_id' => $this->roomType->id,
-            'branch_id' => $this->branch->id,
+            'staying_hour_id' => $this->stayingHour6->id,
+            'amount' => 250,
+        ]);
+        $this->assertDatabaseHas('rates', [
+            'room_id' => $this->room2->id,
+            'staying_hour_id' => $this->stayingHour6->id,
+            'amount' => 250,
+        ]);
+        $this->assertDatabaseHas('rates', [
+            'room_id' => $this->room->id,
+            'staying_hour_id' => $this->stayingHour12->id,
+            'amount' => 400,
+        ]);
+        $this->assertDatabaseHas('rates', [
+            'room_id' => $this->room2->id,
+            'staying_hour_id' => $this->stayingHour12->id,
+            'amount' => 400,
         ]);
     }
 
     /** @test */
-    public function cannot_create_duplicate_rate_for_same_room_and_hour()
+    public function bulk_update_uses_update_or_create()
     {
         $this->actingAs($this->user);
 
+        // Pre-create a rate for room 1
         Rate::create([
             'branch_id' => $this->branch->id,
-            'amount' => 250,
-            'staying_hour_id' => $this->stayingHour->id,
-            'type_id' => $this->roomType->id,
             'room_id' => $this->room->id,
+            'staying_hour_id' => $this->stayingHour6->id,
+            'type_id' => $this->roomType->id,
+            'amount' => 200,
+            'is_available' => true,
         ]);
 
-        Livewire::test(RateComponent::class)
-            ->set('amount', 250)
-            ->set('hours_id', $this->stayingHour->id)
-            ->set('room_id', $this->room->id)
-            ->call('saveRate');
+        // Bulk set: should UPDATE room 1's rate, CREATE room 2's rate
+        $component = Livewire::test(RateComponent::class)
+            ->set('selected_rooms', [(string) $this->room->id, (string) $this->room2->id])
+            ->call('openRateModal');
 
-        $this->assertDatabaseCount('rates', 2);
+        $rateAmounts = $component->get('rate_amounts');
+        $rateAmounts[$this->stayingHour6->id]['amount'] = 300;
+
+        $component->set('rate_amounts', $rateAmounts)
+            ->call('applyRates');
+
+        // Room 1: updated from 200 to 300 (not duplicated)
+        $this->assertEquals(1, Rate::where('room_id', $this->room->id)
+            ->where('staying_hour_id', $this->stayingHour6->id)->count());
+        $this->assertDatabaseHas('rates', [
+            'room_id' => $this->room->id,
+            'staying_hour_id' => $this->stayingHour6->id,
+            'amount' => 300,
+        ]);
+
+        // Room 2: created new
+        $this->assertDatabaseHas('rates', [
+            'room_id' => $this->room2->id,
+            'staying_hour_id' => $this->stayingHour6->id,
+            'amount' => 300,
+        ]);
     }
 
     /** @test */
-    public function can_edit_rate()
+    public function cannot_set_rates_without_selecting_rooms()
     {
         $this->actingAs($this->user);
 
-        $rate = Rate::create([
-            'branch_id' => $this->branch->id,
-            'amount' => 300,
-            'staying_hour_id' => $this->stayingHour->id,
-            'type_id' => $this->roomType->id,
-            'room_id' => $this->room->id,
-        ]);
-
         Livewire::test(RateComponent::class)
-            ->call('editRate', $rate->id)
-            ->assertSet('room_id', $this->room->id)
-            ->assertSet('amount', 300)
-            ->assertSet('hours_id', $this->stayingHour->id)
-            ->assertSet('rate_id', $rate->id)
-            ->assertSet('edit_modal', true);
+            ->set('selected_rooms', [])
+            ->call('openRateModal')
+            ->assertSet('rate_modal', false);
     }
 
     /** @test */
@@ -143,25 +187,19 @@ class ManageRateTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        // Create rate for current user's branch
         Rate::create([
             'branch_id' => $this->branch->id,
-            'amount' => 250,
-            'staying_hour_id' => $this->stayingHour->id,
-            'type_id' => $this->roomType->id,
             'room_id' => $this->room->id,
+            'staying_hour_id' => $this->stayingHour6->id,
+            'type_id' => $this->roomType->id,
+            'amount' => 250,
+            'is_available' => true,
         ]);
 
-        // Create a second branch with its own data
+        // Create other branch data
         $otherBranch = Branch::create(['name' => 'Other Branch']);
-        $otherFloor = Floor::create([
-            'branch_id' => $otherBranch->id,
-            'number' => 2,
-        ]);
-        $otherType = Type::create([
-            'branch_id' => $otherBranch->id,
-            'name' => 'Deluxe',
-        ]);
+        $otherFloor = Floor::create(['branch_id' => $otherBranch->id, 'number' => 2]);
+        $otherType = Type::create(['branch_id' => $otherBranch->id, 'name' => 'Deluxe']);
         $otherRoom = Room::create([
             'branch_id' => $otherBranch->id,
             'floor_id' => $otherFloor->id,
@@ -169,35 +207,30 @@ class ManageRateTest extends TestCase
             'number' => 201,
             'status' => 'available',
         ]);
-        $otherStayingHour = StayingHour::create([
-            'branch_id' => $otherBranch->id,
-            'number' => 12,
-        ]);
-        Rate::create([
-            'branch_id' => $otherBranch->id,
-            'amount' => 500,
-            'staying_hour_id' => $otherStayingHour->id,
-            'type_id' => $otherType->id,
-            'room_id' => $otherRoom->id,
-        ]);
 
-        // The component's table query filters by the authenticated user's branch_id,
-        // so it should only return rooms belonging to the user's branch.
+        // Component should only show current branch rooms
         $component = Livewire::test(RateComponent::class);
+        $rooms = $component->viewData('rooms');
 
-        // Verify the table query only returns rooms for the user's branch
-        $tableQuery = Room::where('branch_id', $this->user->branch_id)
-            ->with(['rates.stayingHour', 'type'])
-            ->get();
+        $this->assertTrue($rooms->every(fn($r) => $r->branch_id === $this->branch->id));
+        $this->assertFalse($rooms->contains(fn($r) => $r->id === $otherRoom->id));
+    }
 
-        $this->assertCount(1, $tableQuery);
-        $this->assertEquals($this->branch->id, $tableQuery->first()->branch_id);
+    /** @test */
+    public function select_all_toggles_all_rooms()
+    {
+        $this->actingAs($this->user);
 
-        // Ensure the other branch's room is not included
-        $this->assertFalse(
-            $tableQuery->contains(function ($room) use ($otherRoom) {
-                return $room->id === $otherRoom->id;
-            })
-        );
+        $component = Livewire::test(RateComponent::class)
+            ->set('select_all', true);
+
+        $selected = $component->get('selected_rooms');
+        $this->assertCount(2, $selected); // room and room2
+        $this->assertContains((string) $this->room->id, $selected);
+        $this->assertContains((string) $this->room2->id, $selected);
+
+        // Deselect all
+        $component->set('select_all', false);
+        $this->assertEmpty($component->get('selected_rooms'));
     }
 }
