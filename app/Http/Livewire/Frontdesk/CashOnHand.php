@@ -38,15 +38,19 @@ class CashOnHand extends Component
             ->whereNot('transaction_type', 'deposit')
             ->sum('amount');
 
-        $this->total_expenses = Expense::where('branch_id', auth()->user()->branch_id)
-            ->where('shift_log_id', $this->current_shift->id)
-            ->where('user_id', auth()->user()->id)
-            ->sum('amount');
+        $this->total_expenses = $this->current_shift
+            ? Expense::where('branch_id', auth()->user()->branch_id)
+                ->where('shift_log_id', $this->current_shift->id)
+                ->where('user_id', auth()->user()->id)
+                ->sum('amount')
+            : 0;
 
-        $this->total_remittances = Remittance::where('branch_id', auth()->user()->branch_id)
-            ->where('shift_log_id', $this->current_shift->id)
-            ->where('user_id', auth()->user()->id)
-            ->sum('total_remittance');
+        $this->total_remittances = $this->current_shift
+            ? Remittance::where('branch_id', auth()->user()->branch_id)
+                ->where('shift_log_id', $this->current_shift->id)
+                ->where('user_id', auth()->user()->id)
+                ->sum('total_remittance')
+            : 0;
 
         $deposits = CashOnDrawer::where('branch_id', auth()->user()->branch_id)
             ->where('cash_drawer_id', auth()->user()->cash_drawer_id)
