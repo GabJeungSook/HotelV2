@@ -355,6 +355,11 @@
                                         FORWARDED
                                     </span>
                                 @endif
+                                @if($row['is_checked_out'] ?? false)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800">
+                                        CHECKED OUT
+                                    </span>
+                                @endif
                             </td>
                             <td class="border border-gray-300 px-3 py-2 text-sm text-gray-700">
                                 @if($row['is_forwarded_guest_row'] ?? false)

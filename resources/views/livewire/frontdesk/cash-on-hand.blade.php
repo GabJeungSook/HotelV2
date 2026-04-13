@@ -30,14 +30,22 @@
                  <div class="px-6 py-5 flex items-center justify-between">
                     <div class="flex flex-col">
                         <span class="text-sm font-medium text-gray-900">Remittance</span>
-                        {{-- <span class="text-xs text-gray-500">Extensions, Food & Beverages, Etc.</span> --}}
                     </div>
                     <div class="w-40 text-right">
                         <span class="inline-block h-5 w-24 rounded font-mono">₱ {{ number_format($total_remittances, 2) }}</span>
                     </div>
                 </div>
 
-               {{-- Remittance --}}
+                <div class="px-6 py-5 flex items-center justify-between">
+                    <div class="flex flex-col">
+                        <span class="text-sm font-medium text-gray-900">POS</span>
+                    </div>
+                    <div class="w-40 text-right">
+                        <span class="inline-block h-5 w-24 rounded font-mono">₱ {{ number_format($total_pos, 2) }}</span>
+                    </div>
+                </div>
+
+               {{-- Cash on Hand --}}
                 <div class="px-6 py-5 flex items-center justify-between">
                     <div class="flex flex-col">
                         <span class="text-sm font-medium text-gray-900">Cash on Hand</span>

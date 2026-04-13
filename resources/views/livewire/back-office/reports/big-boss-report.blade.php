@@ -325,7 +325,7 @@
                         <tbody>
                             @foreach($floorGroup['rooms'] as $room)
                             <tr>
-                                <td class="border border-gray-300 px-1 py-1 font-bold">{{ $room['number'] }}</td>
+                                <td class="border border-gray-300 px-1 py-1 font-bold align-top">{{ ($room['rowspan'] ?? 1) > 0 ? $room['number'] : '' }}</td>
                                 <td class="border border-gray-300 px-1 py-1">{{ $room['time'] }}</td>
                                 <td class="border border-gray-300 px-1 py-1">{{ $room['elapse'] }}</td>
                                 <td class="border border-gray-300 px-1 py-1">{{ $room['status'] }}</td>
@@ -358,8 +358,8 @@
                         @foreach($log['entries'] as $entry)
                         <tr>
                             <td class="border border-gray-300 px-2 py-1">{{ $entry['number'] }}</td>
-                            <td class="border border-gray-300 px-2 py-1">{{ $entry['room_number'] }}</td>
-                            <td class="border border-gray-300 px-2 py-1">{{ $entry['floor_number'] }}</td>
+                            <td class="border border-gray-300 px-2 py-1 align-top">{{ ($entry['rowspan'] ?? 1) > 0 ? $entry['room_number'] : '' }}</td>
+                            <td class="border border-gray-300 px-2 py-1">{{ ($entry['rowspan'] ?? 1) > 0 ? $entry['floor_number'] : '' }}</td>
                             <td class="border border-gray-300 px-2 py-1">{{ $entry['time'] }}</td>
                         </tr>
                         @endforeach

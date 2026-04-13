@@ -13,6 +13,7 @@ use Carbon\Carbon;
 
 class FrontdeskReportV2 extends Component
 {
+    public $weekStart = null;
     public $selectedShiftLogId;
     public array $availableShiftSessions = [];
     public array $reportData = [];
@@ -811,9 +812,13 @@ class FrontdeskReportV2 extends Component
 
     private function loadAvailableShiftSessions(): void
     {
+        $weekStart = $this->weekStart ? Carbon::parse($this->weekStart)->startOfWeek() : now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+
         $shiftLogs = ShiftLog::query()
             ->where('branch_id', auth()->user()->branch_id)
             ->whereNotNull('time_out')
+            ->whereBetween('time_in', [$weekStart, $weekEnd])
             ->with('frontdesk:id,name')
             ->orderBy('time_in', 'asc')
             ->get();

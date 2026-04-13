@@ -19,6 +19,11 @@ class AssignedFrontdesk extends Component
     public $drawer;
     public $shift;
 
+    // Existing session detection
+    public $existingShift = null;
+    public $existingUserName = '';
+    public $showExistingSessionModal = false;
+
     public function mount()
     {
         $currentHour = now()->hour;
@@ -36,7 +41,63 @@ class AssignedFrontdesk extends Component
         $this->cash_drawers = CashDrawer::where('branch_id', $assigned->first()->branch_id)
             ->where('is_active', 0)
             ->get();
+
+        // Check for existing open session from another user in the same branch
+        $this->checkExistingSession();
     }
+
+    public function checkExistingSession()
+    {
+        $openShift = ShiftLog::where('branch_id', auth()->user()->branch_id)
+            ->whereNull('time_out')
+            ->where('frontdesk_id', '!=', auth()->user()->id)
+            ->with('frontdesk')
+            ->orderByDesc('time_in')
+            ->first();
+
+        if ($openShift) {
+            $this->existingShift = $openShift;
+            $this->existingUserName = $openShift->frontdesk?->name ?? 'Unknown';
+            $this->showExistingSessionModal = true;
+        }
+    }
+
+    public function closeExistingSession()
+    {
+        if ($this->existingShift) {
+            DB::beginTransaction();
+
+            $shift = ShiftLog::find($this->existingShift->id);
+            if ($shift) {
+                $shift->update([
+                    'time_out' => now(),
+                    'end_cash' => $shift->end_cash ?: 0,
+                ]);
+
+                // Deactivate their cash drawer
+                if ($shift->cash_drawer) {
+                    $shift->cash_drawer->update(['is_active' => false]);
+                }
+            }
+
+            DB::commit();
+
+            $this->existingShift = null;
+            $this->existingUserName = '';
+            $this->showExistingSessionModal = false;
+
+            // Reload available cash drawers (the closed one may now be available)
+            $this->cash_drawers = CashDrawer::where('branch_id', auth()->user()->branch_id)
+                ->where('is_active', 0)
+                ->get();
+
+            $this->notification()->success(
+                $title = 'Session Closed',
+                $description = 'The previous session has been closed. You may now proceed.'
+            );
+        }
+    }
+
     public function render()
     {
         return view('livewire.frontdesk.assigned-frontdesk', [
@@ -70,6 +131,11 @@ class AssignedFrontdesk extends Component
 
     public function saveFrontdesk()
     {
+        // Block if existing session is still open
+        if ($this->showExistingSessionModal) {
+            return;
+        }
+
         if($this->drawer)
         {
          DB::beginTransaction();

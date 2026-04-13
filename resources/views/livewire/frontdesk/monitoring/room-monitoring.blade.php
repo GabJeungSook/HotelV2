@@ -137,8 +137,7 @@
                     {{-- {{ $room->guest->first()->name }} --}}
                     {{ $room->latestCheckInDetail->guest->name }}
                     <p class="text-sm text-gray-500 font-normal">
-                        {{-- {{ $room->guest->first()->contact }} --}}
-                        {{ $room->latestCheckInDetail->guest->contact }}
+                        {{ $room->latestCheckInDetail->guest->qr_code }}
                     </p>
                 @endif
 

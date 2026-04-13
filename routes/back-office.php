@@ -47,4 +47,7 @@ Route::prefix('back-office')
         Route::get('/gust-extension-report', function () {
             return view('back-office.Reports.extended-guest');
         })->name('back-office.extended-guest-report');
+        Route::get('/archives', function () {
+            return view('back-office.archives');
+        })->name('back-office.archives');
     });

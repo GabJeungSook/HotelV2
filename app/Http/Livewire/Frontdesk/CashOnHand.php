@@ -3,6 +3,7 @@
 namespace App\Http\Livewire\Frontdesk;
 use App\Models\CashOnDrawer;
 use App\Models\Expense;
+use App\Models\PosTransaction;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
 use Livewire\Component;
@@ -16,6 +17,7 @@ class CashOnHand extends Component
     public $total_transactions = 0;
     public $total_expenses = 0;
     public $total_remittances = 0;
+    public $total_pos = 0;
     public $total_deposits = 0;
     public $logout_modal = false;
     public $withdraw_modal = false;
@@ -47,6 +49,11 @@ class CashOnHand extends Component
             ->where('shift_log_id', $this->current_shift->id)
             ->where('user_id', auth()->user()->id)
             ->sum('total_remittance');
+
+        $this->total_pos = PosTransaction::where('branch_id', auth()->user()->branch_id)
+            ->where('shift_log_id', $this->current_shift->id)
+            ->where('user_id', auth()->user()->id)
+            ->sum('total');
 
         $deposits = CashOnDrawer::where('branch_id', auth()->user()->branch_id)
             ->where('cash_drawer_id', auth()->user()->cash_drawer_id)
@@ -108,6 +115,8 @@ class CashOnHand extends Component
             $shift->description = $this->description;
             $shift->total_expenses = $this->total_expenses;
             $shift->total_remittances = $this->total_remittances;
+            $shift->total_pos = $this->total_pos;
+            $shift->time_out = now();
             $shift->save();
 
             //deactivate drawer

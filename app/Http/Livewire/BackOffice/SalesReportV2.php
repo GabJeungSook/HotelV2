@@ -27,6 +27,9 @@ use Carbon\Carbon;
  */
 class SalesReportV2 extends Component
 {
+    // Optional week override (set by Archives page)
+    public $weekStart = null;
+
     // Filter mode: 'date_range' or 'shift'
     public string $filterMode = 'shift';
 
@@ -109,9 +112,13 @@ class SalesReportV2 extends Component
      */
     private function loadAvailableShiftSessions(): void
     {
+        $weekStart = $this->weekStart ? Carbon::parse($this->weekStart)->startOfWeek() : now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+
         $shiftLogs = ShiftLog::query()
             ->where('branch_id', auth()->user()->branch_id)
             ->whereNotNull('time_out') // Completed shifts only
+            ->whereBetween('time_in', [$weekStart, $weekEnd])
             ->with('frontdesk:id,name')
             ->orderBy('time_in','asc')
             ->get();
@@ -788,13 +795,16 @@ class SalesReportV2 extends Component
 
         $dateFrom = $this->date_from ?? now()->toDateString();
 
-        return $query->map(function ($row) use ($dateFrom, $shiftLog) {
+        return $query->map(function ($row) use ($dateFrom, $shiftLog, $range) {
             // Calculate total excluding deposits (type 2) and cashouts (type 5)
             $effectiveAmount = $row->is_override ? (float) $row->paid_amount : (float) $row->payable_amount;
             $total = in_array($row->transaction_type_id, [2, 5]) ? 0 : $effectiveAmount;
 
             // Determine if guest is "Forwarded"
             $isForwarded = $this->isGuestForwarded($row, $shiftLog, $dateFrom);
+
+            // Determine if guest checked out during this shift/range
+            $isCheckedOut = $this->isGuestCheckedOut($row, $shiftLog, $range);
 
             // Determine display label for deposits based on remarks
             $displayType = $row->transaction_type;
@@ -831,9 +841,24 @@ class SalesReportV2 extends Component
                     : '—',
                 'total' => $total,
                 'is_forwarded' => $isForwarded,
+                'is_checked_out' => $isCheckedOut,
                 'is_override' => (bool) $row->is_override,
             ];
         })->toArray();
+    }
+
+    /**
+     * Determine if a guest checked out during the current shift/range.
+     */
+    private function isGuestCheckedOut($row, ?ShiftLog $shiftLog, array $range): bool
+    {
+        if (!$row->check_out_at) {
+            return false;
+        }
+
+        $checkOutAt = Carbon::parse($row->check_out_at);
+
+        return $checkOutAt->between($range['start'], $range['end']);
     }
 
     /**

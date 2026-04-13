@@ -53,6 +53,10 @@ class ReportHub extends Component
                 'label' => 'Big Boss Report',
                 'component' => 'back-office.reports.big-boss-report',
             ],
+            'frontdesk-logs' => [
+                'label' => 'Frontdesk Logs',
+                'component' => 'back-office.reports.frontdesk-logs',
+            ],
         ];
     }
 

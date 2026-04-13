@@ -17,6 +17,7 @@ use Carbon\Carbon;
 
 class BigBossReport extends Component
 {
+    public $weekStart = null;
     public $selectedShiftLogId;
     public array $availableShiftSessions = [];
 
@@ -175,10 +176,10 @@ class BigBossReport extends Component
         $expensesTotal = (float) $expenses->sum('amount');
 
         // ===== ROOM CLEANING CHART =====
-        $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, $occupiedRoomIds, $occupyingDetails);
+        $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, $occupiedRoomIds, $occupyingDetails, $timeIn, $timeOut);
 
         // ===== ROOM BOY ACTIVITY LOGS =====
-        $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories);
+        $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories, $occupyingDetails, $timeIn, $timeOut);
 
         return [
             'floors' => $floors,
@@ -387,10 +388,10 @@ class BigBossReport extends Component
         return $chart;
     }
 
-    private function buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, array $occupiedRoomIds, $occupyingDetails): array
+    private function buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, array $occupiedRoomIds, $occupyingDetails, Carbon $timeIn, Carbon $timeOut): array
     {
-        // Group cleaning histories by room_id, keep the latest per room
-        $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->last());
+        // Group cleaning histories by room_id (keep all, sorted by end_time)
+        $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->sortBy('end_time')->values());
 
         $chart = [];
         foreach ($floors as $floor) {
@@ -398,47 +399,68 @@ class BigBossReport extends Component
             $roomData = [];
 
             foreach ($rooms as $room) {
-                $cleaning = $cleaningByRoom->get($room->id);
-                $time = '';
-                $elapse = '';
-                $status = in_array($room->id, $occupiedRoomIds) ? 'In-use' : 'Vacant';
+                $roomCheckins = $occupyingDetails->where('room_id', $room->id)->sortBy('check_in_at');
+                $roomCleanings = $cleaningByRoom->get($room->id, collect())->values();
+                $usedCleaningIds = [];
 
-                if ($cleaning) {
-                    $time = $cleaning->end_time ? Carbon::parse($cleaning->end_time)->format('g:iA') : '';
+                if ($roomCheckins->isEmpty()) {
+                    $roomData[] = [
+                        'number' => $room->number,
+                        'rowspan' => 1,
+                        'time' => '',
+                        'elapse' => '',
+                        'status' => 'Vacant',
+                    ];
+                } else {
+                    $checkinCount = $roomCheckins->count();
+                    $isFirst = true;
 
-                    if ($cleaning->end_time) {
-                        $endTime = Carbon::parse($cleaning->end_time);
+                    foreach ($roomCheckins as $checkin) {
+                        $time = '';
+                        $elapse = '';
+                        $isCheckedOut = $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut);
+                        $status = $isCheckedOut ? 'Clean' : 'In-use';
 
-                        // Find the checkin_detail for this room that was checked out closest before cleaning
-                        $checkoutDetail = $occupyingDetails
-                            ->where('room_id', $room->id)
-                            ->filter(fn($cd) => $cd->check_out_at && Carbon::parse($cd->check_out_at)->lte($endTime))
-                            ->sortByDesc('check_out_at')
-                            ->first();
+                        // Find cleaning record closest after this guest's checkout
+                        if ($isCheckedOut) {
+                            $checkOutAt = Carbon::parse($checkin->check_out_at);
+                            $matchedCleaning = $roomCleanings
+                                ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
+                                ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
+                                ->first();
 
-                        if ($checkoutDetail && $checkoutDetail->check_out_at) {
-                            $checkoutTime = Carbon::parse($checkoutDetail->check_out_at);
-                            $diffSeconds = $checkoutTime->diffInSeconds($endTime);
-                            $hours = intdiv($diffSeconds, 3600);
-                            $remainingMinutes = intdiv($diffSeconds % 3600, 60);
-                            $remainingSeconds = $diffSeconds % 60;
-                            if ($hours > 0) {
-                                $elapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                            if ($matchedCleaning) {
+                                $usedCleaningIds[] = $matchedCleaning->id;
+                                $endTime = Carbon::parse($matchedCleaning->end_time);
+                                $time = $endTime->format('g:iA');
+
+                                $diffSeconds = $checkOutAt->diffInSeconds($endTime);
+                                $hours = intdiv($diffSeconds, 3600);
+                                $remainingMinutes = intdiv($diffSeconds % 3600, 60);
+                                $remainingSeconds = $diffSeconds % 60;
+                                if ($hours > 0) {
+                                    $elapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                                } else {
+                                    $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                                }
                             } else {
-                                $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                                // No cleaning record — use checkout time and default 15 min elapse
+                                $time = $checkOutAt->format('g:iA');
+                                $elapse = '15:00';
                             }
                         }
+
+                        $roomData[] = [
+                            'number' => $room->number,
+                            'rowspan' => $isFirst ? $checkinCount : 0,
+                            'time' => $time,
+                            'elapse' => $elapse,
+                            'status' => $status,
+                        ];
+
+                        $isFirst = false;
                     }
-
-                    $status = 'Clean';
                 }
-
-                $roomData[] = [
-                    'number' => $room->number,
-                    'time' => $time,
-                    'elapse' => $elapse,
-                    'status' => $status,
-                ];
             }
 
             $chart[] = [
@@ -450,41 +472,114 @@ class BigBossReport extends Component
         return $chart;
     }
 
-    private function buildRoomboyLogs($cleaningHistories): array
+    private function buildRoomboyLogs($cleaningHistories, $occupyingDetails, Carbon $timeIn, Carbon $timeOut): array
     {
-        $grouped = $cleaningHistories->groupBy('user_id');
-        $logs = [];
+        // Group cleaning histories by room_id (sorted by end_time)
+        $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->sortBy('end_time')->values());
 
-        foreach ($grouped as $userId => $histories) {
-            $roomboy = $histories->first()->user;
-            $entries = [];
-            foreach ($histories->values() as $i => $h) {
-                $elapse = '';
-                if ($h->start_time && $h->end_time) {
-                    $start = Carbon::parse($h->start_time);
-                    $end = Carbon::parse($h->end_time);
-                    $diffSeconds = $start->diffInSeconds($end);
-                    if ($diffSeconds < 60) {
-                        $elapse = "{$diffSeconds} seconds (OVERRIDE)";
-                    } else {
-                        $diffMinutes = intdiv($diffSeconds, 60);
-                        $hours = intdiv($diffMinutes, 60);
-                        $minutes = $diffMinutes % 60;
-                        $elapse = $hours > 0 ? "{$hours} hour" . ($hours > 1 ? 's' : '') . " {$minutes} minutes" : "{$minutes} minutes";
-                    }
+        // Build a map of room_id => room boy user_id (from any cleaning record for that room)
+        $roomToRoomboy = [];
+        foreach ($cleaningHistories as $ch) {
+            if (!isset($roomToRoomboy[$ch->room_id])) {
+                $roomToRoomboy[$ch->room_id] = [
+                    'user_id' => $ch->user_id,
+                    'user_name' => $ch->user?->name ?? 'Unknown',
+                ];
+            }
+        }
+
+        // Group by room boy
+        $roomboyEntries = [];
+        $usedCleaningIds = [];
+
+        // Iterate all occupying details (same data source as frontdesk chart), sorted by room then check_in
+        $sortedDetails = $occupyingDetails->sortBy(['room_id', 'check_in_at']);
+
+        foreach ($sortedDetails as $detail) {
+            $roomId = $detail->room_id;
+            $roomCleanings = $cleaningByRoom->get($roomId, collect());
+            $isCheckedOut = $detail->check_out_at && Carbon::parse($detail->check_out_at)->between($timeIn, $timeOut);
+
+            // Match cleaning record closest after this guest's checkout
+            $matchedCleaning = null;
+            if ($isCheckedOut) {
+                $checkOutAt = Carbon::parse($detail->check_out_at);
+                $matchedCleaning = $roomCleanings
+                    ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
+                    ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
+                    ->first();
+
+                if ($matchedCleaning) {
+                    $usedCleaningIds[] = $matchedCleaning->id;
                 }
+            }
 
-                $entries[] = [
+            // Determine room boy: from matched cleaning, or from any cleaning on same room, or fallback
+            if ($matchedCleaning) {
+                $userId = $matchedCleaning->user_id;
+                $roomboyName = $matchedCleaning->user?->name ?? 'Unknown';
+            } elseif (isset($roomToRoomboy[$roomId])) {
+                // No direct match, but another cleaning exists for this room — assign to that room boy
+                $userId = $roomToRoomboy[$roomId]['user_id'];
+                $roomboyName = $roomToRoomboy[$roomId]['user_name'];
+            } else {
+                // No cleaning record at all for this room — skip (won't create Unknown group)
+                continue;
+            }
+
+            $elapse = '';
+            if ($matchedCleaning && $matchedCleaning->start_time && $matchedCleaning->end_time) {
+                $start = Carbon::parse($matchedCleaning->start_time);
+                $end = Carbon::parse($matchedCleaning->end_time);
+                $diffSeconds = $start->diffInSeconds($end);
+                if ($diffSeconds < 60) {
+                    $elapse = "{$diffSeconds} seconds (OVERRIDE)";
+                } else {
+                    $diffMinutes = intdiv($diffSeconds, 60);
+                    $hours = intdiv($diffMinutes, 60);
+                    $minutes = $diffMinutes % 60;
+                    $elapse = $hours > 0 ? "{$hours} hour" . ($hours > 1 ? 's' : '') . " {$minutes} minutes" : "{$minutes} minutes";
+                }
+            }
+
+            $roomboyEntries[$userId][] = [
+                'roomboy_name' => strtoupper($roomboyName),
+                'room_number' => $detail->room?->number ?? '',
+                'room_id' => $roomId,
+                'floor_number' => $detail->room?->floor?->number ?? '',
+                'time' => $matchedCleaning && $matchedCleaning->end_time
+                    ? Carbon::parse($matchedCleaning->end_time)->format('F d, Y g:iA')
+                    : '',
+                'elapse' => $elapse,
+            ];
+        }
+
+        // Build final logs grouped by room boy, with rowspan calculated per room within each group
+        $logs = [];
+        foreach ($roomboyEntries as $userId => $entries) {
+            // Calculate rowspan per room within this room boy's entries
+            $roomCounts = collect($entries)->groupBy('room_id')->map->count();
+            $roomSeenCount = [];
+
+            $numberedEntries = [];
+            foreach (array_values($entries) as $i => $entry) {
+                $rid = $entry['room_id'];
+                $roomSeenCount[$rid] = ($roomSeenCount[$rid] ?? 0) + 1;
+                $isFirstForRoom = $roomSeenCount[$rid] === 1;
+                $totalForRoom = $roomCounts[$rid] ?? 1;
+
+                $numberedEntries[] = [
                     'number' => $i + 1,
-                    'room_number' => $h->room?->number ?? '',
-                    'floor_number' => $h->room?->floor?->number ?? $h->floor_id,
-                    'time' => $h->end_time ? Carbon::parse($h->end_time)->format('F d, Y g:iA') : '',
-                    'elapse' => $elapse,
+                    'room_number' => $entry['room_number'],
+                    'floor_number' => $entry['floor_number'],
+                    'rowspan' => $isFirstForRoom ? $totalForRoom : 0,
+                    'time' => $entry['time'],
+                    'elapse' => $entry['elapse'],
                 ];
             }
             $logs[] = [
-                'name' => strtoupper($roomboy?->name ?? 'Unknown'),
-                'entries' => $entries,
+                'name' => $entries[0]['roomboy_name'],
+                'entries' => $numberedEntries,
             ];
         }
 
@@ -493,9 +588,13 @@ class BigBossReport extends Component
 
     private function loadAvailableShiftSessions(): void
     {
+        $weekStart = $this->weekStart ? Carbon::parse($this->weekStart)->startOfWeek() : now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+
         $shiftLogs = ShiftLog::query()
             ->where('branch_id', auth()->user()->branch_id)
             ->whereNotNull('time_out')
+            ->whereBetween('time_in', [$weekStart, $weekEnd])
             ->with('frontdesk:id,name')
             ->orderBy('time_in', 'asc')
             ->get();
