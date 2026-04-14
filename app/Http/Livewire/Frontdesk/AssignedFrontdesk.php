@@ -80,12 +80,11 @@ class AssignedFrontdesk extends Component
             ->get();
 
         if ($shiftLogs->count() >= 2) {
-            $this->shiftUsers = $shiftLogs->map(function ($log) {
-                return [
-                    'name' => $log->frontdesk?->name ?? 'Unknown',
-                    'active' => is_null($log->time_out),
-                ];
-            })->toArray();
+            // Only show currently active users in the modal
+            $this->shiftUsers = $shiftLogs->filter(fn ($log) => is_null($log->time_out))
+                ->map(fn ($log) => ['name' => $log->frontdesk?->name ?? 'Unknown'])
+                ->values()
+                ->toArray();
             $this->showExistingSessionModal = true;
         }
     }

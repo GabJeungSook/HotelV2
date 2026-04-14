@@ -95,18 +95,17 @@
           <p class="text-sm text-gray-600 mb-3">
             This shift already has 2 frontdesk users. Please wait for the current shift to end or contact your manager.
           </p>
-          <div class="space-y-2">
+          @if(count($shiftUsers) > 0)
+          <div class="space-y-2 mt-3">
+            <p class="text-xs font-semibold text-gray-500 uppercase">Currently Logged In</p>
             @foreach($shiftUsers as $user)
               <div class="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2">
                 <span class="text-sm font-medium text-gray-800">{{ $user['name'] }}</span>
-                @if($user['active'])
-                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
-                @else
-                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">Logged out</span>
-                @endif
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
               </div>
             @endforeach
           </div>
+          @endif
         </div>
 
         <div class="flex justify-center mt-6">
