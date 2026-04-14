@@ -8,6 +8,7 @@ use App\Models\AssignedFrontdesk as assignFrontdeskModel;
 use App\Models\ShiftLog;
 use App\Models\CashDrawer;
 use WireUi\Traits\Actions;
+use Illuminate\Support\Facades\Auth;
 use DB;
 class AssignedFrontdesk extends Component
 {
@@ -20,7 +21,7 @@ class AssignedFrontdesk extends Component
     public $shift;
 
     // Existing session detection
-    public $existingShift = null;
+    public $existingShiftId = null;
     public $existingUserName = '';
     public $showExistingSessionModal = false;
 
@@ -56,18 +57,27 @@ class AssignedFrontdesk extends Component
             ->first();
 
         if ($openShift) {
-            $this->existingShift = $openShift;
+            $this->existingShiftId = $openShift->id;
             $this->existingUserName = $openShift->frontdesk?->name ?? 'Unknown';
             $this->showExistingSessionModal = true;
         }
     }
 
+    public function logoutCurrentUser()
+    {
+        Auth::logout();
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
+
+        return redirect()->route('login');
+    }
+
     public function closeExistingSession()
     {
-        if ($this->existingShift) {
+        if ($this->existingShiftId) {
             DB::beginTransaction();
 
-            $shift = ShiftLog::find($this->existingShift->id);
+            $shift = ShiftLog::find($this->existingShiftId);
             if ($shift) {
                 $shift->update([
                     'time_out' => now(),
@@ -82,7 +92,7 @@ class AssignedFrontdesk extends Component
 
             DB::commit();
 
-            $this->existingShift = null;
+            $this->existingShiftId = null;
             $this->existingUserName = '';
             $this->showExistingSessionModal = false;
 
