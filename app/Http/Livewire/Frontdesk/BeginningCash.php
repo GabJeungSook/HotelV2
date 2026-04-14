@@ -28,6 +28,7 @@ class BeginningCash extends Component
         $this->current_shift = ShiftLog::where('cash_drawer_id', '!=',$user->cash_drawer_id)
         ->whereNull('time_out')
         ->where('beginning_cash', '>', 0)
+        ->where('shift', $user->shift)
         ->whereHas('frontdesk', function($query) {
             $query->where('branch_id', auth()->user()->branch_id);
         })->orderByDesc('time_in')->first();
