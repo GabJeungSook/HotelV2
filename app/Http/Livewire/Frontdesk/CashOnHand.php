@@ -36,6 +36,7 @@ class CashOnHand extends Component
                                 ->first();
 
         if (!$this->current_shift) {
+            auth()->user()->update(['cash_drawer_id' => null]);
             return redirect()->route('frontdesk.dashboard');
         }
 
