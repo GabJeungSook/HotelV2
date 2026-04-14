@@ -79,9 +79,12 @@ class AssignedFrontdesk extends Component
             ->with('frontdesk:id,name')
             ->get();
 
-        if ($shiftLogs->count() >= 2) {
-            // Only show currently active users in the modal
-            $this->shiftUsers = $shiftLogs->filter(fn ($log) => is_null($log->time_out))
+        $activeLogs = $shiftLogs->filter(fn ($log) => is_null($log->time_out));
+
+        // Block if: 2+ total logins AND at least 1 is still active
+        // (If everyone logged out, the shift is effectively over — allow new logins)
+        if ($shiftLogs->count() >= 2 && $activeLogs->count() >= 1) {
+            $this->shiftUsers = $activeLogs
                 ->map(fn ($log) => ['name' => $log->frontdesk?->name ?? 'Unknown'])
                 ->values()
                 ->toArray();
