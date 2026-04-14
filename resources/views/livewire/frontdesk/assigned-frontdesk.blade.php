@@ -76,7 +76,7 @@
 
   </div>
 
-  {{-- Existing Session Warning Modal (non-dismissable) --}}
+  {{-- Shift Capacity Reached Modal (non-dismissable) --}}
   @if($showExistingSessionModal)
   <div class="fixed inset-0 z-50 overflow-y-auto" x-data>
     {{-- Backdrop --}}
@@ -86,29 +86,23 @@
     <div class="w-full min-h-full flex items-center justify-center p-4">
       <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
         <div class="text-center">
-          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-yellow-600">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-600">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
             </svg>
           </div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">Active Session Detected</h3>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Shift Full</h3>
           <p class="text-sm text-gray-600">
-            A previous user (<span class="font-bold text-red-600">{{ $existingUserName }}</span>) is still logged in. They did not log out properly. Do you want to close their session and generate their sales report?
+            This shift already has 2 active frontdesk users. Please wait for the current shift to end or contact your manager.
           </p>
         </div>
 
-        <div class="flex justify-center gap-x-3 mt-6">
+        <div class="flex justify-center mt-6">
           <x-button
             negative
-            label="No – Log out"
+            label="Log out"
             wire:click="logoutCurrentUser"
             spinner="logoutCurrentUser"
-          />
-          <x-button
-            positive
-            label="Yes, close their session"
-            wire:click="closeExistingSession"
-            spinner="closeExistingSession"
           />
         </div>
       </div>

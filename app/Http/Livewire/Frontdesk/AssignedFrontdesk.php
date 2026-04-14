@@ -20,15 +20,13 @@ class AssignedFrontdesk extends Component
     public $drawer;
     public $shift;
 
-    // Existing session detection
-    public $existingShiftId = null;
-    public $existingUserName = '';
+    // Shift capacity check
     public $showExistingSessionModal = false;
 
     public function mount()
     {
         $currentHour = now()->hour;
-        $this->shift = ($currentHour >= 8 && $currentHour < 20) ? 'AM' : 'PM';
+        $this->shift = ($currentHour >= 7 && $currentHour < 19) ? 'AM' : 'PM';
 
         $assigned = Frontdesk::where('branch_id', auth()->user()->branch_id)
             ->where('user_id', auth()->user()->id)->get();
@@ -43,22 +41,34 @@ class AssignedFrontdesk extends Component
             ->where('is_active', 0)
             ->get();
 
-        // Check for existing open session from another user in the same branch
-        $this->checkExistingSession();
+        // Check if this shift already has 2 frontdesk users
+        $this->checkShiftCapacity();
     }
 
-    public function checkExistingSession()
+    public function checkShiftCapacity()
     {
-        $openShift = ShiftLog::where('branch_id', auth()->user()->branch_id)
-            ->whereNull('time_out')
-            ->where('frontdesk_id', '!=', auth()->user()->id)
-            ->with('frontdesk')
-            ->orderByDesc('time_in')
-            ->first();
+        $now = now();
+        $currentHour = $now->hour;
 
-        if ($openShift) {
-            $this->existingShiftId = $openShift->id;
-            $this->existingUserName = $openShift->frontdesk?->name ?? 'Unknown';
+        if ($this->shift === 'AM') {
+            $shiftStart = $now->copy()->setTime(7, 0, 0);
+        } else {
+            // PM shift: if before 8AM, shift started yesterday at 7PM
+            if ($currentHour < 8) {
+                $shiftStart = $now->copy()->subDay()->setTime(19, 0, 0);
+            } else {
+                $shiftStart = $now->copy()->setTime(19, 0, 0);
+            }
+        }
+
+        // Count ALL logins for this shift period (including those who logged out early)
+        $shiftCount = ShiftLog::where('branch_id', auth()->user()->branch_id)
+            ->where('shift', $this->shift)
+            ->where('frontdesk_id', '!=', auth()->user()->id)
+            ->where('time_in', '>=', $shiftStart)
+            ->count();
+
+        if ($shiftCount >= 2) {
             $this->showExistingSessionModal = true;
         }
     }
@@ -70,42 +80,6 @@ class AssignedFrontdesk extends Component
         request()->session()->regenerateToken();
 
         return redirect()->route('login');
-    }
-
-    public function closeExistingSession()
-    {
-        if ($this->existingShiftId) {
-            DB::beginTransaction();
-
-            $shift = ShiftLog::find($this->existingShiftId);
-            if ($shift) {
-                $shift->update([
-                    'time_out' => now(),
-                    'end_cash' => $shift->end_cash ?: 0,
-                ]);
-
-                // Deactivate their cash drawer
-                if ($shift->cash_drawer) {
-                    $shift->cash_drawer->update(['is_active' => false]);
-                }
-            }
-
-            DB::commit();
-
-            $this->existingShiftId = null;
-            $this->existingUserName = '';
-            $this->showExistingSessionModal = false;
-
-            // Reload available cash drawers (the closed one may now be available)
-            $this->cash_drawers = CashDrawer::where('branch_id', auth()->user()->branch_id)
-                ->where('is_active', 0)
-                ->get();
-
-            $this->notification()->success(
-                $title = 'Session Closed',
-                $description = 'The previous session has been closed. You may now proceed.'
-            );
-        }
     }
 
     public function render()
