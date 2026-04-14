@@ -92,9 +92,21 @@
             </svg>
           </div>
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Shift Full</h3>
-          <p class="text-sm text-gray-600">
-            This shift already has 2 active frontdesk users. Please wait for the current shift to end or contact your manager.
+          <p class="text-sm text-gray-600 mb-3">
+            This shift already has 2 frontdesk users. Please wait for the current shift to end or contact your manager.
           </p>
+          <div class="space-y-2">
+            @foreach($shiftUsers as $user)
+              <div class="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2">
+                <span class="text-sm font-medium text-gray-800">{{ $user['name'] }}</span>
+                @if($user['active'])
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                @else
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">Logged out</span>
+                @endif
+              </div>
+            @endforeach
+          </div>
         </div>
 
         <div class="flex justify-center mt-6">

@@ -22,6 +22,7 @@ class AssignedFrontdesk extends Component
 
     // Shift capacity check
     public $showExistingSessionModal = false;
+    public $shiftUsers = [];
 
     public function mount()
     {
@@ -61,14 +62,21 @@ class AssignedFrontdesk extends Component
             }
         }
 
-        // Count ALL logins for this shift period (including those who logged out early)
-        $shiftCount = ShiftLog::where('branch_id', auth()->user()->branch_id)
+        // Get ALL logins for this shift period (including those who logged out early)
+        $shiftLogs = ShiftLog::where('branch_id', auth()->user()->branch_id)
             ->where('shift', $this->shift)
             ->where('frontdesk_id', '!=', auth()->user()->id)
             ->where('time_in', '>=', $shiftStart)
-            ->count();
+            ->with('frontdesk:id,name')
+            ->get();
 
-        if ($shiftCount >= 2) {
+        if ($shiftLogs->count() >= 2) {
+            $this->shiftUsers = $shiftLogs->map(function ($log) {
+                return [
+                    'name' => $log->frontdesk?->name ?? 'Unknown',
+                    'active' => is_null($log->time_out),
+                ];
+            })->toArray();
             $this->showExistingSessionModal = true;
         }
     }
