@@ -81,9 +81,8 @@ class AssignedFrontdesk extends Component
 
         $activeLogs = $shiftLogs->filter(fn ($log) => is_null($log->time_out));
 
-        // Block if: 2+ total logins AND at least 1 is still active
-        // (If everyone logged out, the shift is effectively over — allow new logins)
-        if ($shiftLogs->count() >= 2 && $activeLogs->count() >= 1) {
+        // Block only when 2 frontdesk users are currently active
+        if ($activeLogs->count() >= 2) {
             $this->shiftUsers = $activeLogs
                 ->map(fn ($log) => ['name' => $log->frontdesk?->name ?? 'Unknown'])
                 ->values()
