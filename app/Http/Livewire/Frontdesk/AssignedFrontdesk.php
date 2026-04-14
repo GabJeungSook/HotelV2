@@ -51,14 +51,23 @@ class AssignedFrontdesk extends Component
         $now = now();
         $currentHour = $now->hour;
 
+        // Shift boundaries: AM = 8AM-8PM, PM = 8PM-8AM
+        // Transition window: 1 hour before shift end, new logins count as next shift
+        // But the query checks against actual shift boundaries
         if ($this->shift === 'AM') {
-            $shiftStart = $now->copy()->setTime(7, 0, 0);
+            // AM shift: 8AM - 8PM today
+            $shiftStart = $now->copy()->setTime(8, 0, 0);
+            $shiftEnd = $now->copy()->setTime(20, 0, 0);
         } else {
-            // PM shift: if before 8AM, shift started yesterday at 7PM
+            // PM shift: 8PM - 8AM
             if ($currentHour < 8) {
-                $shiftStart = $now->copy()->subDay()->setTime(19, 0, 0);
+                // After midnight: shift started yesterday at 8PM
+                $shiftStart = $now->copy()->subDay()->setTime(20, 0, 0);
+                $shiftEnd = $now->copy()->setTime(8, 0, 0);
             } else {
-                $shiftStart = $now->copy()->setTime(19, 0, 0);
+                // Before midnight: shift starts today at 8PM
+                $shiftStart = $now->copy()->setTime(20, 0, 0);
+                $shiftEnd = $now->copy()->addDay()->setTime(8, 0, 0);
             }
         }
 
@@ -66,7 +75,7 @@ class AssignedFrontdesk extends Component
         $shiftLogs = ShiftLog::where('branch_id', auth()->user()->branch_id)
             ->where('shift', $this->shift)
             ->where('frontdesk_id', '!=', auth()->user()->id)
-            ->where('time_in', '>=', $shiftStart)
+            ->whereBetween('time_in', [$shiftStart, $shiftEnd])
             ->with('frontdesk:id,name')
             ->get();
 
