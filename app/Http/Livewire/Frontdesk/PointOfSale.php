@@ -28,6 +28,10 @@ class PointOfSale extends Component
             ->whereNull('time_out')
             ->orderBy('created_at', 'desc')
             ->first();
+
+        if (!$this->current_shift) {
+            return redirect()->route('frontdesk.point-of-sale');
+        }
     }
 
     public function selectCategory($categoryId)
@@ -85,6 +89,14 @@ class PointOfSale extends Component
 
     public function checkout()
     {
+        if (!$this->current_shift) {
+            $this->notification()->error(
+                $title = 'No Active Shift',
+                $description = 'Please start a shift before making transactions.'
+            );
+            return;
+        }
+
         if (empty($this->cart)) {
             $this->notification()->error(
                 $title = 'Empty Cart',
@@ -130,11 +142,6 @@ class PointOfSale extends Component
 
     public function render()
     {
-        $this->total_pos = PosTransaction::where('branch_id', auth()->user()->branch_id)
-            ->where('shift_log_id', $this->current_shift->id)
-            ->where('user_id', auth()->user()->id)
-            ->sum('total');
-
         $menuQuery = FrontdeskMenu::where('branch_id', auth()->user()->branch_id);
 
         if ($this->selectedCategory) {
@@ -145,14 +152,26 @@ class PointOfSale extends Component
             $menuQuery->where('name', 'like', '%' . $this->search . '%');
         }
 
-        return view('livewire.frontdesk.point-of-sale', [
-            'menus' => $menuQuery->get(),
-            'categories' => FrontdeskCategory::where('branch_id', auth()->user()->branch_id)->get(),
-            'transactions' => PosTransaction::where('branch_id', auth()->user()->branch_id)
+        if ($this->current_shift) {
+            $this->total_pos = PosTransaction::where('branch_id', auth()->user()->branch_id)
+                ->where('shift_log_id', $this->current_shift->id)
+                ->where('user_id', auth()->user()->id)
+                ->sum('total');
+
+            $transactions = PosTransaction::where('branch_id', auth()->user()->branch_id)
                 ->where('shift_log_id', $this->current_shift->id)
                 ->where('user_id', auth()->user()->id)
                 ->latest()
-                ->get(),
+                ->get();
+        } else {
+            $this->total_pos = 0;
+            $transactions = collect();
+        }
+
+        return view('livewire.frontdesk.point-of-sale', [
+            'menus' => $menuQuery->get(),
+            'categories' => FrontdeskCategory::where('branch_id', auth()->user()->branch_id)->get(),
+            'transactions' => $transactions,
         ]);
     }
 }
