@@ -23,22 +23,24 @@
         <div>Please assign a frontdesk...</div>
       @endforelse
     </ul>
-    <div class="flex justify-between  border-t pt-2 ">
+    <div class="flex justify-between items-center border-t pt-2">
        <x-native-select wire:model="drawer">
             <option selected hidden>Select Cash Drawer</option>
             @foreach ($cash_drawers as $drawer)
                 <option value="{{ $drawer->id }}">{{ $drawer->name }}</option>
             @endforeach
         </x-native-select>
-      @if (collect($this->get_frontdesk)->count() > 0)
-        <x-button label="Save" sm positive right-icon="save-as" x-on:confirm="{
-        title: 'Are you sure?',
-        description      : 'You want to save assigned frontdesk',
-        icon: 'warning',
-        method: 'saveFrontdesk'
-    }" />
-      @endif
-
+      <div class="flex gap-x-2">
+        <x-button label="Log out" sm negative wire:click="logoutCurrentUser" spinner="logoutCurrentUser" />
+        @if (collect($this->get_frontdesk)->count() > 0)
+          <x-button label="Save" sm positive right-icon="save-as" x-on:confirm="{
+          title: 'Are you sure?',
+          description      : 'You want to save assigned frontdesk',
+          icon: 'warning',
+          method: 'saveFrontdesk'
+      }" />
+        @endif
+      </div>
     </div>
   </div>
   <div class="mt-10">
