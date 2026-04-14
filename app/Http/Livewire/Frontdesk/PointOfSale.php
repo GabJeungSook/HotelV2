@@ -30,7 +30,7 @@ class PointOfSale extends Component
             ->first();
 
         if (!$this->current_shift) {
-            return redirect()->route('frontdesk.point-of-sale');
+            return redirect()->route('frontdesk.dashboard');
         }
     }
 

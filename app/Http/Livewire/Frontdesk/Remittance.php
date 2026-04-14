@@ -26,6 +26,11 @@ class Remittance extends Component
                                 ->whereNull('time_out')
                                 ->orderBy('created_at', 'desc')
                                 ->first();
+
+        if (!$this->current_shift) {
+            return redirect()->route('frontdesk.dashboard');
+        }
+
         $this->shift = $this->current_shift->shift;
     }
     public function render()

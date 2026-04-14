@@ -34,6 +34,11 @@ class CashOnHand extends Component
                                 ->whereNull('time_out')
                                 ->orderBy('created_at', 'desc')
                                 ->first();
+
+        if (!$this->current_shift) {
+            return redirect()->route('frontdesk.dashboard');
+        }
+
         $this->total_transactions = CashOnDrawer::where('branch_id', auth()->user()->branch_id)
             ->where('cash_drawer_id', auth()->user()->cash_drawer_id)
             ->where('transaction_date', now()->toDateString())
