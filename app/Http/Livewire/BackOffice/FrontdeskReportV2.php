@@ -653,9 +653,10 @@ class FrontdeskReportV2 extends Component
      */
     /**
      * Calculate forwarded guest deposit using per-guest amounts.
-     * Matches SalesReportV2::getForwardedGuestRows() logic exactly:
+     * Mirrors SalesReportV2::getForwardedGuestRows() exactly:
      * 1. Still-occupying forwarded guests (per-guest MAX(0, deposits - cashouts))
      * 2. Checked-out guests with unclaimed deposits (per-guest MAX(0, deposits - cashouts))
+     * Loads ALL transactions then filters in PHP to match SalesReportV2 behavior.
      */
     private function calculateForwardedGuestDeposit(Carbon $currentTimeIn, int $branchId): float
     {
@@ -694,21 +695,24 @@ class FrontdeskReportV2 extends Component
             return 0;
         }
 
-        // Load all deposit (type 2) and cashout (type 5) transactions before this shift
+        // Load ALL transactions (no time filter in SQL — filter in PHP to match SalesReportV2)
         $allTransactions = Transaction::whereIn('checkin_detail_id', $allGuestIds)
             ->whereIn('transaction_type_id', [2, 5])
-            ->where('created_at', '<', $currentTimeIn)
             ->get()
             ->groupBy('checkin_detail_id');
 
         $total = 0;
         foreach ($allTransactions as $checkinId => $transactions) {
-            // Guest deposits: exclude room key/tv remote (exact match like SalesReportV2)
+            // Guest deposits before this shift (exclude room key/tv remote)
             $guestDep = (float) $transactions->where('transaction_type_id', 2)
                 ->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')
+                ->filter(fn($t) => $t->created_at < $currentTimeIn)
                 ->sum('payable_amount');
 
-            $cashouts = (float) $transactions->where('transaction_type_id', 5)->sum('payable_amount');
+            // Cashouts before this shift
+            $cashouts = (float) $transactions->where('transaction_type_id', 5)
+                ->filter(fn($t) => $t->created_at < $currentTimeIn)
+                ->sum('payable_amount');
 
             $total += max(0, $guestDep - $cashouts);
         }
