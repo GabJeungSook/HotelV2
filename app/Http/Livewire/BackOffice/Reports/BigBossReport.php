@@ -158,9 +158,9 @@ class BigBossReport extends Component
 
         // ===== CLEANING ORDER =====
         $cleaningHistories = CleaningHistory::where('branch_id', $branchId)
-            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->whereBetween('end_time', [$timeIn, $timeOut])
             ->with(['room', 'user'])
-            ->orderBy('created_at')
+            ->orderBy('end_time')
             ->get();
 
         $cleaningOrder = $cleaningHistories->pluck('room.number')->unique()->implode(', ');
@@ -444,9 +444,9 @@ class BigBossReport extends Component
                                     $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
                                 }
                             } else {
-                                // No cleaning record — use checkout time and default 15 min elapse
-                                $time = $checkOutAt->format('g:iA');
-                                $elapse = '15:00';
+                                // No cleaning record found
+                                $time = '—';
+                                $elapse = '—';
                             }
                         }
 
