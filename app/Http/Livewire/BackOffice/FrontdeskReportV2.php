@@ -651,72 +651,58 @@ class FrontdeskReportV2 extends Component
     /**
      * Calculate forwarded guest deposit using cumulative chain walk (same as SalesReportV2).
      */
+    /**
+     * Calculate forwarded guest deposit using per-guest amounts.
+     * Each guest's net deposit is MAX(0, deposits - cashouts), ensuring no guest
+     * contributes a negative balance. This matches the SalesReportV2 calculation.
+     */
     private function calculateForwardedGuestDeposit(Carbon $currentTimeIn, int $branchId): float
     {
-        $allLogs = ShiftLog::query()
-            ->where('branch_id', $branchId)
-            ->whereNotNull('time_out')
-            ->orderBy('time_in', 'asc')
-            ->get();
+        // Find all guests who were occupying before this shift
+        $forwardedGuests = CheckinDetail::query()
+            ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
+            ->where('check_in_at', '<', $currentTimeIn)
+            ->where(function ($q) use ($currentTimeIn) {
+                $q->whereNull('check_out_at')
+                  ->orWhere('check_out_at', '>=', $currentTimeIn);
+            })
+            ->pluck('id')
+            ->toArray();
 
-        // Group into sessions by shift type + date
-        $sessions = [];
-        foreach ($allLogs as $log) {
-            $shiftType = $this->getShiftType($log->time_in);
-            $shiftDate = $log->time_in->format('Y-m-d');
-            $key = $shiftType . '_' . $shiftDate;
-
-            if (!isset($sessions[$key])) {
-                $sessions[$key] = ['time_in' => $log->time_in, 'time_out' => $log->time_out];
-            }
-            if ($log->time_in < $sessions[$key]['time_in']) {
-                $sessions[$key]['time_in'] = $log->time_in;
-            }
-            if ($log->time_out > $sessions[$key]['time_out']) {
-                $sessions[$key]['time_out'] = $log->time_out;
-            }
-        }
-
-        $orderedSessions = collect($sessions)
-            ->sortBy('time_in')
-            ->filter(fn($s) => $s['time_in'] < $currentTimeIn)
-            ->values();
-
-        if ($orderedSessions->isEmpty()) {
+        if (empty($forwardedGuests)) {
             return 0;
         }
 
-        $runningGuestDeposit = 0;
+        // Also include checked-out guests with unclaimed deposits
+        $checkedOutGuests = CheckinDetail::query()
+            ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
+            ->where('check_in_at', '<', $currentTimeIn)
+            ->whereNotNull('check_out_at')
+            ->where('check_out_at', '<', $currentTimeIn)
+            ->pluck('id')
+            ->toArray();
 
-        foreach ($orderedSessions as $session) {
-            $ti = $session['time_in'];
-            $to = $session['time_out'];
+        $allGuestIds = array_unique(array_merge($forwardedGuests, $checkedOutGuests));
 
-            $occupyingIds = CheckinDetail::query()
-                ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
-                ->where('check_in_at', '<=', $to)
-                ->where(fn($q) => $q->whereNull('check_out_at')->orWhere('check_out_at', '>=', $ti))
-                ->pluck('id')
-                ->toArray();
+        $allTransactions = Transaction::whereIn('checkin_detail_id', $allGuestIds)
+            ->whereIn('transaction_type_id', [2, 5])
+            ->where('created_at', '<', $currentTimeIn)
+            ->get()
+            ->groupBy('checkin_detail_id');
 
-            if (empty($occupyingIds)) {
-                continue;
-            }
-
-            $transactions = Transaction::whereIn('checkin_detail_id', $occupyingIds)
-                ->whereBetween('created_at', [$ti, $to])
-                ->get();
-
-            $ownGuestDep = (float) $transactions->where('transaction_type_id', 2)
-                ->filter(fn($t) => !str_contains(strtolower($t->remarks ?? ''), 'room key') && !str_contains(strtolower($t->remarks ?? ''), 'tv remote'))
+        $total = 0;
+        foreach ($allTransactions as $checkinId => $transactions) {
+            $guestDep = (float) $transactions->where('transaction_type_id', 2)
+                ->filter(fn($t) => !str_contains(strtolower($t->remarks ?? ''), 'room key')
+                    && !str_contains(strtolower($t->remarks ?? ''), 'tv remote'))
                 ->sum('payable_amount');
 
-            $ownCashouts = (float) $transactions->where('transaction_type_id', 5)->sum('payable_amount');
+            $cashouts = (float) $transactions->where('transaction_type_id', 5)->sum('payable_amount');
 
-            $runningGuestDeposit = max(0, $runningGuestDeposit + $ownGuestDep - $ownCashouts);
+            $total += max(0, $guestDep - $cashouts);
         }
 
-        return $runningGuestDeposit;
+        return $total;
     }
 
     /**
