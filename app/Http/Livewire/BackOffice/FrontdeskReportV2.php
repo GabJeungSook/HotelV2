@@ -653,37 +653,48 @@ class FrontdeskReportV2 extends Component
      */
     /**
      * Calculate forwarded guest deposit using per-guest amounts.
-     * Each guest's net deposit is MAX(0, deposits - cashouts), ensuring no guest
-     * contributes a negative balance. This matches the SalesReportV2 calculation.
+     * Matches SalesReportV2::getForwardedGuestRows() logic exactly:
+     * 1. Still-occupying forwarded guests (per-guest MAX(0, deposits - cashouts))
+     * 2. Checked-out guests with unclaimed deposits (per-guest MAX(0, deposits - cashouts))
      */
     private function calculateForwardedGuestDeposit(Carbon $currentTimeIn, int $branchId): float
     {
-        // Find all guests who were occupying before this shift
+        // Find previous shift for overlap boundary (same logic as SalesReportV2)
+        $previousShift = ShiftLog::whereHas('frontdesk', fn($q) => $q->where('branch_id', $branchId))
+            ->where('time_in', '<', $currentTimeIn)
+            ->orderBy('time_in', 'desc')
+            ->first();
+        $checkoutBoundary = ($previousShift && $previousShift->time_out > $currentTimeIn)
+            ? $previousShift->time_out
+            : $currentTimeIn;
+
+        // 1. Still-occupying forwarded guests
         $forwardedGuests = CheckinDetail::query()
             ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
             ->where('check_in_at', '<', $currentTimeIn)
-            ->where(function ($q) use ($currentTimeIn) {
+            ->where(function ($q) use ($checkoutBoundary) {
                 $q->whereNull('check_out_at')
-                  ->orWhere('check_out_at', '>=', $currentTimeIn);
+                  ->orWhere('check_out_at', '>', $checkoutBoundary);
             })
             ->pluck('id')
             ->toArray();
 
-        if (empty($forwardedGuests)) {
-            return 0;
-        }
-
-        // Also include checked-out guests with unclaimed deposits
+        // 2. Checked-out guests with potential unclaimed deposits
         $checkedOutGuests = CheckinDetail::query()
             ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
             ->where('check_in_at', '<', $currentTimeIn)
             ->whereNotNull('check_out_at')
-            ->where('check_out_at', '<', $currentTimeIn)
+            ->where('check_out_at', '<=', $checkoutBoundary)
             ->pluck('id')
             ->toArray();
 
         $allGuestIds = array_unique(array_merge($forwardedGuests, $checkedOutGuests));
 
+        if (empty($allGuestIds)) {
+            return 0;
+        }
+
+        // Load all deposit (type 2) and cashout (type 5) transactions before this shift
         $allTransactions = Transaction::whereIn('checkin_detail_id', $allGuestIds)
             ->whereIn('transaction_type_id', [2, 5])
             ->where('created_at', '<', $currentTimeIn)
@@ -692,9 +703,9 @@ class FrontdeskReportV2 extends Component
 
         $total = 0;
         foreach ($allTransactions as $checkinId => $transactions) {
+            // Guest deposits: exclude room key/tv remote (exact match like SalesReportV2)
             $guestDep = (float) $transactions->where('transaction_type_id', 2)
-                ->filter(fn($t) => !str_contains(strtolower($t->remarks ?? ''), 'room key')
-                    && !str_contains(strtolower($t->remarks ?? ''), 'tv remote'))
+                ->where('remarks', '!=', 'Deposit From Check In (Room Key & TV Remote)')
                 ->sum('payable_amount');
 
             $cashouts = (float) $transactions->where('transaction_type_id', 5)->sum('payable_amount');
