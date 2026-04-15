@@ -1873,9 +1873,17 @@ class GuestTransaction extends Component
         $transaction = Transaction::where('id', $transaction_id)->first();
         $this->pay_transaction_id = $transaction->id;
         $this->pay_transaction_amount = $transaction->payable_amount;
+
+        // Exclude room key deposit from available balance (locked until checkout)
+        $roomKeyDeposit = Transaction::where('guest_id', $transaction->guest_id)
+            ->where('transaction_type_id', 2)
+            ->where('remarks', 'Deposit From Check In (Room Key & TV Remote)')
+            ->sum('payable_amount');
+
         $this->render_deposit =
             $transaction->guest->checkInDetail->total_deposit -
-            $transaction->guest->checkInDetail->total_deduction;
+            $transaction->guest->checkInDetail->total_deduction -
+            $roomKeyDeposit;
         $this->payWithDeposit_modal = true;
     }
 
@@ -1894,9 +1902,10 @@ class GuestTransaction extends Component
         } else {
             DB::beginTransaction();
             $transaction->update([
-                'paid_amount' => $this->pay_transaction_amount,
+                'paid_amount' => 0,
                 'change_amount' => 0,
                 'paid_at' => now(),
+                'remarks' => ($transaction->remarks ? $transaction->remarks . ' | ' : '') . 'Paid with deposit',
             ]);
             $check_in_detail = CheckinDetail::where('guest_id', $this->guest_id)->first();
             $users = User::role('frontdesk')->get();
@@ -2035,9 +2044,17 @@ class GuestTransaction extends Component
     {
         $guest = Guest::where('id', $this->guest_id)->first();
         $this->pay_transaction_amount = $total;
+
+        // Exclude room key deposit from available balance (locked until checkout)
+        $roomKeyDeposit = Transaction::where('guest_id', $this->guest_id)
+            ->where('transaction_type_id', 2)
+            ->where('remarks', 'Deposit From Check In (Room Key & TV Remote)')
+            ->sum('payable_amount');
+
         $this->render_deposit =
             $guest->checkInDetail->total_deposit -
-            $guest->checkInDetail->total_deduction;
+            $guest->checkInDetail->total_deduction -
+            $roomKeyDeposit;
 
         $this->payWithDeposit_modal = true;
     }
@@ -2055,7 +2072,10 @@ class GuestTransaction extends Component
         Transaction::where('branch_id', auth()->user()->branch_id)
             ->where('guest_id', $this->guest_id)
             ->whereNull('paid_at')
-            ->update(['paid_at' => now()]);
+            ->update([
+                'paid_at' => now(),
+                'paid_amount' => 0,
+            ]);
 
             $users = User::role('frontdesk')->get();
 
