@@ -155,7 +155,17 @@ class Main extends Component
             }
 
             DB::commit();
-            $this->mount();
+
+            // Refresh auth user so blade sees updated roomboy_cleaning_room_id
+            auth()->user()->refresh();
+            $this->user = auth()->user();
+
+            // Re-fetch uncleaned rooms for the same floor (not reset to first floor)
+            $this->rooms = Room::whereBranchId($this->user->branch_id)
+                ->where('status', 'Uncleaned')
+                ->whereFloorId($room->floor_id)
+                ->orderBy('time_to_clean', 'asc')
+                ->get();
         }
     }
     public function finishCleaning($id)
@@ -236,18 +246,29 @@ class Main extends Component
             //     dd('getlastrecord');
             // }
 
-            $totalMinutes = ceil(
-                \Carbon\Carbon::parse($getlastRecord->cleaning_start)
-                    ->diffInSeconds(\Carbon\Carbon::now()) / 60
-            );
+            if ($getlastRecord) {
+                $totalMinutes = ceil(
+                    \Carbon\Carbon::parse($getlastRecord->cleaning_start)
+                        ->diffInSeconds(\Carbon\Carbon::now()) / 60
+                );
 
-            $getlastRecord->update([
-                'cleaning_end' => \Carbon\Carbon::now(),
-                'total_hours_spent' => $totalMinutes,
-                'is_cleaned' => true,
-            ]);
+                $getlastRecord->update([
+                    'cleaning_end' => \Carbon\Carbon::now(),
+                    'total_hours_spent' => $totalMinutes,
+                    'is_cleaned' => true,
+                ]);
+            }
 
             DB::commit();
+
+            // Refresh auth user and rooms so UI updates properly
+            auth()->user()->refresh();
+            $this->user = auth()->user();
+            $this->rooms = Room::whereBranchId($this->user->branch_id)
+                ->where('status', 'Uncleaned')
+                ->whereFloorId($room->floor_id)
+                ->orderBy('time_to_clean', 'asc')
+                ->get();
 
             $this->dialog()->success(
                 $title = 'Success',
@@ -258,81 +279,63 @@ class Main extends Component
 
     public function finishCleaningOverride()
     {
-         $room = Room::where(
-            'id',
-            $this->override_cleaning_id
-        )->first();
+        $room = Room::where('id', $this->override_cleaning_id)->first();
 
-         if($room->started_cleaning_at == null)
-            {
-                    $room->update([
-                        'started_cleaning_at' => now()->subMinutes(16),
-                    ]);
-            }
-
-        $record_count = RoomBoyReport::where('roomboy_id', auth()->user()->id)
-            ->whereDate('created_at', now())
-            ->count();
+        if ($room->started_cleaning_at == null) {
+            $room->update([
+                'started_cleaning_at' => now()->subMinutes(16),
+            ]);
+        }
 
         $getlastRecord = RoomBoyReport::where('room_id', $room->id)
             ->where('roomboy_id', auth()->user()->id)
             ->orderBy('id', 'desc')
             ->first();
 
-        // if (now()->diffInMinutes($room->started_cleaning_at) < 15) {
-        //     $this->dialog()->error(
-        //         $title = 'Error',
-        //         $message = 'You need to clean for at least 15 minutes'
-        //     );
-        // } else {
-            DB::beginTransaction();
-            if($room->time_to_clean === null)
-            {
-                $room->update([
-                    'time_to_clean' => \Carbon\Carbon::parse($room->started_cleaning_at)->addMinutes(15),
-                ]);
-            }
-            CleaningHistory::create([
-                'user_id' => auth()->user()->id,
-                'room_id' => $room->id,
-                'floor_id' => $room->floor_id,
-                'branch_id' => $room->branch_id,
-                'current_assigned_floor_id' =>
-                    auth()->user()->roomboy_assigned_floor_id == $room->floor_id
-                        ? true
-                        : false,
-                'start_time' => $room->started_cleaning_at,
-                'end_time' => \Carbon\Carbon::now(),
-                'expected_end_time' => $room->time_to_clean,
-                'cleaning_duration' => now()->diffInMinutes(
-                    $room->started_cleaning_at
-                ),
-                'delayed_cleaning' => \Carbon\Carbon::parse(
-                    $room->time_to_clean
-                )->isPast()
+        DB::beginTransaction();
+        if ($room->time_to_clean === null) {
+            $room->update([
+                'time_to_clean' => \Carbon\Carbon::parse($room->started_cleaning_at)->addMinutes(15),
+            ]);
+        }
+
+        CleaningHistory::create([
+            'user_id' => auth()->user()->id,
+            'room_id' => $room->id,
+            'floor_id' => $room->floor_id,
+            'branch_id' => $room->branch_id,
+            'current_assigned_floor_id' =>
+                auth()->user()->roomboy_assigned_floor_id == $room->floor_id
                     ? true
                     : false,
+            'start_time' => $room->started_cleaning_at,
+            'end_time' => \Carbon\Carbon::now(),
+            'expected_end_time' => $room->time_to_clean,
+            'cleaning_duration' => now()->diffInMinutes(
+                $room->started_cleaning_at
+            ),
+            'delayed_cleaning' => \Carbon\Carbon::parse(
+                $room->time_to_clean
+            )->isPast()
+                ? true
+                : false,
+            'is_override' => true,
+        ]);
+
+        auth()
+            ->user()
+            ->update([
+                'roomboy_cleaning_room_id' => null,
             ]);
 
-            auth()
-                ->user()
-                ->update([
-                    'roomboy_cleaning_room_id' => null,
-                ]);
+        $room->update([
+            'status' => 'Available',
+            'is_priority' => 1,
+            'started_cleaning_at' => null,
+            'time_to_clean' => null,
+        ]);
 
-            $room->update([
-                'status' => 'Available',
-                'is_priority' => 1,
-                'started_cleaning_at' => null,
-                'time_to_clean' => null,
-            ]);
-
-            // if ($record_count > 0) {
-
-            // } else {
-            //     dd('getlastrecord');
-            // }
-
+        if ($getlastRecord) {
             $totalMinutes = ceil(
                 \Carbon\Carbon::parse($getlastRecord->cleaning_start)
                     ->diffInSeconds(\Carbon\Carbon::now()) / 60
@@ -343,14 +346,23 @@ class Main extends Component
                 'total_hours_spent' => $totalMinutes,
                 'is_cleaned' => true,
             ]);
+        }
 
-            DB::commit();
+        DB::commit();
 
-            $this->dialog()->success(
-                $title = 'Success',
-                $message = 'Room cleaned successfully'
-            );
-       // }
+        // Refresh auth user and rooms so UI updates properly
+        auth()->user()->refresh();
+        $this->user = auth()->user();
+        $this->rooms = Room::whereBranchId($this->user->branch_id)
+            ->where('status', 'Uncleaned')
+            ->whereFloorId($room->floor_id)
+            ->orderBy('time_to_clean', 'asc')
+            ->get();
+
+        $this->dialog()->success(
+            $title = 'Success',
+            $message = 'Room cleaned successfully (Override)'
+        );
     }
 
     public function openAuthorizationModal($id)

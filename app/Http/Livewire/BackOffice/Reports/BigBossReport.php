@@ -444,9 +444,9 @@ class BigBossReport extends Component
                                     $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
                                 }
                             } else {
-                                // No cleaning record found
-                                $time = '—';
-                                $elapse = '—';
+                                // No cleaning record — use checkout time and default 15 min elapse
+                                $time = $checkOutAt->format('g:iA');
+                                $elapse = '15:00';
                             }
                         }
 
