@@ -1,4 +1,4 @@
-<div wire:poll.5s class="grid max-w-full grid-cols-1 gap-6 mx-auto mt-5 lg:max-w-full lg:grid-flow-col-dense lg:grid-cols-1">
+<div class="grid max-w-full grid-cols-1 gap-6 mx-auto mt-5 lg:max-w-full lg:grid-flow-col-dense lg:grid-cols-1">
     <div class="space-y-6 lg:col-span-2 lg:col-start-1">
         <section aria-labelledby="applicant-information-title">
           <div class="bg-white border-b border-x rounded-md shadow-lg">
@@ -139,9 +139,10 @@
                                 {{-- Currently Cleaning --}}
                                 <div class="mt-1 p-4 border bg-gray-50" x-show="activeTab == '{{ $floor->id }}'">
                                     @php
-                                        $room_id = App\Models\Room::where('id', auth()->user()->roomboy_cleaning_room_id)->where('floor_id', $floor->id)->first();
-                                        $room = App\Models\Room::where('id', auth()->user()->roomboy_cleaning_room_id)->where('floor_id', $floor->id)->first()?->numberWithFormat();
-                                        $start = App\Models\Room::where('id', auth()->user()->roomboy_cleaning_room_id)->where('floor_id', $floor->id)->first()?->started_cleaning_at;
+                                        $cleaning_room = App\Models\Room::where('id', $user->roomboy_cleaning_room_id)->where('floor_id', $floor->id)->first();
+                                        $room_id = $cleaning_room;
+                                        $room = $cleaning_room?->numberWithFormat();
+                                        $start = $cleaning_room?->started_cleaning_at;
                                     @endphp
                                     <h3 class="text-lg font-semibold mb-4">Currently Cleaning</h3>
                                     <div wire:loading class="italic">
@@ -214,7 +215,7 @@
                                                 x-text="timer.seconds">{{ $component->seconds() }}</span>
                                             </x-countdown>
                                             <div class="mt-1">
-                                                @if (auth()->user()->roomboy_cleaning_room_id == null)
+                                                @if ($user->roomboy_cleaning_room_id == null)
                                                  <button
                                                         class="bg-[#009ff4] text-white hover:bg-[#017dc0] flex items-center gap-2 px-4 py-2 rounded"
                                                         x-on:confirm="{
