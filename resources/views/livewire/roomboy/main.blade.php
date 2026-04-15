@@ -1,4 +1,4 @@
-<div class="grid max-w-full grid-cols-1 gap-6 mx-auto mt-5 lg:max-w-full lg:grid-flow-col-dense lg:grid-cols-1">
+<div wire:poll.5s class="grid max-w-full grid-cols-1 gap-6 mx-auto mt-5 lg:max-w-full lg:grid-flow-col-dense lg:grid-cols-1">
     <div class="space-y-6 lg:col-span-2 lg:col-start-1">
         <section aria-labelledby="applicant-information-title">
           <div class="bg-white border-b border-x rounded-md shadow-lg">
@@ -158,7 +158,7 @@
                                                  <div class="mt-1">
                                                     <button
                                                         class="bg-[#009ff4] text-white hover:bg-[#017dc0] flex items-center gap-2 px-4 py-2 rounded"
-                                                        x-on:confirm="{ 
+                                                        x-on:confirm="{
                                                             title: 'Are you sure? you want to finish cleaning this room?',
                                                             icon: 'question',
                                                             method: 'finishCleaning',
@@ -214,7 +214,7 @@
                                                 x-text="timer.seconds">{{ $component->seconds() }}</span>
                                             </x-countdown>
                                             <div class="mt-1">
-                                                @if ($loop->first)
+                                                @if (auth()->user()->roomboy_cleaning_room_id == null)
                                                  <button
                                                         class="bg-[#009ff4] text-white hover:bg-[#017dc0] flex items-center gap-2 px-4 py-2 rounded"
                                                         x-on:confirm="{
@@ -225,7 +225,6 @@
                                                         }"
                                                     >
                                                         Start Cleaning
-                                                        <!-- Right arrow icon (Heroicons: arrow-narrow-right) -->
                                                         <svg class="w-5 h-5 ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                                         </svg>

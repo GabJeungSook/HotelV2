@@ -18,6 +18,7 @@ class Main extends Component
     public $user;
     public $floors;
     public $rooms;
+    public $selectedFloorId;
     public $authorization_modal = false;
     public $code;
     public $override_cleaning_id;
@@ -27,29 +28,27 @@ class Main extends Component
         $this->user = auth()->user();
         $this->floors = $this->user->floors()->orderBy('id')->get();
         if ($this->floors && $this->floors->count() > 0) {
-            $this->rooms = Room::whereBranchId($this->user->branch_id)
-                ->where('status', 'Uncleaned')
-                ->whereFloorId($this->floors->first()->id)
-                ->orderBy('time_to_clean', 'asc')
-                ->get();
-        } else {
-            $this->rooms = collect();
+            $this->selectedFloorId = $this->floors->first()->id;
         }
     }
 
     public function getSelectedFloor($floorId)
     {
-        $this->rooms = Room::whereBranchId(auth()->user()->branch_id)
-                ->where('status', 'Uncleaned')
-                ->whereFloorId($floorId)
-                ->orderBy('time_to_clean', 'asc')
-                ->get();
+        $this->selectedFloorId = $floorId;
     }
 
     public function startCleaning($room_id)
     {
-
         $room = Room::where('id', $room_id)->first();
+
+        // Race condition protection: room may have been taken by another room boy
+        if ($room->status !== 'Uncleaned') {
+            $this->dialog()->error(
+                $title = 'Error',
+                $message = 'This room is already being cleaned by another room boy'
+            );
+            return;
+        }
 
         $record_count = RoomBoyReport::where('roomboy_id', auth()->user()->id)
             ->whereDate('created_at', now())
@@ -159,15 +158,9 @@ class Main extends Component
             // Refresh auth user so blade sees updated roomboy_cleaning_room_id
             auth()->user()->refresh();
             $this->user = auth()->user();
-
-            // Re-fetch uncleaned rooms for the same floor (not reset to first floor)
-            $this->rooms = Room::whereBranchId($this->user->branch_id)
-                ->where('status', 'Uncleaned')
-                ->whereFloorId($room->floor_id)
-                ->orderBy('time_to_clean', 'asc')
-                ->get();
         }
     }
+
     public function finishCleaning($id)
     {
         $room = Room::where(
@@ -261,14 +254,9 @@ class Main extends Component
 
             DB::commit();
 
-            // Refresh auth user and rooms so UI updates properly
+            // Refresh auth user so blade sees cleared roomboy_cleaning_room_id
             auth()->user()->refresh();
             $this->user = auth()->user();
-            $this->rooms = Room::whereBranchId($this->user->branch_id)
-                ->where('status', 'Uncleaned')
-                ->whereFloorId($room->floor_id)
-                ->orderBy('time_to_clean', 'asc')
-                ->get();
 
             $this->dialog()->success(
                 $title = 'Success',
@@ -350,14 +338,9 @@ class Main extends Component
 
         DB::commit();
 
-        // Refresh auth user and rooms so UI updates properly
+        // Refresh auth user so blade sees cleared roomboy_cleaning_room_id
         auth()->user()->refresh();
         $this->user = auth()->user();
-        $this->rooms = Room::whereBranchId($this->user->branch_id)
-            ->where('status', 'Uncleaned')
-            ->whereFloorId($room->floor_id)
-            ->orderBy('time_to_clean', 'asc')
-            ->get();
 
         $this->dialog()->success(
             $title = 'Success',
@@ -401,6 +384,15 @@ class Main extends Component
 
     public function render()
     {
+        // Always fetch fresh uncleaned rooms so changes from other room boys are visible
+        $this->rooms = $this->selectedFloorId
+            ? Room::whereBranchId(auth()->user()->branch_id)
+                ->where('status', 'Uncleaned')
+                ->whereFloorId($this->selectedFloorId)
+                ->orderBy('time_to_clean', 'asc')
+                ->get()
+            : collect();
+
         return view('livewire.roomboy.main');
     }
 }
