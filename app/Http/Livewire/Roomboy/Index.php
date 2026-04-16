@@ -176,6 +176,12 @@ class Index extends Component
                 $message = 'You need to clean for at least 15 minutes'
             );
         } else {
+            if($room->time_to_clean === null)
+            {
+                $room->update([
+                    'time_to_clean' => \Carbon\Carbon::parse($room->started_cleaning_at)->addMinutes(15),
+                ]);
+            }
             DB::beginTransaction();
 
             CleaningHistory::create([
@@ -208,26 +214,23 @@ class Index extends Component
 
             $room->update([
                 'status' => 'Available',
+                'is_priority' => 1,
                 'started_cleaning_at' => null,
                 'time_to_clean' => null,
             ]);
 
-            // if ($record_count > 0) {
+            if ($getlastRecord) {
+                $totalMinutes = ceil(
+                    \Carbon\Carbon::parse($getlastRecord->cleaning_start)
+                        ->diffInSeconds(\Carbon\Carbon::now()) / 60
+                );
 
-            // } else {
-            //     dd('getlastrecord');
-            // }
-
-            $totalMinutes = ceil(
-                \Carbon\Carbon::parse($getlastRecord->cleaning_start)
-                    ->diffInSeconds(\Carbon\Carbon::now()) / 60
-            );
-
-            $getlastRecord->update([
-                'cleaning_end' => \Carbon\Carbon::now(),
-                'total_hours_spent' => $totalMinutes,
-                'is_cleaned' => true,
-            ]);
+                $getlastRecord->update([
+                    'cleaning_end' => \Carbon\Carbon::now(),
+                    'total_hours_spent' => $totalMinutes,
+                    'is_cleaned' => true,
+                ]);
+            }
 
             ActivityLog::create([
                 'branch_id' => auth()->user()->branch_id,
