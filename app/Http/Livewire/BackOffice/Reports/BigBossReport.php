@@ -449,6 +449,32 @@ class BigBossReport extends Component
                                 $time = $checkOutAt->format('g:iA');
                                 $elapse = '15:00';
                             }
+                        } else {
+                            // Guest not checked out — check for delayed cleaning (room cleaned from prior shift's checkout)
+                            $checkInAt = Carbon::parse($checkin->check_in_at);
+                            $delayedCleaning = $roomCleanings
+                                ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
+                                ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->lte($checkInAt))
+                                ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
+                                ->last();
+
+                            if ($delayedCleaning) {
+                                $usedCleaningIds[] = $delayedCleaning->id;
+                                $status = 'Clean';
+                                $endTime = Carbon::parse($delayedCleaning->end_time);
+                                $time = $endTime->format('g:iA');
+
+                                $startTime = Carbon::parse($delayedCleaning->start_time);
+                                $diffSeconds = $startTime->diffInSeconds($endTime);
+                                $hours = intdiv($diffSeconds, 3600);
+                                $remainingMinutes = intdiv($diffSeconds % 3600, 60);
+                                $remainingSeconds = $diffSeconds % 60;
+                                if ($hours > 0) {
+                                    $elapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                                } else {
+                                    $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                                }
+                            }
                         }
 
                         $roomData[] = [
@@ -558,6 +584,44 @@ class BigBossReport extends Component
                     : '',
                 'elapse' => $elapse,
             ];
+        }
+
+        // Add orphaned delayed cleanings (room cleaned from prior shift's checkout, no matching guest in this shift)
+        foreach ($cleaningByRoom as $roomId => $roomCleanings) {
+            foreach ($roomCleanings as $cleaning) {
+                if (in_array($cleaning->id, $usedCleaningIds)) {
+                    continue;
+                }
+
+                $userId = $cleaning->user_id;
+                $roomboyName = $cleaning->user?->name ?? 'Unknown';
+
+                $elapse = '';
+                if ($cleaning->start_time && $cleaning->end_time) {
+                    $start = Carbon::parse($cleaning->start_time);
+                    $end = Carbon::parse($cleaning->end_time);
+                    $diffSeconds = $start->diffInSeconds($end);
+                    if ($diffSeconds < 60) {
+                        $elapse = "{$diffSeconds} seconds (OVERRIDE)";
+                    } else {
+                        $diffMinutes = intdiv($diffSeconds, 60);
+                        $hours = intdiv($diffMinutes, 60);
+                        $minutes = $diffMinutes % 60;
+                        $elapse = $hours > 0 ? "{$hours} hour" . ($hours > 1 ? 's' : '') . " {$minutes} minutes" : "{$minutes} minutes";
+                    }
+                }
+
+                $roomboyEntries[$userId][] = [
+                    'roomboy_name' => strtoupper($roomboyName),
+                    'room_number' => $cleaning->room?->number ?? '',
+                    'room_id' => $roomId,
+                    'floor_number' => $cleaning->room?->floor?->number ?? '',
+                    'time' => $cleaning->end_time
+                        ? Carbon::parse($cleaning->end_time)->format('F d, Y g:iA')
+                        : '',
+                    'elapse' => $elapse,
+                ];
+            }
         }
 
         // Build final logs grouped by room boy, with rowspan calculated per room within each group
