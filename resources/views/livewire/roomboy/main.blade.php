@@ -135,58 +135,57 @@
                             </div>
                         </div>
 
-                            @foreach($floors as $floor)
-                                {{-- Currently Cleaning --}}
-                                <div class="mt-1 p-4 border bg-gray-50" x-show="activeTab == '{{ $floor->id }}'">
-                                    @php
-                                        $cleaning_room = App\Models\Room::where('id', $user->roomboy_cleaning_room_id)->where('floor_id', $floor->id)->first();
-                                        $room_id = $cleaning_room;
-                                        $room = $cleaning_room?->numberWithFormat();
-                                        $start = $cleaning_room?->started_cleaning_at;
-                                    @endphp
-                                    <h3 class="text-lg font-semibold mb-4">Currently Cleaning</h3>
-                                    <div wire:loading class="italic">
-                                        Fetching Data...
-                                    </div>
-                                    @if ($room)
-                                        <div wire:loading.remove class="grid grid-cols-6 gap-4 mb-4">
-                                            <div class="col-span-1 shadow-lg border p-4 border-[#009ff4] flex flex-col items-center justify-center text-center rounded-md">
-                                                <span class="font-medium uppercase">{{ $room }}</span>
-                                                <div class="flex flex-col items-center mt-2 space-y-1">
-                                                    <span class="font-normal text-sm text-gray-500">Started Cleaning</span>
-                                                    <span class="font-normal">{{ \Carbon\Carbon::parse($start)->diffForHumans() }}</span>
-                                                </div>
-                                                 <div class="mt-1">
-                                                    <button
-                                                        class="bg-[#009ff4] text-white hover:bg-[#017dc0] flex items-center gap-2 px-4 py-2 rounded"
-                                                        x-on:confirm="{
-                                                            title: 'Are you sure? you want to finish cleaning this room?',
-                                                            icon: 'question',
-                                                            method: 'finishCleaning',
-                                                            params: [{{ $room_id->id }}]
-                                                        }"
-                                                    >
-                                                        Finish Cleaning
-                                                        <!-- Right arrow icon (Heroicons: arrow-narrow-right) -->
-                                                        <svg class="w-5 h-5 ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                                        </svg>
-                                                    </button>
-                                                     <button
-                                                        class="mt-3 bg-red-600 text-white hover:bg-red-500 flex items-center gap-2 px-4 py-2 rounded"
-                                                        wire:click="openAuthorizationModal({{ $room_id->id }})">
-                                                        Override
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                        </div>
-                                    @else
-                                        <div wire:loading.remove class="mb-2">
-                                            <span class="font-normal text-gray-400 italic">No room is currently being cleaned on this floor.</span>
-                                        </div>
-                                    @endif
+                            {{-- Currently Cleaning (always visible, outside floor tabs) --}}
+                            @php
+                                $cleaning_room = $user->roomboy_cleaning_room_id ? App\Models\Room::where('id', $user->roomboy_cleaning_room_id)->first() : null;
+                                $room_id = $cleaning_room;
+                                $room = $cleaning_room?->numberWithFormat();
+                                $start = $cleaning_room?->started_cleaning_at;
+                            @endphp
+                            <div class="mt-1 p-4 border bg-gray-50">
+                                <h3 class="text-lg font-semibold mb-4">Currently Cleaning</h3>
+                                <div wire:loading class="italic">
+                                    Fetching Data...
                                 </div>
+                                @if ($room)
+                                    <div wire:loading.remove class="grid grid-cols-6 gap-4 mb-4">
+                                        <div class="col-span-1 shadow-lg border p-4 border-[#009ff4] flex flex-col items-center justify-center text-center rounded-md">
+                                            <span class="font-medium uppercase">{{ $room }}</span>
+                                            <div class="flex flex-col items-center mt-2 space-y-1">
+                                                <span class="font-normal text-sm text-gray-500">Started Cleaning</span>
+                                                <span class="font-normal">{{ \Carbon\Carbon::parse($start)->diffForHumans() }}</span>
+                                            </div>
+                                             <div class="mt-1">
+                                                <button
+                                                    class="bg-[#009ff4] text-white hover:bg-[#017dc0] flex items-center gap-2 px-4 py-2 rounded"
+                                                    x-on:confirm="{
+                                                        title: 'Are you sure? you want to finish cleaning this room?',
+                                                        icon: 'question',
+                                                        method: 'finishCleaning',
+                                                        params: [{{ $room_id->id }}]
+                                                    }"
+                                                >
+                                                    Finish Cleaning
+                                                    <svg class="w-5 h-5 ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                                                    </svg>
+                                                </button>
+                                                 <button
+                                                    class="mt-3 bg-red-600 text-white hover:bg-red-500 flex items-center gap-2 px-4 py-2 rounded"
+                                                    wire:click="openAuthorizationModal({{ $room_id->id }})">
+                                                    Override
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @else
+                                    <div wire:loading.remove class="mb-2">
+                                        <span class="font-normal text-gray-400 italic">No room is currently being cleaned.</span>
+                                    </div>
+                                @endif
+                            </div>
+
+                            @foreach($floors as $floor)
                                 {{-- Uncleaned Rooms --}}
                                 <div class="mt-1 p-4 border bg-gray-50" x-show="activeTab == '{{ $floor->id }}'">
                                     <h3 class="text-lg font-semibold mb-4">Uncleaned Rooms</h3>

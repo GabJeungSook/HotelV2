@@ -501,6 +501,11 @@ class BigBossReport extends Component
             $roomCleanings = $cleaningByRoom->get($roomId, collect());
             $isCheckedOut = $detail->is_check_out && $detail->check_out_at && Carbon::parse($detail->check_out_at)->between($timeIn, $timeOut);
 
+            // Skip guests who haven't actually checked out during this shift
+            if (!$isCheckedOut) {
+                continue;
+            }
+
             // Match cleaning record closest after this guest's checkout
             $matchedCleaning = null;
             if ($isCheckedOut) {
