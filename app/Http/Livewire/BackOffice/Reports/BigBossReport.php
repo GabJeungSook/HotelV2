@@ -390,8 +390,8 @@ class BigBossReport extends Component
 
     private function buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, array $occupiedRoomIds, $occupyingDetails, Carbon $timeIn, Carbon $timeOut): array
     {
-        // Group cleaning histories by room_id (keep all, sorted by end_time)
-        $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->sortBy('end_time')->values());
+        // Group cleaning histories by room_id (keep all, sorted by parsed end_time timestamp)
+        $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)->values());
 
         $chart = [];
         foreach ($floors as $floor) {
@@ -427,6 +427,7 @@ class BigBossReport extends Component
                             $matchedCleaning = $roomCleanings
                                 ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
                                 ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
+                                ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
                                 ->first();
 
                             if ($matchedCleaning) {
