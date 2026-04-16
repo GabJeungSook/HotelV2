@@ -472,9 +472,34 @@ class BigBossReport extends Component
                                     $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
                                 }
                             } else {
-                                // No cleaning record — use checkout time and default 15 min elapse
-                                $time = $checkOutAt->format('g:iA');
-                                $elapse = '15:00';
+                                // No cleaning after checkout — check for delayed cleaning before check-in
+                                $checkInAt = Carbon::parse($checkin->check_in_at);
+                                $delayedCleaning = $roomCleanings
+                                    ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
+                                    ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->lte($checkInAt))
+                                    ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
+                                    ->last();
+
+                                if ($delayedCleaning) {
+                                    $usedCleaningIds[] = $delayedCleaning->id;
+                                    $endTime = Carbon::parse($delayedCleaning->end_time);
+                                    $time = $endTime->format('g:iA');
+
+                                    $startTime = Carbon::parse($delayedCleaning->start_time);
+                                    $diffSeconds = $startTime->diffInSeconds($endTime);
+                                    $hours = intdiv($diffSeconds, 3600);
+                                    $remainingMinutes = intdiv($diffSeconds % 3600, 60);
+                                    $remainingSeconds = $diffSeconds % 60;
+                                    if ($hours > 0) {
+                                        $elapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                                    } else {
+                                        $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                                    }
+                                } else {
+                                    // Truly no cleaning record at all
+                                    $time = $checkOutAt->format('g:iA');
+                                    $elapse = '15:00';
+                                }
                             }
                         } else {
                             // Guest not checked out — check for delayed cleaning (room cleaned from prior shift's checkout)
@@ -561,28 +586,32 @@ class BigBossReport extends Component
 
             // Match cleaning record closest after this guest's checkout
             $matchedCleaning = null;
-            if ($isCheckedOut) {
-                $checkOutAt = Carbon::parse($detail->check_out_at);
+            $checkOutAt = Carbon::parse($detail->check_out_at);
+            $matchedCleaning = $roomCleanings
+                ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
+                ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
+                ->first();
+
+            // If no cleaning after checkout, check for delayed cleaning before check-in
+            if (!$matchedCleaning) {
+                $checkInAt = Carbon::parse($detail->check_in_at);
                 $matchedCleaning = $roomCleanings
                     ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
-                    ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
-                    ->first();
-
-                if ($matchedCleaning) {
-                    $usedCleaningIds[] = $matchedCleaning->id;
-                }
+                    ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->lte($checkInAt))
+                    ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
+                    ->last();
             }
 
-            // Determine room boy: from matched cleaning, or from any cleaning on same room, or fallback
+            if ($matchedCleaning) {
+                $usedCleaningIds[] = $matchedCleaning->id;
+            }
+
+            // Determine room boy: from matched cleaning, or skip
             if ($matchedCleaning) {
                 $userId = $matchedCleaning->user_id;
                 $roomboyName = $matchedCleaning->user?->name ?? 'Unknown';
-            } elseif (isset($roomToRoomboy[$roomId])) {
-                // No direct match, but another cleaning exists for this room — assign to that room boy
-                $userId = $roomToRoomboy[$roomId]['user_id'];
-                $roomboyName = $roomToRoomboy[$roomId]['user_name'];
             } else {
-                // No cleaning record at all for this room — skip (won't create Unknown group)
+                // No cleaning record for this checkout — skip
                 continue;
             }
 
