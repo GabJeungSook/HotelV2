@@ -404,12 +404,39 @@ class BigBossReport extends Component
                 $usedCleaningIds = [];
 
                 if ($roomCheckins->isEmpty()) {
+                    // Check for delayed cleaning on a vacant room (cleaned from prior shift's checkout, no new guest)
+                    $vacantTime = '';
+                    $vacantElapse = '';
+                    $vacantStatus = 'Vacant';
+                    $delayedCleaning = $roomCleanings
+                        ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
+                        ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
+                        ->last();
+
+                    if ($delayedCleaning) {
+                        $usedCleaningIds[] = $delayedCleaning->id;
+                        $vacantStatus = 'Clean';
+                        $endTime = Carbon::parse($delayedCleaning->end_time);
+                        $vacantTime = $endTime->format('g:iA');
+
+                        $startTime = Carbon::parse($delayedCleaning->start_time);
+                        $diffSeconds = $startTime->diffInSeconds($endTime);
+                        $hours = intdiv($diffSeconds, 3600);
+                        $remainingMinutes = intdiv($diffSeconds % 3600, 60);
+                        $remainingSeconds = $diffSeconds % 60;
+                        if ($hours > 0) {
+                            $vacantElapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                        } else {
+                            $vacantElapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                        }
+                    }
+
                     $roomData[] = [
                         'number' => $room->number,
                         'rowspan' => 1,
-                        'time' => '',
-                        'elapse' => '',
-                        'status' => 'Vacant',
+                        'time' => $vacantTime,
+                        'elapse' => $vacantElapse,
+                        'status' => $vacantStatus,
                     ];
                 } else {
                     $checkinCount = $roomCheckins->count();
