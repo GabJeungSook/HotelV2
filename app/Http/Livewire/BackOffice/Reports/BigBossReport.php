@@ -337,7 +337,7 @@ class BigBossReport extends Component
                             'status' => $status,
                             'guest' => $checkin->guest?->name ?? '',
                             'check_in' => $checkin->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
-                            'check_out' => $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut) ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
+                            'check_out' => $checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut) ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
                             'initial_hours' => $checkin->rate?->stayingHour?->number ?? '',
                             'is_forwarded' => $isForwarded,
                             'rowspan' => $isFirst ? $checkinCount : 0,
@@ -418,7 +418,7 @@ class BigBossReport extends Component
                     foreach ($roomCheckins as $checkin) {
                         $time = '';
                         $elapse = '';
-                        $isCheckedOut = $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut);
+                        $isCheckedOut = $checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut);
                         $status = $isCheckedOut ? 'Clean' : 'In-use';
 
                         // Find cleaning record closest after this guest's checkout
@@ -499,7 +499,7 @@ class BigBossReport extends Component
         foreach ($sortedDetails as $detail) {
             $roomId = $detail->room_id;
             $roomCleanings = $cleaningByRoom->get($roomId, collect());
-            $isCheckedOut = $detail->check_out_at && Carbon::parse($detail->check_out_at)->between($timeIn, $timeOut);
+            $isCheckedOut = $detail->is_check_out && $detail->check_out_at && Carbon::parse($detail->check_out_at)->between($timeIn, $timeOut);
 
             // Match cleaning record closest after this guest's checkout
             $matchedCleaning = null;
