@@ -393,6 +393,19 @@ class BigBossReport extends Component
         // Group cleaning histories by room_id (keep all, sorted by parsed end_time timestamp)
         $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)->values());
 
+        // For orphan cleanings (cleaning ends in this shift but its checkout was in a prior shift),
+        // we need the most recent checkout from before the shift to compute the real elapse.
+        $roomIdsWithCleanings = $cleaningByRoom->keys()->toArray();
+        $priorCheckoutsByRoom = empty($roomIdsWithCleanings) ? collect() : CheckinDetail::query()
+            ->whereIn('room_id', $roomIdsWithCleanings)
+            ->where('is_check_out', 1)
+            ->whereNotNull('check_out_at')
+            ->where('check_out_at', '<', $timeIn)
+            ->where('check_out_at', '>=', $timeIn->copy()->subDays(7))
+            ->orderBy('check_out_at', 'desc')
+            ->get()
+            ->groupBy('room_id');
+
         $chart = [];
         foreach ($floors as $floor) {
             $rooms = $allRooms->where('floor_id', $floor->id)->sortBy('number')->values();
@@ -402,144 +415,95 @@ class BigBossReport extends Component
                 $roomCheckins = $occupyingDetails->where('room_id', $room->id)->sortBy('check_in_at');
                 $roomCleanings = $cleaningByRoom->get($room->id, collect())->values();
                 $usedCleaningIds = [];
+                $roomRows = [];
 
-                if ($roomCheckins->isEmpty()) {
-                    // Check for delayed cleaning on a vacant room (cleaned from prior shift's checkout, no new guest)
-                    $vacantTime = '';
-                    $vacantElapse = '';
-                    $vacantStatus = 'Vacant';
-                    $delayedCleaning = $roomCleanings
-                        ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
-                        ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
-                        ->last();
+                foreach ($roomCheckins as $checkin) {
+                    $time = '';
+                    $elapse = '';
+                    $isCheckedOut = $checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut);
+                    $status = $isCheckedOut ? 'Clean' : 'In-use';
 
-                    if ($delayedCleaning) {
-                        $usedCleaningIds[] = $delayedCleaning->id;
-                        $vacantStatus = 'Clean';
-                        $endTime = Carbon::parse($delayedCleaning->end_time);
-                        $vacantTime = $endTime->format('g:iA');
+                    if ($isCheckedOut) {
+                        $checkOutAt = Carbon::parse($checkin->check_out_at);
+                        $matchedCleaning = $roomCleanings
+                            ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
+                            ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
+                            ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
+                            ->first();
 
-                        $startTime = Carbon::parse($delayedCleaning->start_time);
-                        $diffSeconds = $startTime->diffInSeconds($endTime);
-                        $hours = intdiv($diffSeconds, 3600);
-                        $remainingMinutes = intdiv($diffSeconds % 3600, 60);
-                        $remainingSeconds = $diffSeconds % 60;
-                        if ($hours > 0) {
-                            $vacantElapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
-                        } else {
-                            $vacantElapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+                        if ($matchedCleaning) {
+                            $usedCleaningIds[] = $matchedCleaning->id;
+                            $endTime = Carbon::parse($matchedCleaning->end_time);
+                            $time = $endTime->format('g:iA');
+                            $elapse = $this->formatElapse($checkOutAt->diffInSeconds($endTime));
+                        }
+                    } else {
+                        // Forwarded guest — show cleaning that finished before they arrived, if any
+                        $checkInAt = Carbon::parse($checkin->check_in_at);
+                        $delayedCleaning = $roomCleanings
+                            ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
+                            ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->lte($checkInAt))
+                            ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
+                            ->last();
+
+                        if ($delayedCleaning) {
+                            $usedCleaningIds[] = $delayedCleaning->id;
+                            $status = 'Clean';
+                            $endTime = Carbon::parse($delayedCleaning->end_time);
+                            $time = $endTime->format('g:iA');
+                            $elapse = $this->formatElapse(Carbon::parse($delayedCleaning->start_time)->diffInSeconds($endTime));
                         }
                     }
 
-                    $roomData[] = [
+                    $roomRows[] = [
                         'number' => $room->number,
-                        'rowspan' => 1,
-                        'time' => $vacantTime,
-                        'elapse' => $vacantElapse,
-                        'status' => $vacantStatus,
+                        'time' => $time,
+                        'elapse' => $elapse,
+                        'status' => $status,
                     ];
-                } else {
-                    $checkinCount = $roomCheckins->count();
-                    $isFirst = true;
-
-                    foreach ($roomCheckins as $checkin) {
-                        $time = '';
-                        $elapse = '';
-                        $isCheckedOut = $checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut);
-                        $status = $isCheckedOut ? 'Clean' : 'In-use';
-
-                        // Find cleaning record closest after this guest's checkout
-                        if ($isCheckedOut) {
-                            $checkOutAt = Carbon::parse($checkin->check_out_at);
-                            $matchedCleaning = $roomCleanings
-                                ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
-                                ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
-                                ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
-                                ->first();
-
-                            if ($matchedCleaning) {
-                                $usedCleaningIds[] = $matchedCleaning->id;
-                                $endTime = Carbon::parse($matchedCleaning->end_time);
-                                $time = $endTime->format('g:iA');
-
-                                $diffSeconds = $checkOutAt->diffInSeconds($endTime);
-                                $hours = intdiv($diffSeconds, 3600);
-                                $remainingMinutes = intdiv($diffSeconds % 3600, 60);
-                                $remainingSeconds = $diffSeconds % 60;
-                                if ($hours > 0) {
-                                    $elapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
-                                } else {
-                                    $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
-                                }
-                            } else {
-                                // No cleaning after checkout — check for delayed cleaning before check-in
-                                $checkInAt = Carbon::parse($checkin->check_in_at);
-                                $delayedCleaning = $roomCleanings
-                                    ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
-                                    ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->lte($checkInAt))
-                                    ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
-                                    ->last();
-
-                                if ($delayedCleaning) {
-                                    $usedCleaningIds[] = $delayedCleaning->id;
-                                    $endTime = Carbon::parse($delayedCleaning->end_time);
-                                    $time = $endTime->format('g:iA');
-
-                                    $startTime = Carbon::parse($delayedCleaning->start_time);
-                                    $diffSeconds = $startTime->diffInSeconds($endTime);
-                                    $hours = intdiv($diffSeconds, 3600);
-                                    $remainingMinutes = intdiv($diffSeconds % 3600, 60);
-                                    $remainingSeconds = $diffSeconds % 60;
-                                    if ($hours > 0) {
-                                        $elapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
-                                    } else {
-                                        $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
-                                    }
-                                } else {
-                                    // Truly no cleaning record at all
-                                    $time = $checkOutAt->format('g:iA');
-                                    $elapse = '15:00';
-                                }
-                            }
-                        } else {
-                            // Guest not checked out — check for delayed cleaning (room cleaned from prior shift's checkout)
-                            $checkInAt = Carbon::parse($checkin->check_in_at);
-                            $delayedCleaning = $roomCleanings
-                                ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
-                                ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->lte($checkInAt))
-                                ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
-                                ->last();
-
-                            if ($delayedCleaning) {
-                                $usedCleaningIds[] = $delayedCleaning->id;
-                                $status = 'Clean';
-                                $endTime = Carbon::parse($delayedCleaning->end_time);
-                                $time = $endTime->format('g:iA');
-
-                                $startTime = Carbon::parse($delayedCleaning->start_time);
-                                $diffSeconds = $startTime->diffInSeconds($endTime);
-                                $hours = intdiv($diffSeconds, 3600);
-                                $remainingMinutes = intdiv($diffSeconds % 3600, 60);
-                                $remainingSeconds = $diffSeconds % 60;
-                                if ($hours > 0) {
-                                    $elapse = $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
-                                } else {
-                                    $elapse = $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
-                                }
-                            }
-                        }
-
-                        $roomData[] = [
-                            'number' => $room->number,
-                            'rowspan' => $isFirst ? $checkinCount : 0,
-                            'time' => $time,
-                            'elapse' => $elapse,
-                            'status' => $status,
-                        ];
-
-                        $isFirst = false;
-                    }
                 }
+
+                // Orphan cleanings: cleaning ended in this shift but its checkout was outside the shift window.
+                // Pair with the most recent prior checkout so elapse reflects checkout → cleaning end.
+                $orphanCleanings = $roomCleanings->reject(fn($c) => in_array($c->id, $usedCleaningIds));
+                foreach ($orphanCleanings as $orphan) {
+                    $orphanEnd = Carbon::parse($orphan->end_time);
+                    $usedCleaningIds[] = $orphan->id;
+
+                    $priorCheckout = ($priorCheckoutsByRoom[$room->id] ?? collect())
+                        ->first(fn($d) => Carbon::parse($d->check_out_at)->lte($orphanEnd));
+
+                    if ($priorCheckout) {
+                        $elapseSeconds = Carbon::parse($priorCheckout->check_out_at)->diffInSeconds($orphanEnd);
+                    } else {
+                        $elapseSeconds = Carbon::parse($orphan->start_time)->diffInSeconds($orphanEnd);
+                    }
+
+                    $roomRows[] = [
+                        'number' => $room->number,
+                        'time' => $orphanEnd->format('g:iA'),
+                        'elapse' => $this->formatElapse($elapseSeconds),
+                        'status' => 'Clean',
+                    ];
+                }
+
+                // Room with no checkins and no cleanings — show a single Vacant row
+                if (empty($roomRows)) {
+                    $roomRows[] = [
+                        'number' => $room->number,
+                        'time' => '',
+                        'elapse' => '',
+                        'status' => 'Vacant',
+                    ];
+                }
+
+                $totalRows = count($roomRows);
+                foreach ($roomRows as $i => &$row) {
+                    $row['rowspan'] = $i === 0 ? $totalRows : 0;
+                }
+                unset($row);
+
+                $roomData = array_merge($roomData, $roomRows);
             }
 
             $chart[] = [
@@ -549,6 +513,17 @@ class BigBossReport extends Component
         }
 
         return $chart;
+    }
+
+    private function formatElapse(int $diffSeconds): string
+    {
+        $hours = intdiv($diffSeconds, 3600);
+        $remainingMinutes = intdiv($diffSeconds % 3600, 60);
+        $remainingSeconds = $diffSeconds % 60;
+        if ($hours > 0) {
+            return $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+        }
+        return $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
     }
 
     private function buildRoomboyLogs($cleaningHistories, $occupyingDetails, Carbon $timeIn, Carbon $timeOut): array
@@ -584,23 +559,15 @@ class BigBossReport extends Component
                 continue;
             }
 
-            // Match cleaning record closest after this guest's checkout
-            $matchedCleaning = null;
+            // Match cleaning record closest after this guest's checkout.
+            // Do NOT fall back to a cleaning that ended before this guest checked in —
+            // that would misattribute a prior guest's cleaning to the current guest.
+            // Unclaimed cleanings are handled by the orphan loop below.
             $checkOutAt = Carbon::parse($detail->check_out_at);
             $matchedCleaning = $roomCleanings
                 ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
                 ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
                 ->first();
-
-            // If no cleaning after checkout, check for delayed cleaning before check-in
-            if (!$matchedCleaning) {
-                $checkInAt = Carbon::parse($detail->check_in_at);
-                $matchedCleaning = $roomCleanings
-                    ->reject(fn($c) => in_array($c->id, $usedCleaningIds))
-                    ->filter(fn($c) => $c->end_time && Carbon::parse($c->end_time)->lte($checkInAt))
-                    ->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)
-                    ->last();
-            }
 
             if ($matchedCleaning) {
                 $usedCleaningIds[] = $matchedCleaning->id;
