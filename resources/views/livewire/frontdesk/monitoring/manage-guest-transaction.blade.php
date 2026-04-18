@@ -539,7 +539,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           <x-button positive label="Save" wire:click="saveTransfer" right-icon="arrow-narrow-right" />
         </div>
       </x-slot>
@@ -579,7 +579,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           <x-button positive label="Save" wire:click="addNewDeposit" right-icon="arrow-narrow-right" />
         </div>
       </x-slot>
@@ -602,7 +602,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" x-on:click="close" />
+          <x-button flat negative label="Cancel" x-on:click="close" spinner="alpineClose" />
           <x-button positive label="Save" wire:click="deductDeposit" right-icon="arrow-narrow-right" />
         </div>
       </x-slot>
@@ -637,7 +637,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end s gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           <x-button positive label="Save" wire:click="addExtend" spinner="addExtend"
             right-icon="arrow-narrow-right" />
         </div>
@@ -689,7 +689,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           <x-button positive label="Save" wire:click="addDamageCharges" right-icon="arrow-narrow-right" />
         </div>
       </x-slot>
@@ -739,7 +739,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           <x-button positive label="Save" wire:click="addAmenities" right-icon="arrow-narrow-right" />
         </div>
       </x-slot>
@@ -785,7 +785,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           <x-button positive label="Save" wire:click="addFood" right-icon="arrow-narrow-right" />
         </div>
       </x-slot>
@@ -848,7 +848,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           <x-button positive wire:click="addPayment" spinner="addPayment" label="Save"
             right-icon="arrow-narrow-right" />
 
@@ -931,7 +931,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           @if ($pay_transaction_id == null)
             <x-button positive wire:click="addAllPaymentWithDeposit" spinner="addPaymenWithDeposit"
               label="Pay with Deposit" right-icon="arrow-narrow-right" />
@@ -1118,7 +1118,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-end gap-x-2">
-          <x-button flat negative label="Cancel" wire:click="closeModal" />
+          <x-button flat negative label="Cancel" wire:click="closeModal" spinner="closeModal" />
           <x-button negative wire:click="addOverride" spinner="addOverride" label="Override"
             right-icon="arrow-narrow-right" />
 
