@@ -20,6 +20,17 @@ class PointOfSale extends Component
     public $cart = [];
     public $current_shift;
     public $total_pos = 0;
+    public $showHistoryModal = false;
+
+    public function openHistoryModal()
+    {
+        $this->showHistoryModal = true;
+    }
+
+    public function closeHistoryModal()
+    {
+        $this->showHistoryModal = false;
+    }
 
     public function mount()
     {
@@ -153,6 +164,7 @@ class PointOfSale extends Component
             $menuQuery->where('name', 'like', '%' . $this->search . '%');
         }
 
+        $orders = collect();
         if ($this->current_shift) {
             $this->total_pos = PosTransaction::where('branch_id', auth()->user()->branch_id)
                 ->where('shift_log_id', $this->current_shift->id)
@@ -162,17 +174,29 @@ class PointOfSale extends Component
             $transactions = PosTransaction::where('branch_id', auth()->user()->branch_id)
                 ->where('shift_log_id', $this->current_shift->id)
                 ->where('user_id', auth()->user()->id)
-                ->latest()
+                ->orderBy('created_at')
+                ->orderBy('id')
                 ->get();
+
+            // Group items created in the same checkout (same second) into one order
+            $orders = $transactions
+                ->groupBy(fn($t) => $t->created_at->format('Y-m-d H:i:s'))
+                ->map(fn($items) => [
+                    'order_id' => $items->min('id'),
+                    'date_time' => $items->first()->created_at,
+                    'items' => $items->values(),
+                    'amount' => $items->sum('total'),
+                ])
+                ->sortByDesc('date_time')
+                ->values();
         } else {
             $this->total_pos = 0;
-            $transactions = collect();
         }
 
         return view('livewire.frontdesk.point-of-sale', [
             'menus' => $menuQuery->get(),
             'categories' => FrontdeskCategory::where('branch_id', auth()->user()->branch_id)->get(),
-            'transactions' => $transactions,
+            'orders' => $orders,
         ]);
     }
 }
