@@ -1,0 +1,21 @@
+
+  [41;1m Psy\Exception\ParseErrorException [49;22m
+
+[39;1m  PHP Parse error: Syntax error, unexpected ',' on line 1[39;22m
+
+  at [32mC:\Users\User\Documents\GitHub\HotelV2\vendor\psy\psysh\src\Exception\ParseErrorException.php[39m:[32m44[39m
+     40▕      * @param \PhpParser\Error $e
+     41▕      */
+     42▕     public static function fromParseError(\PhpParser\Error $e): self
+     43▕     {
+  ➜  44▕         return new self($e->getRawMessage(), $e->getAttributes());
+     45▕     }
+     46▕ }
+     47▕
+
+  [33m1   [39m[39;1mC:\Users\User\Documents\GitHub\HotelV2\vendor\psy\psysh\src\CodeCleaner.php[39;22m:[39;1m311[39;22m
+  [90m    Psy\Exception\ParseErrorException::fromParseError(Object(PhpParser\Error))[39m
+
+  [33m2   [39m[39;1mC:\Users\User\Documents\GitHub\HotelV2\vendor\psy\psysh\src\CodeCleaner.php[39;22m:[39;1m240[39;22m
+  [90m    Psy\CodeCleaner::parse("<?php print_r(App\Models\Rate::with(['type','stayingHour'])-,'type_id','staying_hour_id','amount'])-;
+")[39m

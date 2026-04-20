@@ -288,6 +288,13 @@ class BigBossReport extends Component
             ->whereIn('transaction_type_id', [2, 5])
             ->get();
 
+        // Pre-fetch 6-hour base rates for all room types (keyed by type_id)
+        $branchId = auth()->user()->branch_id;
+        $baseRatesByType = \App\Models\Rate::where('branch_id', $branchId)
+            ->whereHas('stayingHour', fn($q) => $q->where('number', 6))
+            ->pluck('amount', 'type_id')
+            ->toArray();
+
         $chart = [];
 
         foreach ($floors as $floor) {
@@ -302,7 +309,7 @@ class BigBossReport extends Component
                     $floorData[] = [
                         'number' => $room->number,
                         'type' => $this->roomTypeInitial($room->type->name ?? ''),
-                        'rate' => '',
+                        'rate' => $baseRatesByType[$room->type_id] ?? '',
                         'status' => 'Available',
                         'guest' => '',
                         'check_in' => '',
@@ -333,7 +340,7 @@ class BigBossReport extends Component
                         $floorData[] = [
                             'number' => $room->number,
                             'type' => $this->roomTypeInitial($room->type->name ?? ''),
-                            'rate' => $checkin->rate?->amount ?? '',
+                            'rate' => $baseRatesByType[$room->type_id] ?? '',
                             'status' => $status,
                             'guest' => $checkin->guest?->name ?? '',
                             'check_in' => $checkin->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
