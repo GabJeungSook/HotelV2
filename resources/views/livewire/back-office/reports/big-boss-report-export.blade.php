@@ -368,7 +368,7 @@
                 </table>
             @else
                 <div class="bg-gray-50 rounded-lg border-2" style="border-style: dashed; border-color: #d1d5db; padding: 1.5rem;">
-                    <p class="text-gray-500 text-center">No additionals recorded.</p>
+                    <p class="text-gray-500 text-center">No payment on short recorded.</p>
                 </div>
             @endif
         </div>
