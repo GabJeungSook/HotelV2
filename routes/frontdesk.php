@@ -143,6 +143,13 @@ Route::prefix('frontdesk')
                 return view('frontdesk.select-frontdesk');
             }
         })->name('frontdesk.remittance');
+        Route::get('/frontdesk-payment-on-short', function () {
+            if (auth()->user()->cash_drawer_id != null) {
+                return view('frontdesk.payment-on-short');
+            } else {
+                return view('frontdesk.select-frontdesk');
+            }
+        })->name('frontdesk.payment-on-short');
         Route::get('/frontdesk-remittance-report', function () {
             if (auth()->user()->cash_drawer_id != null) {
                 return view('frontdesk.remittance-report');

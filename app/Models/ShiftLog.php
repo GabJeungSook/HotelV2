@@ -44,4 +44,9 @@ class ShiftLog extends Model
     {
         return $this->hasMany(PosTransaction::class);
     }
+
+    public function paymentOnShorts()
+    {
+        return $this->hasMany(PaymentOnShort::class);
+    }
 }

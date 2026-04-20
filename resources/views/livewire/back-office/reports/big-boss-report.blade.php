@@ -215,6 +215,35 @@
             </table>
         </div>
 
+        {{-- ==================== + ADDITIONALS (PAYMENT ON SHORT) ==================== --}}
+        <div class="mb-6">
+            <h3 class="text-base font-bold mb-2">+ ADDITIONALS</h3>
+            <table class="w-full border-collapse border border-gray-300 text-sm">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-3 py-2 text-left">DESCRIPTION</th>
+                        <th class="border border-gray-300 px-3 py-2 text-right w-32">AMOUNT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($paymentOnShorts as $payment)
+                    <tr>
+                        <td class="border border-gray-300 px-3 py-2 text-green-600">&raquo; PAYMENT ON SHORT: {{ $payment->shiftLog?->shift ?? '' }}: {{ $payment->name }}</td>
+                        <td class="border border-gray-300 px-3 py-2 text-right">{{ number_format($payment->amount, 2) }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="2" class="border border-gray-300 px-3 py-2 text-center text-gray-400 italic">No additionals</td>
+                    </tr>
+                    @endforelse
+                    <tr class="bg-gray-50">
+                        <td class="border border-gray-300 px-3 py-2 font-bold text-right">TOTAL ADDITIONALS</td>
+                        <td class="border border-gray-300 px-3 py-2 text-right font-bold">{{ number_format($paymentOnShortsTotal, 2) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
         {{-- ==================== FRONTDESK CHART ==================== --}}
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">FRONTDESK CHART</h3>

@@ -12,6 +12,7 @@ use App\Models\NewGuestReport;
 use App\Models\ExtendedGuestReport;
 use App\Models\CleaningHistory;
 use App\Models\Expense;
+use App\Models\PaymentOnShort;
 use App\Models\Branch;
 use Carbon\Carbon;
 
@@ -96,6 +97,8 @@ class BigBossReport extends Component
             'maintenanceRooms' => '',
             'expenses' => collect(),
             'expensesTotal' => 0,
+            'paymentOnShorts' => collect(),
+            'paymentOnShortsTotal' => 0,
             'frontdeskChart' => [],
             'roomCleaningChart' => [],
             'roomboyLogs' => [],
@@ -175,6 +178,13 @@ class BigBossReport extends Component
             ->get();
         $expensesTotal = (float) $expenses->sum('amount');
 
+        // ===== PAYMENT ON SHORT (ADDITIONALS) =====
+        $paymentOnShorts = PaymentOnShort::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->with(['user', 'shiftLog'])
+            ->get();
+        $paymentOnShortsTotal = (float) $paymentOnShorts->sum('amount');
+
         // ===== ROOM CLEANING CHART =====
         $roomCleaningChart = $this->buildRoomCleaningChart($floors, $allRooms, $cleaningHistories, $occupiedRoomIds, $occupyingDetails, $timeIn, $timeOut);
 
@@ -192,6 +202,8 @@ class BigBossReport extends Component
             'maintenanceRooms' => $maintenanceRooms,
             'expenses' => $expenses,
             'expensesTotal' => $expensesTotal,
+            'paymentOnShorts' => $paymentOnShorts,
+            'paymentOnShortsTotal' => $paymentOnShortsTotal,
             'frontdeskChart' => $frontdeskChart,
             'roomCleaningChart' => $roomCleaningChart,
             'roomboyLogs' => $roomboyLogs,

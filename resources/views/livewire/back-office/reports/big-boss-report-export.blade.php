@@ -342,12 +342,43 @@
             @endif
         </div>
 
+        {{-- ==================== + ADDITIONALS (PAYMENT ON SHORT) ==================== --}}
+        <div class="p-6">
+            <h3 class="text-2xl text-green-600 mb-4">+ ADDITIONALS</h3>
+            @if($paymentOnShorts->count() > 0)
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>DESCRIPTION</th>
+                            <th style="width: 120px;">AMOUNT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($paymentOnShorts as $payment)
+                            <tr>
+                                <td style="color: #16a34a;">&raquo; PAYMENT ON SHORT: {{ $payment->shiftLog?->shift ?? '' }}: {{ $payment->name }}</td>
+                                <td class="text-right">&#8369;{{ number_format($payment->amount, 2) }}</td>
+                            </tr>
+                        @endforeach
+                        <tr style="background-color: #dcfce7; font-weight: bold;">
+                            <td class="text-right">TOTAL ADDITIONALS:</td>
+                            <td class="text-right">&#8369;{{ number_format($paymentOnShortsTotal, 2) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            @else
+                <div class="bg-gray-50 rounded-lg border-2" style="border-style: dashed; border-color: #d1d5db; padding: 1.5rem;">
+                    <p class="text-gray-500 text-center">No additionals recorded.</p>
+                </div>
+            @endif
+        </div>
+
         {{-- ==================== NET INCOME ==================== --}}
         <div class="bg-green-500 pr-10 pl-10">
             <table class="w-full text-sm">
                 <tr>
                     <td style="padding: 0.5rem 0; font-weight: bold; font-size: 1.125rem;">NET INCOME:</td>
-                    <td class="text-right font-bold text-black" style="font-size: 1.25rem;">&#8369;{{ number_format($grossTotal - $expensesTotal, 2) }}</td>
+                    <td class="text-right font-bold text-black" style="font-size: 1.25rem;">&#8369;{{ number_format($grossTotal + $paymentOnShortsTotal - $expensesTotal, 2) }}</td>
                 </tr>
             </table>
         </div>
