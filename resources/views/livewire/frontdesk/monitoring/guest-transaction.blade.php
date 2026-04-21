@@ -544,7 +544,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-between gap-x-2">
-          <x-button negative label="Cancel" x-on:click="close" />
+          <x-button negative label="Cancel" wire:click="$set('deposit_modal', false)" />
           <div class="flex space-x-3">
               <x-button positive label="Save" wire:click="addNewDeposit" spinner="addNewDeposit"/>
           </div>
@@ -714,7 +714,7 @@
 
       <x-slot name="footer">
         <div class="flex justify-between gap-x-2">
-          <x-button negative label="Cancel" x-on:click="close" />
+          <x-button negative label="Cancel" wire:click="$set('amenities_modal', false)" />
           <div class="flex space-x-3">
             <x-button cyan label="Save & Pay" wire:click="confirmAmenitiesPay" spinner="confirmAmenitiesPay"/>
             @if ($deposit_except_remote_and_key - $check_in_details->total_deduction >= $transaction->payable_amount)
