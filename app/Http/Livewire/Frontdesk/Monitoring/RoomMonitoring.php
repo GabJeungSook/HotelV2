@@ -16,7 +16,6 @@ use App\Models\User;
 use WireUi\Traits\Actions;
 use App\Models\StayingHour;
 use App\Models\Transaction;
-use Livewire\WithPagination;
 use App\Models\CheckinDetail;
 use App\Models\NewGuestReport;
 use App\Models\AssignedFrontdesk;
@@ -25,7 +24,6 @@ use App\Models\TemporaryCheckInKiosk;
 
 class RoomMonitoring extends Component
 {
-    use WithPagination;
     use Actions;
     public $search, $search_kiosk, $search_reserve;
     public $filter_floor, $filter_status;
@@ -441,8 +439,7 @@ class RoomMonitoring extends Component
 
         ->with([
             'floor',
-            'type.rates',
-            'checkInDetails.guest',
+            'type',
             'latestCheckInDetail.guest',
             'newGuestReports',
         ])
@@ -471,7 +468,7 @@ class RoomMonitoring extends Component
         ')
 
         ->distinct()
-        ->paginate(10);
+        ->get();
 
 
 

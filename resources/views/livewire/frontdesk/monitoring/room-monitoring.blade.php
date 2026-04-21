@@ -43,7 +43,7 @@
       <x-badge class="font-normal" flat red md label="Cleaning" />
       <x-badge class="font-normal" flat blue md label="Cleaned" />
     </div>
-    <div class="overflow-hidden p-2 border mt-2 md:rounded-lg">
+    <div class="overflow-auto max-h-[70vh] p-2 border mt-2 md:rounded-lg">
       {{-- <table class="min-w-full divide-y divide-gray-300">
         <thead class="bg-gray-50">
           <tr>
@@ -91,7 +91,6 @@
         <tbody class="divide-y divide-gray-200">
           @forelse ($rooms as $room)
             @php
-            $latest_checkInDetails = $room->checkInDetails->sortByDesc('created_at')->first();
             $has_check_out = $room->latestCheckInDetail?->guest->has_kiosk_check_out;
             // if($room->checkInDetails->first() != null)
             if($room->latestCheckInDetail != null)
@@ -275,9 +274,6 @@
           </tbody>
         </table>
 
-      </div>
-      <div class="mt-2">
-        {{ $rooms->onEachSide(0)->links() }}
       </div>
     </div>
     @if(auth()->user()->hasRole('frontdesk'))
