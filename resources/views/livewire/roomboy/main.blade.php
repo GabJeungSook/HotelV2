@@ -113,9 +113,9 @@
                 {{-- Rooms Table --}}
                 <div wire:loading.remove>
                     @if($rooms->count() > 0)
-                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                        <div class="border border-gray-200 rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
                             <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
+                                <thead class="bg-gray-50 sticky top-0">
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-12">#</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Room</th>
