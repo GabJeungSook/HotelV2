@@ -240,6 +240,37 @@ class RoomMonitoring extends Component
         // return redirect()->route('kitchen.transactions');
     }
 
+    public function getKioskRoomQueue()
+    {
+        $temporaryCheckInKiosk = TemporaryCheckInKiosk::where('branch_id', auth()->user()->branch_id)
+            ->pluck('room_id')
+            ->toArray();
+
+        $temporaryReserved = TemporaryReserved::where('branch_id', auth()->user()->branch_id)
+            ->pluck('room_id')
+            ->toArray();
+
+        // Get all available rooms, prioritize unused rooms (last_checkin_at null or oldest)
+        $allRooms = Room::where('branch_id', auth()->user()->branch_id)
+            ->whereIn('status', ['Available', 'Cleaned'])
+            ->whereNotIn('id', $temporaryCheckInKiosk)
+            ->whereNotIn('id', $temporaryReserved)
+            ->where('is_priority', true)
+            ->with(['type', 'floor'])
+            ->orderByRaw('last_checkin_at IS NOT NULL, last_checkin_at ASC')
+            ->orderBy('number', 'asc')
+            ->get();
+
+        // Group by type, then pick 1 room per floor per type
+        return $allRooms->groupBy('type_id')->map(function ($typeRooms) {
+            return $typeRooms->groupBy('floor_id')->map(function ($floorRooms) {
+                return $floorRooms->first();
+            })->sortBy(function ($room) {
+                return $room->floor->number ?? 0;
+            })->values();
+        });
+    }
+
     public function render()
     {
         return view('livewire.frontdesk.monitoring.room-monitoring', [
@@ -249,6 +280,7 @@ class RoomMonitoring extends Component
             'foods' => $this->food_beverages_modal
                 ? Menu::where('branch_id', auth()->user()->branch_id)->get()
                 : collect(),
+            'kioskRoomQueue' => $this->getKioskRoomQueue(),
         ]);
     }
 

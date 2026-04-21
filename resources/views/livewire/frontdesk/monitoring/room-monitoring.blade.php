@@ -352,6 +352,50 @@
 
         </ul>
       </div>
+
+      {{-- KIOSK ROOM QUEUE --}}
+      <div class="mt-6">
+        <h1 class="font-bold text-xl text-gray-700">KIOSK ROOM QUEUE</h1>
+        <p class="text-sm text-gray-500 mb-2">Rooms prioritized for Kiosk selection (1 per floor per type)</p>
+
+        <div class="overflow-auto max-h-64 bg-white shadow sm:rounded-md mt-2">
+            @forelse($kioskRoomQueue as $typeId => $rooms)
+                @php $typeName = $rooms->first()->type->name ?? 'Unknown'; @endphp
+                <div class="border-b border-gray-200 last:border-b-0">
+                    <div class="bg-gray-100 px-4 py-2 font-semibold text-gray-700">
+                        {{ $typeName }} ({{ $rooms->count() }} rooms queued)
+                    </div>
+                    <ul class="divide-y divide-gray-100">
+                        @foreach($rooms as $index => $room)
+                            <li class="px-4 py-2 flex justify-between items-center hover:bg-gray-50">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-xs font-bold text-white bg-green-500 rounded-full w-5 h-5 flex items-center justify-center">
+                                        {{ $index + 1 }}
+                                    </span>
+                                    <div>
+                                        <span class="font-medium text-gray-800">Room #{{ $room->number }}</span>
+                                        <span class="text-gray-500 text-sm">({{ $room->floor->numberWithFormat() }})</span>
+                                    </div>
+                                </div>
+                                <div class="text-right text-sm">
+                                    @if($room->last_checkin_at)
+                                        <span class="text-gray-500">Last used: {{ \Carbon\Carbon::parse($room->last_checkin_at)->diffForHumans() }}</span>
+                                    @else
+                                        <span class="text-green-600 font-medium">Never used</span>
+                                    @endif
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @empty
+                <div class="px-4 py-8 text-center text-gray-500">
+                    No rooms available in queue
+                </div>
+            @endforelse
+        </div>
+      </div>
+
 {{-- CHECKED-OUT FROM KIOSK section - disabled --}}
 
       {{-- FOR RESERVATIONS --}}
