@@ -76,7 +76,10 @@
                                         </td>
                                         <td class="px-4 py-3 text-right">
                                             <button
-                                                class="inline-flex items-center justify-center bg-green-600 text-white active:bg-green-800 px-6 py-3 rounded text-base font-medium min-w-[96px]"
+                                                wire:loading.attr="disabled"
+                                                wire:target="finishCleaning,startCleaning"
+                                                wire:loading.class="opacity-50 cursor-not-allowed"
+                                                class="inline-flex items-center justify-center bg-green-600 text-white active:bg-green-800 px-6 py-3 rounded text-base font-medium min-w-[96px] disabled:opacity-50"
                                                 x-on:confirm="{
                                                     title: 'Finish cleaning Room {{ $cleaning_room->number }}?',
                                                     icon: 'question',
@@ -211,7 +214,10 @@
                                         </td>
                                         <td class="px-4 py-3 text-right">
                                             <button
-                                                class="inline-flex items-center justify-center bg-dlogo text-white active:bg-sky-700 px-6 py-3 rounded text-base font-medium min-w-[96px]"
+                                                wire:loading.attr="disabled"
+                                                wire:target="startCleaning,finishCleaning"
+                                                wire:loading.class="opacity-50 cursor-not-allowed"
+                                                class="inline-flex items-center justify-center bg-dlogo text-white active:bg-sky-700 px-6 py-3 rounded text-base font-medium min-w-[96px] disabled:opacity-50"
                                                 x-on:confirm="{
                                                     title: 'Start cleaning Room {{ $room->number }}?',
                                                     icon: 'question',

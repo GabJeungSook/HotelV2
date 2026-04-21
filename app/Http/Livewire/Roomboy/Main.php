@@ -93,19 +93,26 @@ class Main extends Component
         }
 
         $checkinDetail = CheckinDetail::where('room_id', $room->id)
-        ->orderBy('id', 'desc')
-        ->first();
-
-        if($checkinDetail === null)
-        {
-            $checkinDetail_id = CheckinDetail::where('guest_id', $guest->id)
             ->orderBy('id', 'desc')
-            ->first()->id;
-        }else{
-            $checkinDetail_id = CheckinDetail::where('room_id', $room->id)
-            ->orderBy('id', 'desc')
-            ->first()->id;
+            ->first();
 
+        if ($checkinDetail !== null) {
+            $checkinDetail_id = $checkinDetail->id;
+        } elseif ($guest !== null) {
+            $fallback = CheckinDetail::where('guest_id', $guest->id)
+                ->orderBy('id', 'desc')
+                ->first();
+            $checkinDetail_id = $fallback?->id;
+        } else {
+            $checkinDetail_id = null;
+        }
+
+        if ($checkinDetail_id === null) {
+            $this->dialog()->error(
+                $title = 'Cannot start cleaning',
+                $message = 'Room '.$room->number.' has no check-in record. Contact front desk.'
+            );
+            return;
         }
 
 
