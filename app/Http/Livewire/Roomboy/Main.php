@@ -23,8 +23,12 @@ class Main extends Component
     public function mount()
     {
         $this->user = auth()->user();
-        $this->floors = $this->user->floors()->orderBy('id')->get();
-        // Default to 'all' view - no floor switching needed
+        $this->floors = $this->user->floors()
+            ->whereNotNull('floors.number')
+            ->orderBy('floors.id')
+            ->get()
+            ->unique('id')
+            ->values();
         $this->selectedFloorId = 'all';
     }
 
@@ -251,29 +255,51 @@ class Main extends Component
 
     public function render()
     {
-        // Always fetch fresh uncleaned rooms so changes from other room boys are visible
-        // Sorted by check_out_time ascending (earliest checkout first)
+        $branchId = auth()->user()->branch_id;
+        $floorIds = $this->floors->pluck('id')->toArray();
+
+        $baseQuery = Room::whereBranchId($branchId)
+            ->where('status', 'Uncleaned')
+            ->whereIn('floor_id', $floorIds);
+
+        $urgentThreshold = now()->subHours(2);
+
         if ($this->selectedFloorId === 'all') {
-            // Show ALL uncleaned rooms across all assigned floors
-            $floorIds = $this->floors->pluck('id')->toArray();
-            $this->rooms = Room::whereBranchId(auth()->user()->branch_id)
-                ->where('status', 'Uncleaned')
-                ->whereIn('floor_id', $floorIds)
-                ->with('floor')
+            $this->rooms = (clone $baseQuery)
+                ->with(['floor', 'type'])
+                ->orderByRaw('CASE WHEN check_out_time <= ? THEN 0 ELSE 1 END', [$urgentThreshold])
                 ->orderBy('check_out_time', 'asc')
                 ->get();
         } elseif ($this->selectedFloorId) {
-            // Show rooms for specific floor
-            $this->rooms = Room::whereBranchId(auth()->user()->branch_id)
+            $this->rooms = Room::whereBranchId($branchId)
                 ->where('status', 'Uncleaned')
                 ->whereFloorId($this->selectedFloorId)
-                ->with('floor')
+                ->with(['floor', 'type'])
+                ->orderByRaw('CASE WHEN check_out_time <= ? THEN 0 ELSE 1 END', [$urgentThreshold])
                 ->orderBy('check_out_time', 'asc')
                 ->get();
         } else {
             $this->rooms = collect();
         }
 
-        return view('livewire.roomboy.main');
+        $floorCounts = (clone $baseQuery)
+            ->select('floor_id', DB::raw('COUNT(*) as total'))
+            ->groupBy('floor_id')
+            ->pluck('total', 'floor_id');
+
+        $totalUncleaned = $floorCounts->sum();
+
+        $cleaningRooms = Room::beingCleanedBy(auth()->id())->with('floor')->get();
+
+        $cleanedToday = CleaningHistory::where('user_id', auth()->id())
+            ->whereDate('end_time', today())
+            ->count();
+
+        return view('livewire.roomboy.main', [
+            'floorCounts' => $floorCounts,
+            'totalUncleaned' => $totalUncleaned,
+            'cleaningRooms' => $cleaningRooms,
+            'cleanedToday' => $cleanedToday,
+        ]);
     }
 }
