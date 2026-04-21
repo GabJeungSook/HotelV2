@@ -412,19 +412,6 @@ class BigBossReport extends Component
         // Group cleaning histories by room_id (keep all, sorted by parsed end_time timestamp)
         $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)->values());
 
-        // For orphan cleanings (cleaning ends in this shift but its checkout was in a prior shift),
-        // we need the most recent checkout from before the shift to compute the real elapse.
-        $roomIdsWithCleanings = $cleaningByRoom->keys()->toArray();
-        $priorCheckoutsByRoom = empty($roomIdsWithCleanings) ? collect() : CheckinDetail::query()
-            ->whereIn('room_id', $roomIdsWithCleanings)
-            ->where('is_check_out', 1)
-            ->whereNotNull('check_out_at')
-            ->where('check_out_at', '<', $timeIn)
-            ->where('check_out_at', '>=', $timeIn->copy()->subDays(7))
-            ->orderBy('check_out_at', 'desc')
-            ->get()
-            ->groupBy('room_id');
-
         $chart = [];
         foreach ($floors as $floor) {
             $rooms = $allRooms->where('floor_id', $floor->id)->sortBy('number')->values();
@@ -438,10 +425,11 @@ class BigBossReport extends Component
 
                 foreach ($roomCheckins as $checkin) {
                     $time = '';
-                    $elapse = '';
                     $isCheckedOut = $checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut);
                     $status = $isCheckedOut ? 'Clean' : 'In-use';
 
+                    $durationSeconds = 0;
+                    $duration = '';
                     if ($isCheckedOut) {
                         $checkOutAt = Carbon::parse($checkin->check_out_at);
                         $matchedCleaning = $roomCleanings
@@ -454,7 +442,11 @@ class BigBossReport extends Component
                             $usedCleaningIds[] = $matchedCleaning->id;
                             $endTime = Carbon::parse($matchedCleaning->end_time);
                             $time = $endTime->format('g:iA');
-                            $elapse = $this->formatElapse($checkOutAt->diffInSeconds($endTime));
+                            // Duration = actual cleaning time (start → end)
+                            if ($matchedCleaning->start_time) {
+                                $durationSeconds = Carbon::parse($matchedCleaning->start_time)->diffInSeconds($endTime);
+                                $duration = $this->formatDuration($durationSeconds);
+                            }
                         }
                     } else {
                         // Forwarded guest — show cleaning that finished before they arrived, if any
@@ -470,38 +462,42 @@ class BigBossReport extends Component
                             $status = 'Clean';
                             $endTime = Carbon::parse($delayedCleaning->end_time);
                             $time = $endTime->format('g:iA');
-                            $elapse = $this->formatElapse(Carbon::parse($delayedCleaning->start_time)->diffInSeconds($endTime));
+                            // Duration = actual cleaning time (start → end)
+                            if ($delayedCleaning->start_time) {
+                                $durationSeconds = Carbon::parse($delayedCleaning->start_time)->diffInSeconds($endTime);
+                                $duration = $this->formatDuration($durationSeconds);
+                            }
                         }
                     }
 
                     $roomRows[] = [
                         'number' => $room->number,
                         'time' => $time,
-                        'elapse' => $elapse,
+                        'duration' => $duration,
+                        'duration_seconds' => $durationSeconds,
                         'status' => $status,
                     ];
                 }
 
                 // Orphan cleanings: cleaning ended in this shift but its checkout was outside the shift window.
-                // Pair with the most recent prior checkout so elapse reflects checkout → cleaning end.
                 $orphanCleanings = $roomCleanings->reject(fn($c) => in_array($c->id, $usedCleaningIds));
                 foreach ($orphanCleanings as $orphan) {
                     $orphanEnd = Carbon::parse($orphan->end_time);
                     $usedCleaningIds[] = $orphan->id;
 
-                    $priorCheckout = ($priorCheckoutsByRoom[$room->id] ?? collect())
-                        ->first(fn($d) => Carbon::parse($d->check_out_at)->lte($orphanEnd));
-
-                    if ($priorCheckout) {
-                        $elapseSeconds = Carbon::parse($priorCheckout->check_out_at)->diffInSeconds($orphanEnd);
-                    } else {
-                        $elapseSeconds = Carbon::parse($orphan->start_time)->diffInSeconds($orphanEnd);
+                    // Duration = actual cleaning time (start → end)
+                    $orphanDurationSeconds = 0;
+                    $orphanDuration = '';
+                    if ($orphan->start_time) {
+                        $orphanDurationSeconds = Carbon::parse($orphan->start_time)->diffInSeconds($orphanEnd);
+                        $orphanDuration = $this->formatDuration($orphanDurationSeconds);
                     }
 
                     $roomRows[] = [
                         'number' => $room->number,
                         'time' => $orphanEnd->format('g:iA'),
-                        'elapse' => $this->formatElapse($elapseSeconds),
+                        'duration' => $orphanDuration,
+                        'duration_seconds' => $orphanDurationSeconds,
                         'status' => 'Clean',
                     ];
                 }
@@ -511,7 +507,8 @@ class BigBossReport extends Component
                     $roomRows[] = [
                         'number' => $room->number,
                         'time' => '',
-                        'elapse' => '',
+                        'duration' => '',
+                        'duration_seconds' => 0,
                         'status' => 'Vacant',
                     ];
                 }
@@ -534,15 +531,13 @@ class BigBossReport extends Component
         return $chart;
     }
 
-    private function formatElapse(int $diffSeconds): string
+    private function formatDuration(int $diffSeconds): string
     {
         $hours = intdiv($diffSeconds, 3600);
-        $remainingMinutes = intdiv($diffSeconds % 3600, 60);
-        $remainingSeconds = $diffSeconds % 60;
-        if ($hours > 0) {
-            return $hours . ':' . str_pad($remainingMinutes, 2, '0', STR_PAD_LEFT) . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
-        }
-        return $remainingMinutes . ':' . str_pad($remainingSeconds, 2, '0', STR_PAD_LEFT);
+        $minutes = intdiv($diffSeconds % 3600, 60);
+        $seconds = $diffSeconds % 60;
+
+        return sprintf('%d:%02d:%02d', $hours, $minutes, $seconds);
     }
 
     private function buildRoomboyLogs($cleaningHistories, $occupyingDetails, Carbon $timeIn, Carbon $timeOut): array

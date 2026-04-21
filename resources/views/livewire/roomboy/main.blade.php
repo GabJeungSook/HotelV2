@@ -39,11 +39,9 @@
                             </button>
                             @foreach($floors as $floor)
                                 @php
-                                    // Example: retrieve the count for this floor (0 if not found)
-                                    $uncleanedCount =  App\Models\Room::whereBranchId($this->user->branch_id)
+                                    $uncleanedCount = App\Models\Room::whereBranchId($this->user->branch_id)
                                                         ->where('status', 'Uncleaned')
                                                         ->whereFloorId($floor->id)
-                                                        ->orderBy('time_to_clean', 'asc')
                                                         ->count() ?? 0;
                                 @endphp
                                 <button
@@ -137,23 +135,21 @@
 
                             {{-- Currently Cleaning (always visible, outside floor tabs) --}}
                             @php
-                                $cleaning_room = $user->roomboy_cleaning_room_id ? App\Models\Room::where('id', $user->roomboy_cleaning_room_id)->first() : null;
-                                $room_id = $cleaning_room;
-                                $room = $cleaning_room?->numberWithFormat();
-                                $start = $cleaning_room?->started_cleaning_at;
+                                $cleaning_rooms = App\Models\Room::beingCleanedBy(auth()->id())->get();
                             @endphp
                             <div class="mt-1 p-4 border bg-gray-50">
-                                <h3 class="text-lg font-semibold mb-4">Currently Cleaning</h3>
+                                <h3 class="text-lg font-semibold mb-4">Currently Cleaning ({{ $cleaning_rooms->count() }})</h3>
                                 <div wire:loading class="italic">
                                     Fetching Data...
                                 </div>
-                                @if ($room)
+                                @if ($cleaning_rooms->count() > 0)
                                     <div wire:loading.remove class="grid grid-cols-6 gap-4 mb-4">
+                                        @foreach ($cleaning_rooms as $cleaning_room)
                                         <div class="col-span-1 shadow-lg border p-4 border-[#009ff4] flex flex-col items-center justify-center text-center rounded-md">
-                                            <span class="font-medium uppercase">{{ $room }}</span>
+                                            <span class="font-medium uppercase">{{ $cleaning_room->numberWithFormat() }}</span>
                                             <div class="flex flex-col items-center mt-2 space-y-1">
                                                 <span class="font-normal text-sm text-gray-500">Started Cleaning</span>
-                                                <span class="font-normal">{{ \Carbon\Carbon::parse($start)->diffForHumans() }}</span>
+                                                <span class="font-normal">{{ \Carbon\Carbon::parse($cleaning_room->started_cleaning_at)->diffForHumans() }}</span>
                                             </div>
                                              <div class="mt-1">
                                                 <button
@@ -162,7 +158,7 @@
                                                         title: 'Are you sure? you want to finish cleaning this room?',
                                                         icon: 'question',
                                                         method: 'finishCleaning',
-                                                        params: [{{ $room_id->id }}]
+                                                        params: [{{ $cleaning_room->id }}]
                                                     }"
                                                 >
                                                     Finish Cleaning
@@ -170,13 +166,9 @@
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                                     </svg>
                                                 </button>
-                                                 <button
-                                                    class="mt-3 bg-red-600 text-white hover:bg-red-500 flex items-center gap-2 px-4 py-2 rounded"
-                                                    wire:click="openAuthorizationModal({{ $room_id->id }})">
-                                                    Override
-                                                </button>
                                             </div>
                                         </div>
+                                        @endforeach
                                     </div>
                                 @else
                                     <div wire:loading.remove class="mb-2">
@@ -214,7 +206,6 @@
                                                 x-text="timer.seconds">{{ $component->seconds() }}</span>
                                             </x-countdown>
                                             <div class="mt-1">
-                                                @if ($user->roomboy_cleaning_room_id == null)
                                                  <button
                                                         class="bg-[#009ff4] text-white hover:bg-[#017dc0] flex items-center gap-2 px-4 py-2 rounded"
                                                         x-on:confirm="{
@@ -229,7 +220,6 @@
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                                         </svg>
                                                     </button>
-                                                @endif
                                             </div>
                                         </div>
                                     </div>
@@ -249,33 +239,4 @@
           </div>
         </section>
     </div>
-        {{-- moadal for authorization code --}}
-      <x-modal wire:model.defer="authorization_modal" align="center" max-width="md">
-    <x-card>
-      <div class="flex space-x-1">
-        <h1 class=" text-xl font-bold text-gray-600">AUTHORIZATION CODE</h1>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-green-600">
-          <path fill="none" d="M0 0h24v24H0z" />
-          <path d="M17 14h-4.341a6 6 0 1 1 0-4H23v4h-2v4h-4v-4zM7 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-        </svg>
-      </div>
-      <div class="mt-7">
-        <input type="password" wire:model="code"
-          class="w-full text-lg
-      @error('code')
-          border-red-500
-      @enderror
-        rounded-lg">
-      </div>
-      @error('code')
-        <span class="text-sm text-red-500 mt-1">{{ $message }}</span>
-      @enderror
-      <div class="mt-5 flex justify-end items-center space-x-2">
-        <x-button x-on:click="close" label="CANCEL" sm negative />
-        <x-button label="PROCEED" sm positive wire:click="overrideCleaning" spinner="overrideCleaning" />
-
-      </div>
-
-    </x-card>
-  </x-modal>
 </div>
