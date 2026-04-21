@@ -201,8 +201,26 @@
 
                     @if ($now > $grace_end)
 
-                        <span class="inline-flex items-center rounded-md bg-red-500 px-2 py-1 text-sm font-medium text-white">
-                            Over Time: {{ $check_out_date->diffForHumans() }}
+                        <span
+                            class="inline-flex items-center rounded-md bg-red-500 px-2 py-1 text-sm font-medium text-white"
+                            x-data="{
+                                checkOutTime: new Date('{{ $check_out_date->toIso8601String() }}'),
+                                timeAgo: '',
+                                updateTime() {
+                                    const now = new Date();
+                                    const diff = Math.floor((now - this.checkOutTime) / 1000);
+                                    const hours = Math.floor(diff / 3600);
+                                    const minutes = Math.floor((diff % 3600) / 60);
+                                    if (hours > 0) {
+                                        this.timeAgo = hours + 'h ' + minutes + 'm ago';
+                                    } else {
+                                        this.timeAgo = minutes + 'm ago';
+                                    }
+                                }
+                            }"
+                            x-init="updateTime(); setInterval(() => updateTime(), 1000)"
+                        >
+                            Over Time: <span x-text="timeAgo"></span>
                         </span>
 
                     @elseif ($now > $check_out_date)
@@ -280,8 +298,8 @@
     </div>
     @if(auth()->user()->hasRole('frontdesk'))
     <div class="col-span-1">
-      <!-- wire:poll.1s  -->
-    <div wire:poll.1s>
+      <!-- Polls every 10s for new kiosk check-ins. Timer uses Alpine.js (client-side) -->
+    <div wire:poll.10s>
         <div class="flex items-center justify-between mt-2">
             <h1 class="font-bold text-2xl text-gray-700">CHECK-IN GUEST ({{ $kiosks->count() }})</h1>
             {{-- <span class="text-lg font-semibold text-green-600">Count: {{ $kiosks->count() }}</span> --}}
