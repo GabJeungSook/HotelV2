@@ -34,14 +34,17 @@
         <x-button label="Check-In C/O" icon="check" emerald wire:click="redirectToCheckInCO"
         spinner="redirectToCheckInCO" />
     </div>
-    <div class="mt-5 flex space-x-2">
-      <x-badge class="font-normal" flat positive md label="Occupied" />
-      <x-badge class="font-normal" dark flat md label="Reserved" />
-      <x-badge class="font-normal" flat violet md label="Maintenance" />
-      <x-badge class="font-normal" dark md label="Unavailable" />
-      <x-badge class="font-normal" flat slate md label="Uncleaned" />
-      <x-badge class="font-normal" flat red md label="Cleaning" />
-      <x-badge class="font-normal" flat blue md label="Cleaned" />
+    <div class="mt-5 flex space-x-2 items-center justify-between">
+      <div class="flex space-x-2">
+        <x-badge class="font-normal" flat positive md label="Occupied" />
+        <x-badge class="font-normal" dark flat md label="Reserved" />
+        <x-badge class="font-normal" flat violet md label="Maintenance" />
+        <x-badge class="font-normal" dark md label="Unavailable" />
+        <x-badge class="font-normal" flat slate md label="Uncleaned" />
+        <x-badge class="font-normal" flat red md label="Cleaning" />
+        <x-badge class="font-normal" flat blue md label="Cleaned" />
+      </div>
+      <span class="text-sm text-gray-600">Total Rooms: <span class="font-bold text-gray-800">{{ $rooms->count() }}</span></span>
     </div>
     <div class="overflow-auto max-h-[70vh] p-2 border mt-2 md:rounded-lg">
       {{-- <table class="min-w-full divide-y divide-gray-300">
