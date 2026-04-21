@@ -149,4 +149,14 @@ class Room extends Model
     {
         return $this->hasMany(TransferedGuestReport::class);
     }
+
+    public function cleaningBy()
+    {
+        return $this->belongsTo(User::class, 'cleaning_by_user_id');
+    }
+
+    public function scopeBeingCleanedBy($query, $userId)
+    {
+        return $query->where('cleaning_by_user_id', $userId)->where('status', 'Cleaning');
+    }
 }

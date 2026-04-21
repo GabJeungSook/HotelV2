@@ -18,10 +18,11 @@ class Index extends Component
     public function render()
     {
         return view('livewire.roomboy.index', [
+            // Sorted by check_out_time ascending (earliest checkout first)
             'assignedRooms' => Room::whereBranchId(auth()->user()->branch_id)
                 ->where('status', 'Uncleaned')
                 ->whereFloorId(auth()->user()->roomboy_assigned_floor_id)
-                ->orderBy('time_to_clean', 'asc')
+                ->orderBy('check_out_time', 'asc')
                 ->get(),
 
             'unassignedRooms' => Room::whereBranchId(auth()->user()->branch_id)
@@ -31,6 +32,7 @@ class Index extends Component
                     '!=',
                     auth()->user()->roomboy_assigned_floor_id
                 )
+                ->orderBy('check_out_time', 'asc')
                 ->get(),
         ]);
     }
@@ -71,24 +73,13 @@ class Index extends Component
 
 
 
-        if (auth()->user()->roomboy_cleaning_room_id != null) {
-            $this->dialog()->error(
-                $title = 'Error',
-                $message = 'You are already cleaning a room'
-            );
-        } else {
-            $room->update([
-                'status' => 'Cleaning',
-                'started_cleaning_at' => \Carbon\Carbon::now(),
-            ]);
+        $room->update([
+            'status' => 'Cleaning',
+            'started_cleaning_at' => \Carbon\Carbon::now(),
+            'cleaning_by_user_id' => auth()->id(),
+        ]);
 
-            auth()
-                ->user()
-                ->update([
-                    'roomboy_cleaning_room_id' => $room_id,
-                ]);
-
-            $now = \Carbon\Carbon::now();
+        $now = \Carbon\Carbon::now();
             $hour = (int) $now->format('H');
             $shift = $now->format('H:i');
 
@@ -143,108 +134,94 @@ class Index extends Component
                 ]);
             }
 
-            ActivityLog::create([
-                'branch_id' => auth()->user()->branch_id,
-                'user_id' => auth()->user()->id,
-                'activity' => 'Start Cleaning',
-                'description' => 'Started cleaning Room #' . $room->number,
-            ]);
+        ActivityLog::create([
+            'branch_id' => auth()->user()->branch_id,
+            'user_id' => auth()->user()->id,
+            'activity' => 'Start Cleaning',
+            'description' => 'Started cleaning Room #' . $room->number,
+        ]);
 
-            DB::commit();
-        }
+        DB::commit();
     }
 
-    public function finishCleaning()
+    public function finishCleaning($room_id)
     {
-        $room = Room::where(
-            'id',
-            auth()->user()->roomboy_cleaning_room_id
-        )->first();
-
-        $record_count = RoomBoyReport::where('roomboy_id', auth()->user()->id)
-            ->whereDate('created_at', now())
-            ->count();
+        $room = Room::where('id', $room_id)->first();
 
         $getlastRecord = RoomBoyReport::where('room_id', $room->id)
             ->where('roomboy_id', auth()->user()->id)
             ->orderBy('id', 'desc')
             ->first();
 
-        if (now()->diffInMinutes($room->started_cleaning_at) < 15) {
-            $this->dialog()->error(
-                $title = 'Error',
-                $message = 'You need to clean for at least 15 minutes'
-            );
-        } else {
-            if($room->time_to_clean === null)
-            {
-                $room->update([
-                    'time_to_clean' => \Carbon\Carbon::parse($room->started_cleaning_at)->addMinutes(15),
-                ]);
-            }
-            DB::beginTransaction();
+        if ($room->started_cleaning_at == null) {
+            $room->update([
+                'started_cleaning_at' => now(),
+            ]);
+        }
 
-            CleaningHistory::create([
-                'user_id' => auth()->user()->id,
-                'room_id' => $room->id,
-                'floor_id' => $room->floor_id,
-                'branch_id' => $room->branch_id,
-                'current_assigned_floor_id' =>
-                    auth()->user()->roomboy_assigned_floor_id == $room->floor_id
-                        ? true
-                        : false,
-                'start_time' => $room->started_cleaning_at,
-                'end_time' => \Carbon\Carbon::now(),
-                'expected_end_time' => $room->time_to_clean,
-                'cleaning_duration' => now()->diffInMinutes(
-                    $room->started_cleaning_at
-                ),
-                'delayed_cleaning' => \Carbon\Carbon::parse(
-                    $room->time_to_clean
-                )->isPast()
+        if ($room->time_to_clean === null) {
+            $room->update([
+                'time_to_clean' => \Carbon\Carbon::parse($room->started_cleaning_at)->addMinutes(15),
+            ]);
+        }
+
+        DB::beginTransaction();
+
+        CleaningHistory::create([
+            'user_id' => auth()->user()->id,
+            'room_id' => $room->id,
+            'floor_id' => $room->floor_id,
+            'branch_id' => $room->branch_id,
+            'current_assigned_floor_id' =>
+                auth()->user()->roomboy_assigned_floor_id == $room->floor_id
                     ? true
                     : false,
-            ]);
+            'start_time' => $room->started_cleaning_at,
+            'end_time' => \Carbon\Carbon::now(),
+            'expected_end_time' => $room->time_to_clean,
+            'cleaning_duration' => now()->diffInMinutes(
+                $room->started_cleaning_at
+            ),
+            'delayed_cleaning' => \Carbon\Carbon::parse(
+                $room->time_to_clean
+            )->isPast()
+                ? true
+                : false,
+        ]);
 
-            auth()
-                ->user()
-                ->update([
-                    'roomboy_cleaning_room_id' => null,
-                ]);
+        $room->update([
+            'status' => 'Available',
+            'is_priority' => 1,
+            'started_cleaning_at' => null,
+            'time_to_clean' => null,
+            'cleaning_by_user_id' => null,
+        ]);
 
-            $room->update([
-                'status' => 'Available',
-                'is_priority' => 1,
-                'started_cleaning_at' => null,
-                'time_to_clean' => null,
-            ]);
-
-            if ($getlastRecord) {
-                $totalMinutes = ceil(
-                    \Carbon\Carbon::parse($getlastRecord->cleaning_start)
-                        ->diffInSeconds(\Carbon\Carbon::now()) / 60
-                );
-
-                $getlastRecord->update([
-                    'cleaning_end' => \Carbon\Carbon::now(),
-                    'total_hours_spent' => $totalMinutes,
-                    'is_cleaned' => true,
-                ]);
-            }
-
-            ActivityLog::create([
-                'branch_id' => auth()->user()->branch_id,
-                'user_id' => auth()->user()->id,
-                'activity' => 'Finish Cleaning',
-                'description' => 'Finished cleaning Room #' . $room->number,
-            ]);
-
-            DB::commit();
-
-            $this->dialog()->success(
-                $title = 'Success',
-                $message = 'Room cleaned successfully'
+        if ($getlastRecord) {
+            $totalMinutes = ceil(
+                \Carbon\Carbon::parse($getlastRecord->cleaning_start)
+                    ->diffInSeconds(\Carbon\Carbon::now()) / 60
             );
+
+            $getlastRecord->update([
+                'cleaning_end' => \Carbon\Carbon::now(),
+                'total_hours_spent' => $totalMinutes,
+                'is_cleaned' => true,
+            ]);
         }
+
+        ActivityLog::create([
+            'branch_id' => auth()->user()->branch_id,
+            'user_id' => auth()->user()->id,
+            'activity' => 'Finish Cleaning',
+            'description' => 'Finished cleaning Room #' . $room->number,
+        ]);
+
+        DB::commit();
+
+        $this->dialog()->success(
+            $title = 'Success',
+            $message = 'Room cleaned successfully'
+        );
     }
 }

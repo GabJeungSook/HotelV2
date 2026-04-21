@@ -540,7 +540,7 @@
                                     <tr>
                                         <td class="text-center">{{ ($room['rowspan'] ?? 1) > 0 ? $room['number'] : '' }}</td>
                                         <td class="text-center">{{ $room['time'] ?: 'N/A' }}</td>
-                                        <td class="text-center">{{ $room['elapse'] ?: 'N/A' }}</td>
+                                        <td class="text-center" style="{{ ($room['duration_seconds'] ?? 0) >= 14400 ? 'color: red; font-weight: bold;' : '' }}">{{ $room['duration'] ?: 'N/A' }}</td>
                                         <td class="text-center" style="font-weight: bold; color: {{ $room['status'] === 'Clean' ? 'green' : ($room['status'] === 'In-use' ? 'red' : ($room['status'] === 'Vacant' ? 'green' : '#b45309')) }};">{{ $room['status'] }}</td>
                                     </tr>
                                 @endforeach

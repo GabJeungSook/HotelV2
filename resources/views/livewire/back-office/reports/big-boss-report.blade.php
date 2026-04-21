@@ -356,7 +356,7 @@
                             <tr>
                                 <td class="border border-gray-300 px-1 py-1 font-bold align-top">{{ ($room['rowspan'] ?? 1) > 0 ? $room['number'] : '' }}</td>
                                 <td class="border border-gray-300 px-1 py-1">{{ $room['time'] }}</td>
-                                <td class="border border-gray-300 px-1 py-1">{{ $room['elapse'] }}</td>
+                                <td class="border border-gray-300 px-1 py-1 {{ ($room['duration_seconds'] ?? 0) >= 14400 ? 'text-red-600 font-bold' : '' }}">{{ $room['duration'] ?? '' }}</td>
                                 <td class="border border-gray-300 px-1 py-1">{{ $room['status'] }}</td>
                             </tr>
                             @endforeach
