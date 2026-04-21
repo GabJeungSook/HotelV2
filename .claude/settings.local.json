@@ -4,7 +4,11 @@
       "Bash(php artisan:*)",
       "Bash(1:*)",
       "Bash(ls -la /c/Users/Owner/Documents/GitHub/HotelV2/app/Models/*.php)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nChange Roomboy UI from grid to table layout\n\n- Cleaner table format for rooms list\n- Columns: #, Room, Floor, Type, Checkout, Waiting, Action\n- Row highlighting: Red \\(2+ hrs\\), Yellow \\(1+ hr\\), Normal \\(< 1hr\\)\n- Currently Cleaning section also uses table format\n- More compact and easier to scan\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)"
     ]
   }
 }
