@@ -64,7 +64,7 @@
       </div>
       <div class="mt-5 px-4 grid grid-cols-1 gap-4">
         <x-input label="Name" type="text" wire:model.defer="name" placeholder="Enter name" />
-        <x-textarea label="Description" wire:model.defer="description" placeholder="Enter description (optional)" />
+        <x-textarea label="Description *" wire:model.defer="description" placeholder="Enter description" />
         <x-input label="Amount" type="number" wire:model.defer="amount" placeholder="Enter amount" />
       </div>
       <x-slot name="footer">

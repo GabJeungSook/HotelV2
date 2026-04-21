@@ -57,11 +57,13 @@ class PaymentOnShort extends Component
     {
         $this->validate([
             'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:255',
+            'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:1',
         ], [
             'name.required' => 'The name is required.',
             'name.max' => 'The name may not be greater than 255 characters.',
+            'description.required' => 'The description is required.',
+            'description.max' => 'The description may not be greater than 255 characters.',
             'amount.required' => 'The amount is required.',
             'amount.numeric' => 'The amount must be a number.',
             'amount.min' => 'The amount must be at least 1.',

@@ -349,6 +349,7 @@
                 <table class="report-table">
                     <thead>
                         <tr>
+                            <th>NAME</th>
                             <th>DESCRIPTION</th>
                             <th style="width: 120px;">AMOUNT</th>
                         </tr>
@@ -356,12 +357,13 @@
                     <tbody>
                         @foreach($paymentOnShorts as $payment)
                             <tr>
-                                <td style="color: #16a34a;">&raquo; PAYMENT ON SHORT: {{ $payment->shiftLog?->shift ?? '' }}: {{ $payment->name }}</td>
+                                <td style="color: #16a34a;">&raquo; {{ $payment->shiftLog?->shift ?? '' }}: {{ $payment->name }}</td>
+                                <td>{{ $payment->description ?? '-' }}</td>
                                 <td class="text-right">&#8369;{{ number_format($payment->amount, 2) }}</td>
                             </tr>
                         @endforeach
                         <tr style="background-color: #dcfce7; font-weight: bold;">
-                            <td class="text-right">TOTAL ADDITIONALS:</td>
+                            <td colspan="2" class="text-right">TOTAL ADDITIONALS:</td>
                             <td class="text-right">&#8369;{{ number_format($paymentOnShortsTotal, 2) }}</td>
                         </tr>
                     </tbody>
