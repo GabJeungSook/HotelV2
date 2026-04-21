@@ -71,7 +71,7 @@
                                                 }
                                             }">
                                             <span class="font-mono text-base"
-                                                :class="mins >= 60 ? 'text-red-600 font-semibold' : (mins >= 30 ? 'text-amber-600' : 'text-gray-700')"
+                                                :class="mins >= 30 ? 'text-red-600 font-semibold' : (mins >= 15 ? 'text-amber-600' : 'text-gray-700')"
                                                 x-text="label"></span>
                                         </td>
                                         <td class="px-4 py-3 text-right">
