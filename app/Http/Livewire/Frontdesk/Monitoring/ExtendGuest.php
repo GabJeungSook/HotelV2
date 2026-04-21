@@ -309,7 +309,7 @@ class ExtendGuest extends Component
 
     public function cancelExtend()
     {
-        return redirect()->route('frontdesk.guest-transaction', ['id' => $this->guest->id]);
+        return redirect()->route('frontdesk.room-monitoring');
     }
     private function isUserOnline($user, $threshold) { return $user->sessions() ->where('last_activity', '>=', $threshold) ->exists(); }
     public function render()
