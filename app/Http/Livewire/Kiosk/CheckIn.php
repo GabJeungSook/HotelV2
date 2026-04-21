@@ -54,19 +54,30 @@ class CheckIn extends Component
         )
             ->pluck('room_id')
             ->toArray();
+        // Get all available rooms, prioritize unused rooms (last_checkin_at null or oldest)
+        $allRooms = Room::where('branch_id', auth()->user()->branch_id)
+            ->whereTypeId($this->type_id)
+            ->whereIn('status', ['Available', 'Cleaned'])
+            ->whereNotIn('id', $temporaryCheckInKiosk)
+            ->whereNotIn('id', $temporaryReserved)
+            ->where('is_priority', true)
+            ->when($this->floor_id, function ($query) {
+                return $query->where('floor_id', $this->floor_id);
+            })
+            ->with(['type.rates', 'floor'])
+            ->orderByRaw('last_checkin_at IS NOT NULL, last_checkin_at ASC')
+            ->orderBy('number', 'asc')
+            ->get();
+
+        // Pick only 1 room per floor (prioritizing unused/least used)
+        $rooms = $allRooms->groupBy('floor_id')->map(function ($floorRooms) {
+            return $floorRooms->first();
+        })->sortBy(function ($room) {
+            return $room->floor->number ?? 0;
+        })->values();
+
         return view('livewire.kiosk.check-in', [
-            'rooms' => Room::where('branch_id', auth()->user()->branch_id)
-                ->whereTypeId($this->type_id)
-                ->whereIn('status', ['Available', 'Cleaned'])
-                ->whereNotIn('id', $temporaryCheckInKiosk)
-                ->whereNotIn('id', $temporaryReserved)
-                ->where('is_priority', true)
-                ->when($this->floor_id, function ($query) {
-                    return $query->where('floor_id', $this->floor_id);
-                })
-                ->with(['type.rates'])
-                ->orderBy('number', 'asc')
-                ->get(),
+            'rooms' => $rooms,
         ]);
     }
 
@@ -95,14 +106,21 @@ class CheckIn extends Component
         )
             ->pluck('room_id')
             ->toArray();
+
+        $temporaryReserved = TemporaryReserved::where(
+            'branch_id',
+            auth()->user()->branch_id
+        )
+            ->pluck('room_id')
+            ->toArray();
+
         if (
             Room::where('branch_id', auth()->user()->branch_id)
                 ->where('type_id', $type_id)
                 ->whereIn('status', ['Available', 'Cleaned'])
                 ->whereNotIn('id', $temporaryCheckInKiosk)
+                ->whereNotIn('id', $temporaryReserved)
                 ->where('is_priority', true)
-                ->with(['type.rates'])
-                ->orderBy('number', 'asc')
                 ->count() <= 0
         ) {
             $this->dialog()->error(
@@ -111,9 +129,6 @@ class CheckIn extends Component
             );
         } else {
             $this->type_id = $type_id;
-            // $this->rooms =
-
-            // $this->floors = Floor::get();
         }
     }
 
