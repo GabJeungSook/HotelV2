@@ -25,9 +25,17 @@ class ExtendedGuestReport extends Component
         'room_id' => ['except' => ''],
     ];
 
+    public function mount()
+    {
+        if ($this->date === '') {
+            $this->date = now()->toDateString();
+        }
+    }
+
      public function resetFilters()
     {
-        $this->reset(['shift', 'date', 'room_id']);
+        $this->reset(['shift', 'room_id']);
+        $this->date = now()->toDateString();
     }
 
      public function getRoomsProperty()
