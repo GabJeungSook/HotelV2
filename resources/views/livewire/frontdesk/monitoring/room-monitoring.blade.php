@@ -244,8 +244,7 @@
                 @if ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
                   <div class="flex space-x-2">
                     @if($is_true)
-                    {{-- <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->guest->first()->id]) }}" sm icon="" label="Extend" negative /> --}}
-                    <x-button href="{{ route('frontdesk.guest-transaction', ['id' => $room->latestCheckInDetail->guest_id]) }}" sm icon="" label="Extend" negative />
+                    <x-button href="{{ route('frontdesk.extend-guest', ['record' => $room->latestCheckInDetail->guest_id]) }}" sm label="Extend" negative />
 
                     @endif
                     {{-- <x-button wire:click="viewDetails({{ $room->guest->first()->id }})" sm icon="eye" warning /> --}}
