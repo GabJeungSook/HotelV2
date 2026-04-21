@@ -412,6 +412,18 @@ class BigBossReport extends Component
         // Group cleaning histories by room_id (keep all, sorted by parsed end_time timestamp)
         $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(fn($group) => $group->sortBy(fn($c) => Carbon::parse($c->end_time)->timestamp)->values());
 
+        // For orphan cleanings, get the most recent checkout from before the shift
+        $roomIdsWithCleanings = $cleaningByRoom->keys()->toArray();
+        $priorCheckoutsByRoom = empty($roomIdsWithCleanings) ? collect() : CheckinDetail::query()
+            ->whereIn('room_id', $roomIdsWithCleanings)
+            ->where('is_check_out', 1)
+            ->whereNotNull('check_out_at')
+            ->where('check_out_at', '<', $timeIn)
+            ->where('check_out_at', '>=', $timeIn->copy()->subDays(7))
+            ->orderBy('check_out_at', 'desc')
+            ->get()
+            ->groupBy('room_id');
+
         $chart = [];
         foreach ($floors as $floor) {
             $rooms = $allRooms->where('floor_id', $floor->id)->sortBy('number')->values();
@@ -442,11 +454,9 @@ class BigBossReport extends Component
                             $usedCleaningIds[] = $matchedCleaning->id;
                             $endTime = Carbon::parse($matchedCleaning->end_time);
                             $time = $endTime->format('g:iA');
-                            // Duration = actual cleaning time (start → end)
-                            if ($matchedCleaning->start_time) {
-                                $durationSeconds = Carbon::parse($matchedCleaning->start_time)->diffInSeconds($endTime);
-                                $duration = $this->formatDuration($durationSeconds);
-                            }
+                            // Elapse = checkout → cleaning end (total wait time)
+                            $durationSeconds = $checkOutAt->diffInSeconds($endTime);
+                            $duration = $this->formatDuration($durationSeconds);
                         }
                     } else {
                         // Forwarded guest — show cleaning that finished before they arrived, if any
@@ -462,9 +472,11 @@ class BigBossReport extends Component
                             $status = 'Clean';
                             $endTime = Carbon::parse($delayedCleaning->end_time);
                             $time = $endTime->format('g:iA');
-                            // Duration = actual cleaning time (start → end)
-                            if ($delayedCleaning->start_time) {
-                                $durationSeconds = Carbon::parse($delayedCleaning->start_time)->diffInSeconds($endTime);
+                            // Elapse = checkout → cleaning end (find prior checkout)
+                            $priorCheckout = ($priorCheckoutsByRoom[$room->id] ?? collect())
+                                ->first(fn($d) => Carbon::parse($d->check_out_at)->lte($endTime));
+                            if ($priorCheckout) {
+                                $durationSeconds = Carbon::parse($priorCheckout->check_out_at)->diffInSeconds($endTime);
                                 $duration = $this->formatDuration($durationSeconds);
                             }
                         }
@@ -485,11 +497,14 @@ class BigBossReport extends Component
                     $orphanEnd = Carbon::parse($orphan->end_time);
                     $usedCleaningIds[] = $orphan->id;
 
-                    // Duration = actual cleaning time (start → end)
+                    // Elapse = checkout → cleaning end
                     $orphanDurationSeconds = 0;
                     $orphanDuration = '';
-                    if ($orphan->start_time) {
-                        $orphanDurationSeconds = Carbon::parse($orphan->start_time)->diffInSeconds($orphanEnd);
+                    $priorCheckout = ($priorCheckoutsByRoom[$room->id] ?? collect())
+                        ->first(fn($d) => Carbon::parse($d->check_out_at)->lte($orphanEnd));
+
+                    if ($priorCheckout) {
+                        $orphanDurationSeconds = Carbon::parse($priorCheckout->check_out_at)->diffInSeconds($orphanEnd);
                         $orphanDuration = $this->formatDuration($orphanDurationSeconds);
                     }
 
