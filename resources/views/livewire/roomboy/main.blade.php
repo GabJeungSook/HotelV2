@@ -21,6 +21,7 @@
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-green-800 uppercase">Room</th>
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-green-800 uppercase">Floor</th>
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-green-800 uppercase">Started</th>
+                                    <th class="px-4 py-2 text-center text-xs font-semibold text-green-800 uppercase">Elapsed</th>
                                     <th class="px-4 py-2 text-center text-xs font-semibold text-green-800 uppercase">Action</th>
                                 </tr>
                             </thead>
@@ -31,7 +32,16 @@
                                         <span class="text-lg font-bold text-gray-800">{{ $cleaning_room->number }}</span>
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-600">{{ $cleaning_room->floor->numberWithFormat() }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-600">{{ \Carbon\Carbon::parse($cleaning_room->started_cleaning_at)->diffForHumans() }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">{{ \Carbon\Carbon::parse($cleaning_room->started_cleaning_at)->format('g:i A') }}</td>
+                                    <td class="px-4 py-3 text-center">
+                                        @php
+                                            $startedAt = \Carbon\Carbon::parse($cleaning_room->started_cleaning_at);
+                                            $elapsedMins = now()->diffInMinutes($startedAt);
+                                        @endphp
+                                        <span class="font-mono text-sm font-semibold {{ $elapsedMins >= 60 ? 'text-red-600' : ($elapsedMins >= 30 ? 'text-yellow-600' : 'text-green-700') }}">
+                                            {{ floor($elapsedMins / 60) }}:{{ str_pad($elapsedMins % 60, 2, '0', STR_PAD_LEFT) }}
+                                        </span>
+                                    </td>
                                     <td class="px-4 py-3 text-center">
                                         <button
                                             class="bg-green-600 text-white hover:bg-green-700 px-4 py-1.5 rounded text-sm font-medium"
@@ -123,6 +133,7 @@
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Checkout</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Waiting</th>
+                                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Time to Clean</th>
                                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
                                     </tr>
                                 </thead>
@@ -153,6 +164,20 @@
                                             <td class="px-4 py-3 text-sm text-gray-600">{{ $room->type->name ?? '-' }}</td>
                                             <td class="px-4 py-3 text-sm text-gray-800 font-medium">{{ $checkoutTime->format('g:i A') }}</td>
                                             <td class="px-4 py-3 text-sm {{ $waitingClass }}">{{ $checkoutTime->diffForHumans() }}</td>
+                                            <td class="px-4 py-3 text-center">
+                                                @if($room->time_to_clean)
+                                                    @php
+                                                        $expires = \Carbon\Carbon::parse($room->time_to_clean);
+                                                    @endphp
+                                                    <x-countdown :$expires>
+                                                        <span class="font-mono text-sm font-semibold" :class="timer.minutes < 5 ? 'text-red-600' : 'text-gray-700'">
+                                                            <span x-text="timer.hours">{{ $component->hours() }}</span>:<span x-text="timer.minutes">{{ $component->minutes() }}</span>:<span x-text="timer.seconds">{{ $component->seconds() }}</span>
+                                                        </span>
+                                                    </x-countdown>
+                                                @else
+                                                    <span class="text-gray-400 text-sm">--:--</span>
+                                                @endif
+                                            </td>
                                             <td class="px-4 py-3 text-center">
                                                 <button
                                                     class="bg-[#009ff4] text-white hover:bg-[#017dc0] px-4 py-1.5 rounded text-sm font-medium transition-colors"
