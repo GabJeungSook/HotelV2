@@ -48,7 +48,7 @@
                             </thead>
                             <tbody class="divide-y divide-gray-100">
                                 @foreach ($cleaningRooms as $cleaning_room)
-                                    <tr>
+                                    <tr wire:key="cleaning-row-{{ $cleaning_room->id }}">
                                         <td class="px-4 py-3">
                                             <span class="text-2xl font-bold text-gray-900">{{ $cleaning_room->number }}</span>
                                         </td>
@@ -168,6 +168,7 @@
                             </thead>
                             <tbody class="divide-y divide-gray-100">
                                 @foreach ($rooms as $index => $room)
+                                    @php $roomRowKey = 'queue-row-'.$room->id; @endphp
                                     @php
                                         $checkoutTime = \Carbon\Carbon::parse($room->check_out_time);
                                         $waitedMins = (int) now()->diffInMinutes($checkoutTime);
@@ -191,7 +192,7 @@
                                         $typeName = $room->type->name ?? '-';
                                         $typeShort = str_ireplace([' size Bed', ' Size Bed', ' size', ' Size'], '', $typeName);
                                     @endphp
-                                    <tr>
+                                    <tr wire:key="{{ $roomRowKey }}">
                                         <td class="px-3 py-3 text-gray-500">{{ $index + 1 }}</td>
                                         <td class="px-4 py-3">
                                             <span class="text-2xl font-bold text-gray-900">{{ $room->number }}</span>

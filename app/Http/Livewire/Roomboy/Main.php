@@ -296,7 +296,10 @@ class Main extends Component
 
         $totalUncleaned = $floorCounts->sum();
 
-        $cleaningRooms = Room::beingCleanedBy(auth()->id())->with('floor')->get();
+        $cleaningRooms = Room::beingCleanedBy(auth()->id())
+            ->with('floor')
+            ->orderBy('started_cleaning_at', 'asc')
+            ->get();
 
         $cleanedToday = CleaningHistory::where('user_id', auth()->id())
             ->whereDate('end_time', today())
