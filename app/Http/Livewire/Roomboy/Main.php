@@ -18,20 +18,48 @@ class Main extends Component
     public $user;
     public $floors;
     public $rooms;
-    public $selectedFloorId;
+    public $selectedFloorId = 'all'; // Default to 'all' - show all rooms
 
     public function mount()
     {
         $this->user = auth()->user();
         $this->floors = $this->user->floors()->orderBy('id')->get();
-        if ($this->floors && $this->floors->count() > 0) {
-            $this->selectedFloorId = $this->floors->first()->id;
-        }
+        // Default to 'all' view - no floor switching needed
+        $this->selectedFloorId = 'all';
     }
 
     public function getSelectedFloor($floorId)
     {
         $this->selectedFloorId = $floorId;
+    }
+
+    /**
+     * Get all uncleaned rooms across all assigned floors
+     * Sorted by checkout time (FIFO - earliest first)
+     */
+    public function getAllUncleanedRoomsProperty()
+    {
+        $floorIds = $this->floors->pluck('id')->toArray();
+
+        return Room::whereBranchId(auth()->user()->branch_id)
+            ->where('status', 'Uncleaned')
+            ->whereIn('floor_id', $floorIds)
+            ->with('floor')
+            ->orderBy('check_out_time', 'asc')
+            ->get();
+    }
+
+    /**
+     * Get total count of all uncleaned rooms
+     */
+    public function getTotalUncleanedCountProperty()
+    {
+        $floorIds = $this->floors->pluck('id')->toArray();
+
+        return Room::whereBranchId(auth()->user()->branch_id)
+            ->where('status', 'Uncleaned')
+            ->whereIn('floor_id', $floorIds)
+            ->count();
     }
 
     public function startCleaning($room_id)
@@ -225,13 +253,26 @@ class Main extends Component
     {
         // Always fetch fresh uncleaned rooms so changes from other room boys are visible
         // Sorted by check_out_time ascending (earliest checkout first)
-        $this->rooms = $this->selectedFloorId
-            ? Room::whereBranchId(auth()->user()->branch_id)
+        if ($this->selectedFloorId === 'all') {
+            // Show ALL uncleaned rooms across all assigned floors
+            $floorIds = $this->floors->pluck('id')->toArray();
+            $this->rooms = Room::whereBranchId(auth()->user()->branch_id)
+                ->where('status', 'Uncleaned')
+                ->whereIn('floor_id', $floorIds)
+                ->with('floor')
+                ->orderBy('check_out_time', 'asc')
+                ->get();
+        } elseif ($this->selectedFloorId) {
+            // Show rooms for specific floor
+            $this->rooms = Room::whereBranchId(auth()->user()->branch_id)
                 ->where('status', 'Uncleaned')
                 ->whereFloorId($this->selectedFloorId)
+                ->with('floor')
                 ->orderBy('check_out_time', 'asc')
-                ->get()
-            : collect();
+                ->get();
+        } else {
+            $this->rooms = collect();
+        }
 
         return view('livewire.roomboy.main');
     }
