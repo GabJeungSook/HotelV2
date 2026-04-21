@@ -132,7 +132,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="border border-gray-300 px-3 py-6 text-sm text-center text-gray-500">
+                            <td colspan="9" class="border border-gray-300 px-3 py-6 text-sm text-center text-gray-500">
                                 No check-out guest records found for the selected filters.
                             </td>
                         </tr>
@@ -140,6 +140,13 @@
                 </tbody>
             </table>
         </div>
+
+        {{-- Pagination --}}
+        @if($reports->hasPages())
+            <div class="px-4 py-3 border-t border-gray-200">
+                {{ $reports->links() }}
+            </div>
+        @endif
 
         {{-- Footer --}}
         <div class="p-6 border-t border-gray-200">

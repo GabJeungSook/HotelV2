@@ -3,17 +3,42 @@
 namespace App\Http\Livewire\BackOffice\Reports;
 
 use Livewire\Component;
+use Livewire\WithPagination;
 use App\Models\CheckOutGuestReport;
 use App\Models\Frontdesk;
 
 class CheckoutGuest extends Component
 {
+    use WithPagination;
+
     public $frontdesk_id;
     public $shift;
     public $date;
     public $time;
 
     public $total_guest = 0;
+
+    protected $paginationTheme = 'tailwind';
+
+    public function mount()
+    {
+        $this->date = now()->toDateString();
+    }
+
+    public function updatingFrontdeskId()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingShift()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingDate()
+    {
+        $this->resetPage();
+    }
 
     public function render()
     {
@@ -22,11 +47,11 @@ class CheckoutGuest extends Component
                 $q->where('branch_id', auth()->user()->branch_id);
             })
             ->with([
-                'room',
-                'checkinDetail.guest',
-                'checkinDetail',
-                'frontdesk',
-                'checkinDetail.extendedGuestReports',
+                'room:id,number,branch_id',
+                'checkinDetail:id,guest_id,check_in_at,check_out_at,hours_stayed',
+                'checkinDetail.guest:id,name,is_long_stay,number_of_days',
+                'checkinDetail.extendedGuestReports:id,checkin_details_id,total_hours',
+                'frontdesk:id,name',
             ])
             ->when($this->frontdesk_id, fn($q) =>
                 $q->where('frontdesk_id', $this->frontdesk_id)
@@ -42,17 +67,19 @@ class CheckoutGuest extends Component
             )
             ->orderByDesc('created_at');
 
-        $reports = $query->get();
-        $this->total_guest = $reports->count();
+        $this->total_guest = $query->count();
+        $reports = $query->paginate(50);
 
         return view('livewire.back-office.reports.checkout-guest', [
             'reports' => $reports,
-            'frontdesks' => Frontdesk::where('branch_id', auth()->user()->branch_id)->get(),
+            'frontdesks' => Frontdesk::where('branch_id', auth()->user()->branch_id)->get(['id', 'name']),
         ]);
     }
 
     public function resetFilters()
     {
-        $this->reset(['frontdesk_id', 'shift', 'date', 'time']);
+        $this->reset(['frontdesk_id', 'shift', 'time']);
+        $this->date = now()->toDateString();
+        $this->resetPage();
     }
 }
