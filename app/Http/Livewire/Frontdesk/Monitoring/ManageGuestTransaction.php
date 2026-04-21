@@ -1823,7 +1823,7 @@ class ManageGuestTransaction extends Component
                 'last_checkin_at' => $this->guest->checkInDetail->check_in_at,
                 'last_checkout_at' => Carbon::now()->toDateTimeString(),
                 'check_out_time' => Carbon::now()->toDateTimeString(),
-                'time_to_clean' => now()->addHours(3),
+                'time_to_clean' => now()->addHours(4),
             ]);
 
         CheckinDetail::where('guest_id', $this->guest->id)->update([
