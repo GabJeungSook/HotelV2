@@ -45,21 +45,31 @@ class CheckInFromKiosk extends Component
     //modals
     public $change_modal = false;
     public function mount($record)
-    {;
+    {
         $this->additional_charges = auth()->user()->branch->initial_deposit;
-        //  $this->record = TemporaryCheckInKiosk::where(
-        //         'branch_id',
-        //         auth()->user()->branch_id
-        //     )->where('id', $record)->first();
-         $this->temporary_checkIn = TemporaryCheckInKiosk::where(
-                'branch_id',
-                auth()->user()->branch_id
-            )
-                ->where('id', $record)
-                ->first();
+
+        $this->temporary_checkIn = TemporaryCheckInKiosk::where(
+            'branch_id',
+            auth()->user()->branch_id
+        )
+            ->where('id', $record)
+            ->first();
+
+        // Handle case where record doesn't exist (already processed or invalid)
+        if (!$this->temporary_checkIn) {
+            session()->flash('error', 'Check-in record not found or already processed.');
+            return redirect()->route('frontdesk.room-monitoring');
+        }
+
         $this->guest = Guest::where('branch_id', auth()->user()->branch_id)
-                ->where('id', $this->temporary_checkIn->guest_id)
-                ->first();
+            ->where('id', $this->temporary_checkIn->guest_id)
+            ->first();
+
+        // Handle case where guest doesn't exist
+        if (!$this->guest) {
+            session()->flash('error', 'Guest record not found.');
+            return redirect()->route('frontdesk.room-monitoring');
+        }
         $this->room_static_amount = $this->guest->static_amount;
         $this->room = Room::where('branch_id', auth()->user()->branch_id)
                 ->where('id', $this->temporary_checkIn->room_id)
