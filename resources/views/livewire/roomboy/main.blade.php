@@ -131,7 +131,7 @@
                                 <td class="px-2 py-2 text-center font-bold text-gray-900">{{ $cleaning_room->number }}</td>
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $cleaning_room->floor->number ?? $cleaning_room->floor_id }}</td>
 
-                                {{-- STARTED CLEANING: Human readable time ago --}}
+                                {{-- STARTED CLEANING: Human readable time ago with seconds --}}
                                 <td class="px-2 py-2 text-center">
                                     <div x-data="{
                                         start: {{ $startTimestamp }},
@@ -139,12 +139,13 @@
                                         init() { setInterval(() => this.now = Date.now(), 1000); },
                                         get timeAgo() {
                                             let diff = Math.max(0, this.now - this.start);
-                                            let s = Math.floor(diff / 1000);
-                                            let m = Math.floor(s / 60);
-                                            let h = Math.floor(m / 60);
-                                            if (h > 0) return h + ' hour' + (h > 1 ? 's' : '') + ' ago';
-                                            if (m > 0) return m + ' min' + (m > 1 ? 's' : '') + ' ago';
-                                            return s + ' second' + (s !== 1 ? 's' : '') + ' ago';
+                                            let totalSecs = Math.floor(diff / 1000);
+                                            let h = Math.floor(totalSecs / 3600);
+                                            let m = Math.floor((totalSecs % 3600) / 60);
+                                            let s = totalSecs % 60;
+                                            if (h > 0) return h + ' hr' + (h > 1 ? 's' : '') + ' ' + m + ' min' + (m !== 1 ? 's' : '') + ' ago';
+                                            if (m > 0) return m + ' min' + (m !== 1 ? 's' : '') + ' ' + s + ' sec' + (s !== 1 ? 's' : '') + ' ago';
+                                            return s + ' sec' + (s !== 1 ? 's' : '') + ' ago';
                                         },
                                         get hours() { return Math.floor((this.now - this.start) / 3600000); }
                                     }">
