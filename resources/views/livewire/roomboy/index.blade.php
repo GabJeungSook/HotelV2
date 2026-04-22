@@ -133,7 +133,7 @@
                 onclick="Livewire.emit('filterByFloor', {{ $floor->id }})"
                 class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
                 id="floor-tab-{{ $floor->id }}">
-                {{ strtoupper($floor->number) }} FLOOR
+                {{ strtoupper($floor->numberWithFormat()) }}
             </button>
         @endforeach
     </div>
