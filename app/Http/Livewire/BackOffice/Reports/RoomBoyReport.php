@@ -6,6 +6,7 @@ use App\Models\CheckinDetail;
 use App\Models\CleaningHistory;
 use App\Models\Rate;
 use App\Models\RoomBoyReport as reportQuery;
+use App\Models\ShiftLog;
 use App\Models\StayingHour;
 use App\Models\User;
 use Carbon\Carbon;
@@ -24,9 +25,9 @@ class RoomBoyReport extends Component
     public $date;
     public $total_cleaned = 0;
 
-    // Penalty filters
-    public $penaltyDateFrom;
-    public $penaltyDateTo;
+    // Penalty filters - shift-based like Z-Read
+    public $selectedShiftLogId;
+    public $availableShiftSessions = [];
     public $penalties = [];
     public $totalPenaltyAmount = 0;
 
@@ -35,15 +36,21 @@ class RoomBoyReport extends Component
     public function mount()
     {
         $this->date = now()->toDateString();
-        // Default penalty dates to today
-        $this->penaltyDateFrom = now()->format('Y-m-d');
-        $this->penaltyDateTo = now()->format('Y-m-d');
+        $this->loadAvailableShiftSessions();
+        if (!empty($this->availableShiftSessions)) {
+            $this->selectedShiftLogId = end($this->availableShiftSessions)['id'];
+        }
+    }
+
+    public function updatedSelectedShiftLogId()
+    {
+        $this->loadPenalties();
     }
 
     public function setTab($tab)
     {
         $this->activeTab = $tab;
-        if ($tab === 'penalties' && empty($this->penalties)) {
+        if ($tab === 'penalties') {
             $this->loadPenalties();
         }
     }
@@ -65,9 +72,16 @@ class RoomBoyReport extends Component
 
     public function loadPenalties()
     {
+        $session = $this->getSelectedSession();
+        if (!$session) {
+            $this->penalties = [];
+            $this->totalPenaltyAmount = 0;
+            return;
+        }
+
         $branchId = auth()->user()->branch_id;
-        $dateFrom = Carbon::parse($this->penaltyDateFrom)->startOfDay();
-        $dateTo = Carbon::parse($this->penaltyDateTo)->endOfDay();
+        $timeIn = Carbon::parse($session['time_in']);
+        $timeOut = Carbon::parse($session['time_out']);
 
         // Get 6-hour base rates for penalty calculation
         $sixHourStaying = StayingHour::where('branch_id', $branchId)
@@ -81,13 +95,12 @@ class RoomBoyReport extends Component
                 ->toArray()
             : [];
 
-        // Get completed cleanings within date range - only delayed ones (limit for performance)
+        // Get ALL completed cleanings within shift time window (same as Z-Read)
         $cleaningHistories = CleaningHistory::where('branch_id', $branchId)
             ->whereNotNull('end_time')
-            ->where('delayed_cleaning', true)
-            ->whereBetween('end_time', [$dateFrom, $dateTo])
+            ->whereBetween('end_time', [$timeIn, $timeOut])
             ->with(['room:id,number,type_id,floor_id', 'room.type:id,name', 'room.floor:id,number', 'user:id,name'])
-            ->limit(500)
+            ->orderBy('end_time')
             ->get();
 
         // Get room IDs from cleaning histories for targeted checkout query
@@ -99,10 +112,12 @@ class RoomBoyReport extends Component
             return;
         }
 
-        // Get checkout details only for rooms that have delayed cleanings
+        // Get checkout details - look back to catch delays from prior shift
+        // Same approach as BigBoss Z-Read uses
         $occupyingDetails = CheckinDetail::whereIn('room_id', $roomIds)
             ->where('is_check_out', true)
-            ->whereBetween('check_out_at', [$dateFrom->copy()->subHours(24), $dateTo])
+            ->whereNotNull('check_out_at')
+            ->whereBetween('check_out_at', [$timeIn->copy()->subDays(7), $timeOut])
             ->with('guest:id,name')
             ->get()
             ->groupBy('room_id');
@@ -118,6 +133,7 @@ class RoomBoyReport extends Component
 
             $cleaningEnd = Carbon::parse($cleaning->end_time);
 
+            // Find the most recent checkout before this cleaning ended
             $checkoutDetail = $roomCheckouts
                 ->filter(function ($d) use ($cleaningEnd) {
                     return Carbon::parse($d->check_out_at)->lte($cleaningEnd);
@@ -130,19 +146,20 @@ class RoomBoyReport extends Component
             }
 
             $checkoutTime = Carbon::parse($checkoutDetail->check_out_at);
-            $durationMinutes = $checkoutTime->diffInMinutes($cleaningEnd);
+            $durationSeconds = $checkoutTime->diffInSeconds($cleaningEnd);
+            $durationMinutes = intdiv($durationSeconds, 60);
 
             // Only include if cleaning took MORE than 4 hours (240 minutes)
             if ($durationMinutes <= 240) {
                 continue;
             }
 
-            $durationHours = floor($durationMinutes / 60);
+            $durationHours = intdiv($durationMinutes, 60);
             $durationMins = $durationMinutes % 60;
 
             // Calculate excess time over 4 hours
             $excessMinutes = $durationMinutes - 240;
-            $excessHours = floor($excessMinutes / 60);
+            $excessHours = intdiv($excessMinutes, 60);
             $excessMins = $excessMinutes % 60;
 
             $penaltyAmount = $baseRatesByType[$cleaning->room->type_id ?? 0] ?? 0;
@@ -164,10 +181,81 @@ class RoomBoyReport extends Component
             $this->totalPenaltyAmount += $penaltyAmount;
         }
 
-        // Sort by date descending
+        // Sort by cleaning end time
         usort($this->penalties, function ($a, $b) {
-            return strtotime($b['date']) - strtotime($a['date']);
+            return strcmp($a['cleaning_end'], $b['cleaning_end']);
         });
+    }
+
+    private function loadAvailableShiftSessions(): void
+    {
+        $weekStart = now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+
+        $shiftLogs = ShiftLog::query()
+            ->where('branch_id', auth()->user()->branch_id)
+            ->whereNotNull('time_out')
+            ->whereBetween('time_in', [$weekStart, $weekEnd])
+            ->with('frontdesk:id,name')
+            ->orderBy('time_in', 'asc')
+            ->get();
+
+        $sessions = [];
+        foreach ($shiftLogs as $log) {
+            $shiftType = $this->getShiftType($log->time_in);
+            $shiftDate = $log->time_in->format('Y-m-d');
+            $key = $shiftType . '_' . $shiftDate;
+
+            if (!isset($sessions[$key])) {
+                $sessions[$key] = [
+                    'id' => $log->id,
+                    'log_ids' => [],
+                    'time_in' => $log->time_in,
+                    'time_out' => $log->time_out,
+                    'shift_type' => $shiftType,
+                    'shift_date' => $shiftDate,
+                    'frontdesks' => [],
+                ];
+            }
+
+            $sessions[$key]['log_ids'][] = $log->id;
+            $sessions[$key]['frontdesks'][] = $log->frontdesk?->name ?? 'Unknown';
+
+            if ($log->time_in < $sessions[$key]['time_in']) {
+                $sessions[$key]['time_in'] = $log->time_in;
+            }
+            if ($log->time_out > $sessions[$key]['time_out']) {
+                $sessions[$key]['time_out'] = $log->time_out;
+            }
+        }
+
+        $this->availableShiftSessions = collect($sessions)
+            ->sortBy('time_in')
+            ->map(function ($s) {
+                $frontdeskNames = implode(', ', array_unique($s['frontdesks']));
+                return [
+                    'id' => $s['log_ids'][0],
+                    'label' => $s['shift_type'] . ' ' . $s['time_in']->format('M j')
+                             . ' - ' . $frontdeskNames
+                             . ' (' . $s['time_in']->format('g:i A') . ' - ' . $s['time_out']->format('g:i A') . ')',
+                    'time_in' => $s['time_in']->toIso8601String(),
+                    'time_out' => $s['time_out']->toIso8601String(),
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
+    private function getShiftType(Carbon $timeIn): string
+    {
+        $hour = $timeIn->hour;
+        return ($hour >= 6 && $hour < 20) ? 'AM' : 'PM';
+    }
+
+    private function getSelectedSession(): ?array
+    {
+        return collect($this->availableShiftSessions)
+            ->firstWhere('id', $this->selectedShiftLogId);
     }
 
     public function render()
@@ -205,8 +293,10 @@ class RoomBoyReport extends Component
 
     public function resetPenaltyFilters()
     {
-        $this->penaltyDateFrom = now()->format('Y-m-d');
-        $this->penaltyDateTo = now()->format('Y-m-d');
+        $this->loadAvailableShiftSessions();
+        if (!empty($this->availableShiftSessions)) {
+            $this->selectedShiftLogId = end($this->availableShiftSessions)['id'];
+        }
         $this->loadPenalties();
     }
 }

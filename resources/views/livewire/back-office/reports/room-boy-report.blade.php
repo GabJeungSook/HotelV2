@@ -121,23 +121,23 @@
     @else
     {{-- PENALTIES TAB --}}
     <div>
-        {{-- Filters --}}
+        {{-- Shift Selector - Same as Z-Read --}}
         <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 p-4 mb-6">
             <div class="flex flex-wrap items-end gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Date From</label>
-                    <input type="date" wire:model.defer="penaltyDateFrom" class="rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Date To</label>
-                    <input type="date" wire:model.defer="penaltyDateTo" class="rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500">
+                <div class="flex-1 min-w-[300px]">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Select Shift</label>
+                    <select wire:model="selectedShiftLogId"
+                            class="w-full rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500">
+                        @forelse($availableShiftSessions as $session)
+                            <option value="{{ $session['id'] }}">{{ $session['label'] }}</option>
+                        @empty
+                            <option value="">No shifts available</option>
+                        @endforelse
+                    </select>
                 </div>
                 <div class="flex gap-2">
                     <button wire:click="loadPenalties" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
                         Generate Report
-                    </button>
-                    <button wire:click="resetPenaltyFilters" class="border border-gray-300 px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
-                        Reset
                     </button>
                 </div>
             </div>
