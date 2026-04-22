@@ -181,6 +181,7 @@
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">CHECK-OUT</th>
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">CLEANED</th>
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">DURATION</th>
+                            <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">EXCESS</th>
                             <th class="border border-gray-300 px-3 py-2 text-right text-sm font-semibold text-gray-800">AMOUNT</th>
                         </tr>
                     </thead>
@@ -195,12 +196,13 @@
                             <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['guest_name'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['checkout_time'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['cleaning_end'] }}</td>
-                            <td class="border border-gray-300 px-3 py-2 text-sm text-red-600 font-medium">{{ $penalty['duration'] }}</td>
+                            <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['duration'] }}</td>
+                            <td class="border border-gray-300 px-3 py-2 text-sm text-red-600 font-medium">{{ $penalty['excess'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm text-right font-medium">{{ number_format($penalty['amount'], 2) }}</td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="10" class="border border-gray-300 px-3 py-8 text-center text-gray-500">
+                            <td colspan="11" class="border border-gray-300 px-3 py-8 text-center text-gray-500">
                                 <div class="flex flex-col items-center">
                                     <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -215,7 +217,7 @@
                     @if(count($penalties) > 0)
                     <tfoot class="bg-gray-100">
                         <tr>
-                            <td colspan="9" class="border border-gray-300 px-3 py-3 text-right font-bold text-gray-800">TOTAL PENALTY</td>
+                            <td colspan="10" class="border border-gray-300 px-3 py-3 text-right font-bold text-gray-800">TOTAL PENALTY</td>
                             <td class="border border-gray-300 px-3 py-3 text-right font-bold text-red-600 text-lg">{{ number_format($totalPenaltyAmount, 2) }}</td>
                         </tr>
                     </tfoot>

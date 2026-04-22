@@ -140,6 +140,11 @@ class RoomBoyReport extends Component
             $durationHours = floor($durationMinutes / 60);
             $durationMins = $durationMinutes % 60;
 
+            // Calculate excess time over 4 hours
+            $excessMinutes = $durationMinutes - 240;
+            $excessHours = floor($excessMinutes / 60);
+            $excessMins = $excessMinutes % 60;
+
             $penaltyAmount = $baseRatesByType[$cleaning->room->type_id ?? 0] ?? 0;
 
             $this->penalties[] = [
@@ -152,6 +157,7 @@ class RoomBoyReport extends Component
                 'checkout_time' => $checkoutTime->format('g:i A'),
                 'cleaning_end' => $cleaningEnd->format('g:i A'),
                 'duration' => $durationHours . 'h ' . $durationMins . 'm',
+                'excess' => $excessHours . 'h ' . $excessMins . 'm',
                 'amount' => $penaltyAmount,
             ];
 
