@@ -83,7 +83,7 @@
     </div>
 
     {{-- Main Content --}}
-    <div wire:ignore>
+    <div>
         @if (request()->routeIs('roomboy.cleaning-history'))
             <livewire:roomboy.cleaning-history />
         @else
