@@ -42,10 +42,18 @@
                                             $expires = null;
                                         }
                                         $isExpired = $expires ? $expires->isPast() : false;
+
+                                        // Calculate exceeded time if expired
+                                        if ($isExpired && $expires) {
+                                            $exceededMins = now()->diffInMinutes($expires);
+                                            $exceededHours = floor($exceededMins / 60);
+                                            $exceededMinsRemain = $exceededMins % 60;
+                                            $exceededLabel = '-' . $exceededHours . ':' . str_pad($exceededMinsRemain, 2, '0', STR_PAD_LEFT);
+                                        }
                                     @endphp
                                     @if ($expires)
                                         @if ($isExpired)
-                                            <span class="font-mono text-sm text-red-600 font-bold">EXCEEDED</span>
+                                            <span class="font-mono text-sm text-red-600 font-bold">{{ $exceededLabel }}</span>
                                         @else
                                             <x-countdown :$expires>
                                                 <span class="font-mono text-sm"
