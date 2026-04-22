@@ -35,7 +35,8 @@ class RoomBoyReport extends Component
     public function mount()
     {
         $this->date = now()->toDateString();
-        $this->penaltyDateFrom = now()->startOfMonth()->format('Y-m-d');
+        // Default penalty dates to this week (Monday to today)
+        $this->penaltyDateFrom = now()->startOfWeek()->format('Y-m-d');
         $this->penaltyDateTo = now()->format('Y-m-d');
     }
 
@@ -198,7 +199,7 @@ class RoomBoyReport extends Component
 
     public function resetPenaltyFilters()
     {
-        $this->penaltyDateFrom = now()->startOfMonth()->format('Y-m-d');
+        $this->penaltyDateFrom = now()->startOfWeek()->format('Y-m-d');
         $this->penaltyDateTo = now()->format('Y-m-d');
         $this->loadPenalties();
     }
