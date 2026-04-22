@@ -75,7 +75,7 @@
                   ->count();
               // Penalty: rooms where time_to_clean has expired OR checkout > 4 hours ago
               $penaltyCount = App\Models\Room::whereBranchId(auth()->user()->branch_id)
-                  ->where('status', 'Uncleaned')
+                  ->whereIn('status', ['Uncleaned', 'Cleaning'])
                   ->whereIn('floor_id', $floorIds)
                   ->where(function($q) {
                       $q->where('time_to_clean', '<=', now())

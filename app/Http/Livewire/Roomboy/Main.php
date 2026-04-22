@@ -46,7 +46,7 @@ class Main extends Component
     {
         $floorIds = $this->floors->pluck('id')->toArray();
         $this->penaltyRooms = Room::whereBranchId(auth()->user()->branch_id)
-            ->where('status', 'Uncleaned')
+            ->whereIn('status', ['Uncleaned', 'Cleaning'])
             ->whereIn('floor_id', $floorIds)
             ->where(function($q) {
                 $q->where('time_to_clean', '<=', now())
