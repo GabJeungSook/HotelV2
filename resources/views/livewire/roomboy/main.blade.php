@@ -25,12 +25,8 @@
                                 $checkoutTime = \Carbon\Carbon::parse($room->check_out_time);
                                 $checkoutTimestamp = $checkoutTime->timestamp * 1000;
 
-                                // Calculate deadline (checkout + 4 hours)
-                                if ($room->time_to_clean) {
-                                    $deadline = \Carbon\Carbon::parse($room->time_to_clean);
-                                } else {
-                                    $deadline = $checkoutTime->copy()->addHours(4);
-                                }
+                                // Calculate deadline: ALWAYS checkout + 4 hours
+                                $deadline = $checkoutTime->copy()->addHours(4);
                                 $deadlineTimestamp = $deadline->timestamp * 1000;
                                 $isExpired = $deadline->isPast();
 
