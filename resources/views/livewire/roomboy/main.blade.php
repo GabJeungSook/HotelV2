@@ -159,7 +159,7 @@
                                         wire:loading.attr="disabled"
                                         wire:target="finishCleaning,startCleaning"
                                         wire:loading.class="opacity-50 cursor-not-allowed"
-                                        class="inline-flex items-center gap-1 bg-[#F97373] text-white hover:bg-[#e05555] px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap"
+                                        class="inline-flex items-center gap-1 bg-green-500 text-white hover:bg-green-600 px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap"
                                         x-on:confirm="{
                                             title: 'Finish cleaning Room {{ $cleaning_room->number }}?',
                                             icon: 'question',
