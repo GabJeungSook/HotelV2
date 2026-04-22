@@ -79,7 +79,7 @@
     <main class="-mt-32">
       <div class="mx-4 sm:mx-6 lg:mx-8 pb-12">
         <div class="rounded-lg bg-white px-3 py-4 shadow sm:px-4">
-          <livewire:roomboy.index />
+          {{ $slot }}
         </div>
       </div>
     </main>

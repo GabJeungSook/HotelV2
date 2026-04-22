@@ -1,3 +1,3 @@
 <x-roomboy-layout>
-  sdsds
+  <livewire:roomboy.index />
 </x-roomboy-layout>

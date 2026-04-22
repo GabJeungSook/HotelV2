@@ -49,7 +49,7 @@
                     <tbody class="bg-white divide-y divide-gray-100">
                         @forelse ($histories as $record)
                             @php
-                                $duration = $record->cleaning_duration;
+                                $duration = (int) $record->cleaning_duration;
                                 $hours = intdiv($duration, 60);
                                 $mins = $duration % 60;
                             @endphp

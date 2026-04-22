@@ -113,7 +113,6 @@
     </div>
 
     {{-- Floor Filter Tabs --}}
-    @if (!request()->routeIs('roomboy.cleaning-history'))
     <div class="mt-3 flex flex-wrap gap-2">
         @php
             $userFloors = auth()->user()->floors()
@@ -138,15 +137,10 @@
             </button>
         @endforeach
     </div>
-    @endif
 
     {{-- Main Content --}}
     <div>
-        @if (request()->routeIs('roomboy.cleaning-history'))
-            <livewire:roomboy.cleaning-history />
-        @else
-            <livewire:roomboy.main />
-        @endif
+        <livewire:roomboy.main />
     </div>
   </div>
 </div>
