@@ -161,11 +161,17 @@
         </div>
         @endif
 
-        {{-- Report --}}
-        <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden">
-            <div class="px-4 py-3 border-b border-gray-200">
-                <div class="text-sm font-semibold text-gray-900">ROOM BOY PENALTY REPORT</div>
-                <div class="text-xs text-gray-500">Rooms that exceeded 4-hour cleaning time limit</div>
+        {{-- Report - Separated by Room Boy --}}
+        @forelse($groupedPenalties as $roomBoyName => $roomBoyPenalties)
+        <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden mb-6">
+            <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <div>
+                    <div class="text-sm font-semibold text-gray-900">{{ $roomBoyName }}</div>
+                    <div class="text-xs text-gray-500">Rooms that exceeded 4-hour cleaning time limit</div>
+                </div>
+                <div class="text-sm font-semibold text-red-600">
+                    Penalties: {{ count($roomBoyPenalties) }} | Total: {{ number_format(collect($roomBoyPenalties)->sum('amount'), 2) }}
+                </div>
             </div>
 
             <div class="overflow-x-auto">
@@ -176,7 +182,6 @@
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">DATE</th>
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">RM#</th>
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">TYPE</th>
-                            <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">ROOM BOY</th>
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">GUEST</th>
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">CHECK-OUT</th>
                             <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">CLEANED</th>
@@ -186,13 +191,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($penalties as $index => $penalty)
+                        @foreach($roomBoyPenalties as $index => $penalty)
                         <tr class="{{ $index % 2 == 0 ? 'bg-white' : 'bg-gray-50' }}">
                             <td class="border border-gray-300 px-3 py-2 text-sm text-gray-600">{{ $index + 1 }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['date'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm font-medium">{{ $penalty['room_number'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['room_type'] }}</td>
-                            <td class="border border-gray-300 px-3 py-2 text-sm font-medium">{{ $penalty['roomboy_name'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['guest_name'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['checkout_time'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm">{{ $penalty['cleaning_end'] }}</td>
@@ -200,39 +204,46 @@
                             <td class="border border-gray-300 px-3 py-2 text-sm text-red-600 font-medium">{{ $penalty['excess'] }}</td>
                             <td class="border border-gray-300 px-3 py-2 text-sm text-right font-medium">{{ number_format($penalty['amount'], 2) }}</td>
                         </tr>
-                        @empty
-                        <tr>
-                            <td colspan="11" class="border border-gray-300 px-3 py-8 text-center text-gray-500">
-                                <div class="flex flex-col items-center">
-                                    <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    <p class="font-medium">No penalties found</p>
-                                    <p class="text-sm">Click "Generate Report" to load data</p>
-                                </div>
-                            </td>
-                        </tr>
-                        @endforelse
+                        @endforeach
                     </tbody>
-                    @if(count($penalties) > 0)
                     <tfoot class="bg-gray-100">
                         <tr>
-                            <td colspan="10" class="border border-gray-300 px-3 py-3 text-right font-bold text-gray-800">TOTAL PENALTY</td>
-                            <td class="border border-gray-300 px-3 py-3 text-right font-bold text-red-600 text-lg">{{ number_format($totalPenaltyAmount, 2) }}</td>
+                            <td colspan="9" class="border border-gray-300 px-3 py-3 text-right font-bold text-gray-800">SUBTOTAL</td>
+                            <td class="border border-gray-300 px-3 py-3 text-right font-bold text-red-600">{{ number_format(collect($roomBoyPenalties)->sum('amount'), 2) }}</td>
                         </tr>
                     </tfoot>
-                    @endif
                 </table>
             </div>
-
-            @if(count($penalties) > 0)
-            <div class="p-4 bg-gray-50 border-t border-gray-200">
-                <button onclick="window.print()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                    Print Report
-                </button>
-            </div>
-            @endif
         </div>
+        @empty
+        <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden">
+            <div class="px-3 py-8 text-center text-gray-500">
+                <div class="flex flex-col items-center">
+                    <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <p class="font-medium">No penalties found</p>
+                    <p class="text-sm">Click "Generate Report" to load data</p>
+                </div>
+            </div>
+        </div>
+        @endforelse
+
+        @if(count($penalties) > 0)
+        {{-- Grand Total --}}
+        <div class="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden mb-6">
+            <div class="px-4 py-4 flex justify-between items-center">
+                <div class="text-sm font-bold text-gray-800">GRAND TOTAL PENALTY</div>
+                <div class="text-lg font-bold text-red-600">{{ number_format($totalPenaltyAmount, 2) }}</div>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <button onclick="window.print()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                Print Report
+            </button>
+        </div>
+        @endif
     </div>
     @endif
 
