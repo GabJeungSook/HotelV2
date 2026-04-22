@@ -36,7 +36,7 @@
                                 $isExpired = $deadline->isPast();
 
                                 $hoursAgo = now()->diffInHours($checkoutTime);
-                                $rowBg = $hoursAgo >= 4 ? 'bg-red-100' : ($hoursAgo >= 2 ? 'bg-red-50' : ($index % 2 == 0 ? 'bg-white' : 'bg-gray-50'));
+                                $rowBg = $index % 2 == 0 ? 'bg-white' : 'bg-gray-50';
                             @endphp
                             <tr wire:key="uncleaned-{{ $room->id }}" class="{{ $rowBg }}">
                                 <td class="px-2 py-2 text-center text-gray-600">{{ $index + 1 }}.</td>
@@ -44,7 +44,7 @@
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $room->floor->number ?? $room->floor_id }}</td>
                                 <td class="px-2 py-2 text-center text-gray-800 hidden md:table-cell">{{ $checkoutTime->format('g:i A') }}</td>
 
-                                {{-- ELAPSED: Real-time count UP --}}
+                                {{-- ELAPSED: Real-time count UP (human readable) --}}
                                 <td class="px-2 py-2 text-center">
                                     <div x-data="{
                                         start: {{ $checkoutTimestamp }},
@@ -55,20 +55,22 @@
                                             let h = Math.floor(diff / 3600000);
                                             let m = Math.floor((diff % 3600000) / 60000);
                                             let s = Math.floor((diff % 60000) / 1000);
-                                            return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                                            if (h > 0) return h + 'h ' + m + 'm';
+                                            if (m > 0) return m + 'm ' + s + 's';
+                                            return s + 's';
                                         },
                                         get hours() { return Math.floor((this.now - this.start) / 3600000); }
                                     }">
-                                        <span class="font-mono text-sm"
+                                        <span class="text-sm font-medium"
                                             :class="hours >= 4 ? 'text-red-600 font-bold' : (hours >= 2 ? 'text-red-600' : (hours >= 1 ? 'text-amber-600' : 'text-gray-700'))"
                                             x-text="elapsed"></span>
                                     </div>
                                 </td>
 
-                                {{-- TIME LEFT: Real-time countdown --}}
+                                {{-- TIME LEFT: Real-time countdown (human readable) --}}
                                 <td class="px-2 py-2 text-center">
                                     @if ($isExpired)
-                                        <span class="font-mono text-sm text-red-600 font-bold">0:00:00</span>
+                                        <span class="text-sm text-red-600 font-bold">Expired</span>
                                     @else
                                         <div x-data="{
                                             deadline: {{ $deadlineTimestamp }},
@@ -76,16 +78,19 @@
                                             init() { setInterval(() => this.now = Date.now(), 1000); },
                                             get remaining() {
                                                 let diff = Math.max(0, this.deadline - this.now);
-                                                if (diff <= 0) return '0:00:00';
+                                                if (diff <= 0) return 'Expired';
                                                 let h = Math.floor(diff / 3600000);
                                                 let m = Math.floor((diff % 3600000) / 60000);
                                                 let s = Math.floor((diff % 60000) / 1000);
-                                                return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                                                if (h > 0) return h + 'h ' + m + 'm';
+                                                if (m > 0) return m + 'm ' + s + 's';
+                                                return s + 's';
                                             },
-                                            get isLow() { return (this.deadline - this.now) < 1800000; }
+                                            get isLow() { return (this.deadline - this.now) < 1800000; },
+                                            get isExpired() { return (this.deadline - this.now) <= 0; }
                                         }">
-                                            <span class="font-mono text-sm"
-                                                :class="isLow ? 'text-red-600 font-semibold' : 'text-gray-700'"
+                                            <span class="text-sm font-medium"
+                                                :class="isExpired ? 'text-red-600 font-bold' : (isLow ? 'text-red-600 font-semibold' : 'text-green-600')"
                                                 x-text="remaining"></span>
                                         </div>
                                     @endif
@@ -145,14 +150,14 @@
                                 $startedAt = \Carbon\Carbon::parse($cleaning_room->started_cleaning_at);
                                 $startTimestamp = $startedAt->timestamp * 1000;
                                 $elapsedHours = now()->diffInHours($startedAt);
-                                $rowBg = $elapsedHours >= 2 ? 'bg-red-100' : ($index % 2 == 0 ? 'bg-green-50' : 'bg-green-100');
+                                $rowBg = $index % 2 == 0 ? 'bg-white' : 'bg-gray-50';
                             @endphp
                             <tr wire:key="cleaning-{{ $cleaning_room->id }}" class="{{ $rowBg }}">
                                 <td class="px-2 py-2 text-center text-gray-600">{{ $index + 1 }}.</td>
                                 <td class="px-2 py-2 text-center font-bold text-gray-900">{{ $cleaning_room->number }}</td>
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $cleaning_room->floor->number ?? $cleaning_room->floor_id }}</td>
 
-                                {{-- CLEANING TIME: Real-time count UP --}}
+                                {{-- CLEANING TIME: Real-time count UP (human readable) --}}
                                 <td class="px-2 py-2 text-center">
                                     <div x-data="{
                                         start: {{ $startTimestamp }},
@@ -163,12 +168,14 @@
                                             let h = Math.floor(diff / 3600000);
                                             let m = Math.floor((diff % 3600000) / 60000);
                                             let s = Math.floor((diff % 60000) / 1000);
-                                            return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                                            if (h > 0) return h + 'h ' + m + 'm';
+                                            if (m > 0) return m + 'm ' + s + 's';
+                                            return s + 's';
                                         },
                                         get hours() { return Math.floor((this.now - this.start) / 3600000); }
                                     }">
-                                        <span class="font-mono text-sm"
-                                            :class="hours >= 2 ? 'text-red-600 font-bold' : (hours >= 1 ? 'text-amber-600' : 'text-green-700')"
+                                        <span class="text-sm font-medium"
+                                            :class="hours >= 2 ? 'text-red-600 font-bold' : (hours >= 1 ? 'text-amber-600' : 'text-green-600')"
                                             x-text="elapsed"></span>
                                     </div>
                                 </td>
