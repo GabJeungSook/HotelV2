@@ -50,4 +50,7 @@ Route::prefix('back-office')
         Route::get('/archives', function () {
             return view('back-office.archives');
         })->name('back-office.archives');
+        Route::get('/roomboy-penalty-report', function () {
+            return view('back-office.roomboy-penalty-report');
+        })->name('back-office.roomboy-penalty-report');
     });

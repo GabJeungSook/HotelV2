@@ -54,6 +54,8 @@
                                             get remaining() {
                                                 var diff = Math.max(0, this.deadline - this.now);
                                                 if (diff <= 0) return '0:00:00';
+                                                // Cap at 4 hours maximum (14400000 ms)
+                                                if (diff > 14400000) diff = 14400000;
                                                 var h = Math.floor(diff / 3600000);
                                                 var m = Math.floor((diff % 3600000) / 60000);
                                                 var s = Math.floor((diff % 60000) / 1000);

@@ -404,47 +404,6 @@
             </div>
         </div>
 
-        {{-- ==================== ROOM BOY PENALTY REPORT ==================== --}}
-        <div class="mb-6">
-            <h3 class="text-base font-bold mb-2">ROOM BOY PENALTY REPORT</h3>
-            <table class="w-full border-collapse border border-gray-300 text-sm">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 px-3 py-2 text-left">RM#</th>
-                        <th class="border border-gray-300 px-3 py-2 text-left">ROOM BOY</th>
-                        <th class="border border-gray-300 px-3 py-2 text-left">GUEST NAME</th>
-                        <th class="border border-gray-300 px-3 py-2 text-left">CHECK-OUT</th>
-                        <th class="border border-gray-300 px-3 py-2 text-left">DURATION</th>
-                        <th class="border border-gray-300 px-3 py-2 text-right">AMOUNT</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($roomboyPenalties as $penalty)
-                    <tr>
-                        <td class="border border-gray-300 px-3 py-2">{{ $penalty['room_number'] }}</td>
-                        <td class="border border-gray-300 px-3 py-2">{{ $penalty['roomboy_name'] }}</td>
-                        <td class="border border-gray-300 px-3 py-2">{{ $penalty['guest_name'] }}</td>
-                        <td class="border border-gray-300 px-3 py-2">{{ $penalty['checkout_time'] }}</td>
-                        <td class="border border-gray-300 px-3 py-2">{{ $penalty['duration'] }}</td>
-                        <td class="border border-gray-300 px-3 py-2 text-right">{{ number_format($penalty['amount'], 2) }}</td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="6" class="border border-gray-300 px-3 py-2 text-center text-gray-400 italic">No penalties during this shift.</td>
-                    </tr>
-                    @endforelse
-                </tbody>
-                @if(count($roomboyPenalties) > 0)
-                <tfoot>
-                    <tr class="bg-gray-50">
-                        <td colspan="5" class="border border-gray-300 px-3 py-2 font-bold text-right">TOTAL PENALTY</td>
-                        <td class="border border-gray-300 px-3 py-2 text-right font-bold">{{ number_format($totalPenaltyAmount, 2) }}</td>
-                    </tr>
-                </tfoot>
-                @endif
-            </table>
-        </div>
-
         {{-- ==================== SIGNATURES ==================== --}}
         <div class="mt-12 grid grid-cols-2 gap-8">
             <div class="text-center">
