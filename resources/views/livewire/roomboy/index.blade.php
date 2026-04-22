@@ -1,12 +1,7 @@
 <div>
-  {{-- Black Header Bar - Full Width --}}
-  <div class="bg-gray-800 text-white px-4 py-2">
-    <h1 class="text-sm font-bold uppercase tracking-wide">Roomboy Dashboard</h1>
-  </div>
-
-  <div x-animate x-data class="mx-2 sm:mx-5">
+  <div x-animate x-data>
     {{-- Header with Blue Background --}}
-    <div class="bg-[#009EF5] rounded-lg p-3 sm:p-4">
+    <div class="bg-[#009EF5] rounded-lg p-3 sm:p-4 shadow-lg">
 
       {{-- Mobile: Stack vertically, Desktop: Side by side --}}
       <div class="flex flex-col lg:flex-row lg:items-start gap-3 lg:gap-4">
