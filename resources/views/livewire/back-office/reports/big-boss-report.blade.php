@@ -373,33 +373,35 @@
         <div class="mb-6">
             <h3 class="text-base font-bold mb-2">ROOM BOY ACTIVITY LOGS</h3>
 
-            @forelse($roomboyLogs as $log)
-            <div class="mb-4">
-                <h4 class="text-sm font-bold mb-1">NAME: {{ $log['name'] }}</h4>
-                <table class="max-w-3xl border-collapse border border-gray-300 text-sm">
-                    <thead>
-                        <tr class="bg-gray-100">
-                            <th class="border border-gray-300 px-2 py-1 text-left w-12">#</th>
-                            <th class="border border-gray-300 px-2 py-1 text-left">Room Number</th>
-                            <th class="border border-gray-300 px-2 py-1 text-left">Floor Number</th>
-                            <th class="border border-gray-300 px-2 py-1 text-left">Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($log['entries'] as $entry)
-                        <tr>
-                            <td class="border border-gray-300 px-2 py-1">{{ $entry['number'] }}</td>
-                            <td class="border border-gray-300 px-2 py-1 align-top">{{ ($entry['rowspan'] ?? 1) > 0 ? $entry['room_number'] : '' }}</td>
-                            <td class="border border-gray-300 px-2 py-1">{{ ($entry['rowspan'] ?? 1) > 0 ? $entry['floor_number'] : '' }}</td>
-                            <td class="border border-gray-300 px-2 py-1">{{ $entry['time'] }}</td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+            <div class="max-h-96 overflow-y-auto border border-gray-200 rounded p-2">
+                @forelse($roomboyLogs as $log)
+                <div class="mb-4">
+                    <h4 class="text-sm font-bold mb-1">NAME: {{ $log['name'] }}</h4>
+                    <table class="max-w-3xl border-collapse border border-gray-300 text-sm">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="border border-gray-300 px-2 py-1 text-left w-12">#</th>
+                                <th class="border border-gray-300 px-2 py-1 text-left">Room Number</th>
+                                <th class="border border-gray-300 px-2 py-1 text-left">Floor Number</th>
+                                <th class="border border-gray-300 px-2 py-1 text-left">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($log['entries'] as $entry)
+                            <tr>
+                                <td class="border border-gray-300 px-2 py-1">{{ $entry['number'] }}</td>
+                                <td class="border border-gray-300 px-2 py-1 align-top">{{ ($entry['rowspan'] ?? 1) > 0 ? $entry['room_number'] : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ ($entry['rowspan'] ?? 1) > 0 ? $entry['floor_number'] : '' }}</td>
+                                <td class="border border-gray-300 px-2 py-1">{{ $entry['time'] }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @empty
+                <p class="text-sm text-gray-400 italic">No room boy activity during this shift.</p>
+                @endforelse
             </div>
-            @empty
-            <p class="text-sm text-gray-400 italic">No room boy activity during this shift.</p>
-            @endforelse
         </div>
 
         {{-- ==================== ROOM BOY PENALTY REPORT ==================== --}}
