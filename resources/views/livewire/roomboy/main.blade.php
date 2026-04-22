@@ -44,7 +44,7 @@
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $room->floor->number ?? $room->floor_id }}</td>
                                 <td class="px-2 py-2 text-center text-gray-800 hidden md:table-cell">{{ $checkoutTime->format('g:i A') }}</td>
 
-                                {{-- ELAPSED: Real-time count UP (human readable) --}}
+                                {{-- ELAPSED: Real-time count UP --}}
                                 <td class="px-2 py-2 text-center">
                                     <div x-data="{
                                         start: {{ $checkoutTimestamp }},
@@ -55,22 +55,20 @@
                                             let h = Math.floor(diff / 3600000);
                                             let m = Math.floor((diff % 3600000) / 60000);
                                             let s = Math.floor((diff % 60000) / 1000);
-                                            if (h > 0) return h + 'h ' + m + 'm';
-                                            if (m > 0) return m + 'm ' + s + 's';
-                                            return s + 's';
+                                            return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
                                         },
                                         get hours() { return Math.floor((this.now - this.start) / 3600000); }
                                     }">
-                                        <span class="text-sm font-medium"
+                                        <span class="font-mono text-sm"
                                             :class="hours >= 4 ? 'text-red-600 font-bold' : (hours >= 2 ? 'text-red-600' : (hours >= 1 ? 'text-amber-600' : 'text-gray-700'))"
                                             x-text="elapsed"></span>
                                     </div>
                                 </td>
 
-                                {{-- TIME LEFT: Real-time countdown (human readable) --}}
+                                {{-- TIME LEFT: Real-time countdown --}}
                                 <td class="px-2 py-2 text-center">
                                     @if ($isExpired)
-                                        <span class="text-sm text-red-600 font-bold">Expired</span>
+                                        <span class="font-mono text-sm text-red-600 font-bold">0:00:00</span>
                                     @else
                                         <div x-data="{
                                             deadline: {{ $deadlineTimestamp }},
@@ -78,18 +76,16 @@
                                             init() { setInterval(() => this.now = Date.now(), 1000); },
                                             get remaining() {
                                                 let diff = Math.max(0, this.deadline - this.now);
-                                                if (diff <= 0) return 'Expired';
+                                                if (diff <= 0) return '0:00:00';
                                                 let h = Math.floor(diff / 3600000);
                                                 let m = Math.floor((diff % 3600000) / 60000);
                                                 let s = Math.floor((diff % 60000) / 1000);
-                                                if (h > 0) return h + 'h ' + m + 'm';
-                                                if (m > 0) return m + 'm ' + s + 's';
-                                                return s + 's';
+                                                return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
                                             },
                                             get isLow() { return (this.deadline - this.now) < 1800000; },
                                             get isExpired() { return (this.deadline - this.now) <= 0; }
                                         }">
-                                            <span class="text-sm font-medium"
+                                            <span class="font-mono text-sm"
                                                 :class="isExpired ? 'text-red-600 font-bold' : (isLow ? 'text-red-600 font-semibold' : 'text-green-600')"
                                                 x-text="remaining"></span>
                                         </div>
@@ -157,7 +153,7 @@
                                 <td class="px-2 py-2 text-center font-bold text-gray-900">{{ $cleaning_room->number }}</td>
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $cleaning_room->floor->number ?? $cleaning_room->floor_id }}</td>
 
-                                {{-- CLEANING TIME: Real-time count UP (human readable) --}}
+                                {{-- CLEANING TIME: Real-time count UP --}}
                                 <td class="px-2 py-2 text-center">
                                     <div x-data="{
                                         start: {{ $startTimestamp }},
@@ -168,13 +164,11 @@
                                             let h = Math.floor(diff / 3600000);
                                             let m = Math.floor((diff % 3600000) / 60000);
                                             let s = Math.floor((diff % 60000) / 1000);
-                                            if (h > 0) return h + 'h ' + m + 'm';
-                                            if (m > 0) return m + 'm ' + s + 's';
-                                            return s + 's';
+                                            return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
                                         },
                                         get hours() { return Math.floor((this.now - this.start) / 3600000); }
                                     }">
-                                        <span class="text-sm font-medium"
+                                        <span class="font-mono text-sm"
                                             :class="hours >= 2 ? 'text-red-600 font-bold' : (hours >= 1 ? 'text-amber-600' : 'text-green-600')"
                                             x-text="elapsed"></span>
                                     </div>
