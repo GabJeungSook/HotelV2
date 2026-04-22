@@ -63,25 +63,39 @@
                                             $expires = null;
                                         }
                                         $isExpired = $expires ? $expires->isPast() : false;
-
-                                        // Calculate exceeded time if expired
-                                        if ($isExpired && $expires) {
-                                            $exceededMins = now()->diffInMinutes($expires);
-                                            $exceededHours = floor($exceededMins / 60);
-                                            $exceededMinsRemain = $exceededMins % 60;
-                                            $exceededLabel = '-' . $exceededHours . ':' . str_pad($exceededMinsRemain, 2, '0', STR_PAD_LEFT);
-                                        }
                                     @endphp
                                     @if ($expires)
                                         @if ($isExpired)
-                                            <span class="font-mono text-sm text-red-600 font-bold">{{ $exceededLabel }}</span>
+                                            {{-- Show 0:00:00 when expired --}}
+                                            <span class="font-mono text-sm text-red-600 font-bold">0:00:00</span>
                                         @else
-                                            <x-countdown :$expires>
+                                            {{-- Live countdown using Alpine.js --}}
+                                            <div x-data="{
+                                                expires: new Date('{{ $expires->toIso8601String() }}').getTime(),
+                                                now: Date.now(),
+                                                timer: null,
+                                                init() {
+                                                    this.timer = setInterval(() => {
+                                                        this.now = Date.now();
+                                                    }, 1000);
+                                                },
+                                                destroy() { clearInterval(this.timer); },
+                                                get remaining() {
+                                                    let diff = Math.max(0, this.expires - this.now);
+                                                    let h = Math.floor(diff / 3600000);
+                                                    let m = Math.floor((diff % 3600000) / 60000);
+                                                    let s = Math.floor((diff % 60000) / 1000);
+                                                    return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                                                },
+                                                get isLow() {
+                                                    let diff = this.expires - this.now;
+                                                    return diff < 1800000; // less than 30 minutes
+                                                }
+                                            }">
                                                 <span class="font-mono text-sm"
-                                                    :class="timer.hours < 1 && timer.minutes < 30 ? 'text-red-600 font-semibold' : 'text-gray-700'">
-                                                    <span x-text="timer.hours">{{ $component->hours() }}</span>:<span x-text="timer.minutes">{{ $component->minutes() }}</span>:<span x-text="timer.seconds">{{ $component->seconds() }}</span>
-                                                </span>
-                                            </x-countdown>
+                                                    :class="isLow ? 'text-red-600 font-semibold' : 'text-gray-700'"
+                                                    x-text="remaining"></span>
+                                            </div>
                                         @endif
                                     @else
                                         <span class="text-gray-400">--:--:--</span>
