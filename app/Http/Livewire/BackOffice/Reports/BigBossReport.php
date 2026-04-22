@@ -102,6 +102,8 @@ class BigBossReport extends Component
             'frontdeskChart' => [],
             'roomCleaningChart' => [],
             'roomboyLogs' => [],
+            'roomboyPenalties' => [],
+            'totalPenaltyAmount' => 0,
         ];
 
         if (!$session) {
@@ -191,6 +193,9 @@ class BigBossReport extends Component
         // ===== ROOM BOY ACTIVITY LOGS =====
         $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories, $occupyingDetails, $timeIn, $timeOut);
 
+        // ===== ROOM BOY PENALTIES =====
+        $penaltyData = $this->buildRoomboyPenalties($cleaningHistories, $occupyingDetails, $baseRatesByType, $timeIn, $timeOut);
+
         return [
             'floors' => $floors,
             'summaryRows' => $summaryRows,
@@ -207,6 +212,8 @@ class BigBossReport extends Component
             'frontdeskChart' => $frontdeskChart,
             'roomCleaningChart' => $roomCleaningChart,
             'roomboyLogs' => $roomboyLogs,
+            'roomboyPenalties' => $penaltyData['penalties'],
+            'totalPenaltyAmount' => $penaltyData['total'],
         ];
     }
 
@@ -706,6 +713,62 @@ class BigBossReport extends Component
         }
 
         return $logs;
+    }
+
+    private function buildRoomboyPenalties($cleaningHistories, $occupyingDetails, array $baseRatesByType, Carbon $timeIn, Carbon $timeOut): array
+    {
+        $penalties = [];
+        $total = 0;
+
+        // Get delayed cleanings (where cleaning took more than 4 hours from checkout)
+        $delayedCleanings = $cleaningHistories->filter(function($ch) {
+            return $ch->delayed_cleaning == true;
+        });
+
+        foreach ($delayedCleanings as $cleaning) {
+            // Find the checkout that this cleaning was for
+            $checkoutDetail = $occupyingDetails
+                ->where('room_id', $cleaning->room_id)
+                ->where('is_check_out', true)
+                ->filter(function($d) use ($cleaning) {
+                    $checkoutAt = Carbon::parse($d->check_out_at);
+                    $cleaningEnd = Carbon::parse($cleaning->end_time);
+                    return $checkoutAt->lte($cleaningEnd);
+                })
+                ->sortByDesc('check_out_at')
+                ->first();
+
+            $guestName = $checkoutDetail?->guest?->name ?? 'N/A';
+            $checkoutTime = $checkoutDetail ? Carbon::parse($checkoutDetail->check_out_at) : null;
+
+            // Calculate duration from checkout to cleaning end
+            $cleaningEnd = Carbon::parse($cleaning->end_time);
+            $durationMinutes = $checkoutTime ? $checkoutTime->diffInMinutes($cleaningEnd) : 0;
+            $durationHours = floor($durationMinutes / 60);
+            $durationMins = $durationMinutes % 60;
+
+            // Get penalty amount (6-hour base rate for room type)
+            $penaltyAmount = 0;
+            if ($cleaning->room && $cleaning->room->type_id) {
+                $penaltyAmount = $baseRatesByType[$cleaning->room->type_id] ?? 0;
+            }
+
+            $penalties[] = [
+                'room_number' => $cleaning->room->number ?? 'N/A',
+                'roomboy_name' => $cleaning->user->name ?? 'N/A',
+                'guest_name' => $guestName,
+                'checkout_time' => $checkoutTime ? $checkoutTime->format('g:i A') : 'N/A',
+                'duration' => $durationHours . 'h ' . $durationMins . 'm',
+                'amount' => $penaltyAmount,
+            ];
+
+            $total += $penaltyAmount;
+        }
+
+        return [
+            'penalties' => $penalties,
+            'total' => $total,
+        ];
     }
 
     private function loadAvailableShiftSessions(): void
