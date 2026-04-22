@@ -114,6 +114,15 @@ class BigBossReport extends Component
         $timeIn = Carbon::parse($session['time_in']);
         $timeOut = Carbon::parse($session['time_out']);
 
+        // Pre-fetch 6-hour base rates for all room types (keyed by type_id) - used for penalties
+        $sixHourStaying = \App\Models\StayingHour::where('branch_id', $branchId)->where('number', 6)->first();
+        $baseRatesByType = $sixHourStaying
+            ? \App\Models\Rate::where('branch_id', $branchId)
+                ->where('staying_hour_id', $sixHourStaying->id)
+                ->pluck('amount', 'type_id')
+                ->toArray()
+            : [];
+
         $floors = Floor::where('branch_id', $branchId)->orderBy('number')->get();
         $allRooms = Room::where('branch_id', $branchId)->with(['floor', 'type'])->get();
 
