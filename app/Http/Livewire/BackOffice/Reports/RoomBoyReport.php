@@ -80,33 +80,46 @@ class RoomBoyReport extends Component
                 ->toArray()
             : [];
 
-        // Get completed cleanings within date range
+        // Get completed cleanings within date range - only delayed ones (limit for performance)
         $cleaningHistories = CleaningHistory::where('branch_id', $branchId)
             ->whereNotNull('end_time')
+            ->where('delayed_cleaning', true)
             ->whereBetween('end_time', [$dateFrom, $dateTo])
-            ->with(['room.type', 'room.floor', 'user'])
+            ->with(['room:id,number,type_id,floor_id', 'room.type:id,name', 'room.floor:id,number', 'user:id,name'])
+            ->limit(500)
             ->get();
 
-        // Get checkout details for matching (filter via room's branch)
-        $occupyingDetails = CheckInDetail::whereHas('room', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId);
-            })
+        // Get room IDs from cleaning histories for targeted checkout query
+        $roomIds = $cleaningHistories->pluck('room_id')->unique()->toArray();
+
+        if (empty($roomIds)) {
+            $this->penalties = [];
+            $this->totalPenaltyAmount = 0;
+            return;
+        }
+
+        // Get checkout details only for rooms that have delayed cleanings
+        $occupyingDetails = CheckInDetail::whereIn('room_id', $roomIds)
             ->where('is_check_out', true)
             ->whereBetween('check_out_at', [$dateFrom->copy()->subHours(24), $dateTo])
-            ->with('guest')
-            ->get();
+            ->with('guest:id,name')
+            ->get()
+            ->groupBy('room_id');
 
         $this->penalties = [];
         $this->totalPenaltyAmount = 0;
 
         foreach ($cleaningHistories as $cleaning) {
-            $checkoutDetail = $occupyingDetails
-                ->where('room_id', $cleaning->room_id)
-                ->where('is_check_out', true)
-                ->filter(function ($d) use ($cleaning) {
-                    $checkoutAt = Carbon::parse($d->check_out_at);
-                    $cleaningEnd = Carbon::parse($cleaning->end_time);
-                    return $checkoutAt->lte($cleaningEnd);
+            $roomCheckouts = $occupyingDetails->get($cleaning->room_id);
+            if (!$roomCheckouts) {
+                continue;
+            }
+
+            $cleaningEnd = Carbon::parse($cleaning->end_time);
+
+            $checkoutDetail = $roomCheckouts
+                ->filter(function ($d) use ($cleaningEnd) {
+                    return Carbon::parse($d->check_out_at)->lte($cleaningEnd);
                 })
                 ->sortByDesc('check_out_at')
                 ->first();
@@ -115,10 +128,7 @@ class RoomBoyReport extends Component
                 continue;
             }
 
-            $guestName = $checkoutDetail->guest->name ?? 'N/A';
             $checkoutTime = Carbon::parse($checkoutDetail->check_out_at);
-            $cleaningEnd = Carbon::parse($cleaning->end_time);
-
             $durationMinutes = $checkoutTime->diffInMinutes($cleaningEnd);
 
             // Only include if cleaning took MORE than 4 hours (240 minutes)
@@ -129,10 +139,7 @@ class RoomBoyReport extends Component
             $durationHours = floor($durationMinutes / 60);
             $durationMins = $durationMinutes % 60;
 
-            $penaltyAmount = 0;
-            if ($cleaning->room && $cleaning->room->type_id) {
-                $penaltyAmount = $baseRatesByType[$cleaning->room->type_id] ?? 0;
-            }
+            $penaltyAmount = $baseRatesByType[$cleaning->room->type_id ?? 0] ?? 0;
 
             $this->penalties[] = [
                 'date' => $cleaningEnd->format('M d, Y'),
@@ -140,7 +147,7 @@ class RoomBoyReport extends Component
                 'room_type' => $cleaning->room->type->name ?? 'N/A',
                 'floor' => $cleaning->room->floor->number ?? 'N/A',
                 'roomboy_name' => $cleaning->user->name ?? 'N/A',
-                'guest_name' => $guestName,
+                'guest_name' => $checkoutDetail->guest->name ?? 'N/A',
                 'checkout_time' => $checkoutTime->format('g:i A'),
                 'cleaning_end' => $cleaningEnd->format('g:i A'),
                 'duration' => $durationHours . 'h ' . $durationMins . 'm',

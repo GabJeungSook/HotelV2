@@ -3,11 +3,11 @@
     {{-- Tabs --}}
     <div class="mb-6 border-b border-gray-200">
         <nav class="-mb-px flex space-x-8">
-            <button wire:click="setTab('activity')"
+            <button type="button" wire:click="setTab('activity')"
                 class="py-3 px-1 border-b-2 font-medium text-sm {{ $activeTab === 'activity' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
                 Activity Report
             </button>
-            <button wire:click="setTab('penalties')"
+            <button type="button" wire:click="setTab('penalties')"
                 class="py-3 px-1 border-b-2 font-medium text-sm {{ $activeTab === 'penalties' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
                 Penalty Report
                 @if(count($penalties) > 0)
