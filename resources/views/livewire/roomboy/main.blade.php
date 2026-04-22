@@ -15,6 +15,7 @@
                             <th class="px-3 py-2 text-center font-medium">ROOM #</th>
                             <th class="px-3 py-2 text-center font-medium">FLOOR #</th>
                             <th class="px-3 py-2 text-center font-medium">CHECKOUT TIME</th>
+                            <th class="px-3 py-2 text-center font-medium">ELAPSED</th>
                             <th class="px-3 py-2 text-center font-medium">TIME TO CLEAN</th>
                             <th class="px-3 py-2 text-center font-medium">ACTION</th>
                         </tr>
@@ -31,6 +32,26 @@
                                 <td class="px-3 py-2 text-center font-semibold text-gray-900">{{ $room->number }}</td>
                                 <td class="px-3 py-2 text-center text-gray-700">{{ $room->floor->number ?? $room->floor_id }}</td>
                                 <td class="px-3 py-2 text-center text-gray-800">{{ $checkoutTime->format('g:i A') }}</td>
+                                <td class="px-3 py-2 text-center">
+                                    @php
+                                        $elapsedMins = now()->diffInMinutes($checkoutTime);
+                                        $elapsedHours = floor($elapsedMins / 60);
+                                        $elapsedMinsRemain = $elapsedMins % 60;
+
+                                        if ($elapsedHours >= 4) {
+                                            $elapsedClass = 'text-red-600 font-bold'; // Exceeded 4 hours
+                                        } elseif ($elapsedHours >= 2) {
+                                            $elapsedClass = 'text-red-600 font-semibold'; // Urgent
+                                        } elseif ($elapsedHours >= 1) {
+                                            $elapsedClass = 'text-amber-600'; // Warning
+                                        } else {
+                                            $elapsedClass = 'text-gray-700'; // Normal
+                                        }
+                                    @endphp
+                                    <span class="font-mono text-sm {{ $elapsedClass }}">
+                                        {{ $elapsedHours }}:{{ str_pad($elapsedMinsRemain, 2, '0', STR_PAD_LEFT) }}
+                                    </span>
+                                </td>
                                 <td class="px-3 py-2 text-center">
                                     @php
                                         // Use time_to_clean if set, otherwise calculate from checkout + 4 hours
@@ -88,7 +109,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-4 py-8 text-center text-gray-400 uppercase tracking-wide">
+                                <td colspan="7" class="px-4 py-8 text-center text-gray-400 uppercase tracking-wide">
                                     No Rooms To Clean
                                 </td>
                             </tr>
