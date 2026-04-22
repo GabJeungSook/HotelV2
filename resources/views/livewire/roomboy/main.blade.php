@@ -32,13 +32,28 @@
                                 <td class="px-3 py-2 text-center text-gray-700">{{ $room->floor->number ?? $room->floor_id }}</td>
                                 <td class="px-3 py-2 text-center text-gray-800">{{ $checkoutTime->format('g:i A') }}</td>
                                 <td class="px-3 py-2 text-center">
-                                    @if ($room->time_to_clean)
-                                        @php $expires = \Carbon\Carbon::parse($room->time_to_clean); @endphp
-                                        <x-countdown :$expires>
-                                            <span class="font-mono text-sm text-gray-700">
-                                                <span x-text="timer.hours">{{ $component->hours() }}</span>:<span x-text="timer.minutes">{{ $component->minutes() }}</span>:<span x-text="timer.seconds">{{ $component->seconds() }}</span>
-                                            </span>
-                                        </x-countdown>
+                                    @php
+                                        // Use time_to_clean if set, otherwise calculate from checkout + 4 hours
+                                        if ($room->time_to_clean) {
+                                            $expires = \Carbon\Carbon::parse($room->time_to_clean);
+                                        } elseif ($room->check_out_time) {
+                                            $expires = \Carbon\Carbon::parse($room->check_out_time)->addHours(4);
+                                        } else {
+                                            $expires = null;
+                                        }
+                                        $isExpired = $expires ? $expires->isPast() : false;
+                                    @endphp
+                                    @if ($expires)
+                                        @if ($isExpired)
+                                            <span class="font-mono text-sm text-red-600 font-bold">EXCEEDED</span>
+                                        @else
+                                            <x-countdown :$expires>
+                                                <span class="font-mono text-sm"
+                                                    :class="timer.hours < 1 && timer.minutes < 30 ? 'text-red-600 font-semibold' : 'text-gray-700'">
+                                                    <span x-text="timer.hours">{{ $component->hours() }}</span>:<span x-text="timer.minutes">{{ $component->minutes() }}</span>:<span x-text="timer.seconds">{{ $component->seconds() }}</span>
+                                                </span>
+                                            </x-countdown>
+                                        @endif
                                     @else
                                         <span class="text-gray-400">--:--:--</span>
                                     @endif
