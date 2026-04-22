@@ -73,8 +73,17 @@
               $cleanedToday = App\Models\CleaningHistory::where('user_id', auth()->id())
                   ->whereDate('end_time', today())
                   ->count();
+              // Penalty: rooms where time_to_clean has expired OR checkout > 4 hours ago
+              $penaltyCount = App\Models\Room::whereBranchId(auth()->user()->branch_id)
+                  ->where('status', 'Uncleaned')
+                  ->whereIn('floor_id', $floorIds)
+                  ->where(function($q) {
+                      $q->where('time_to_clean', '<=', now())
+                        ->orWhere('check_out_time', '<=', now()->subHours(4));
+                  })
+                  ->count();
           @endphp
-          <div class="grid grid-cols-4 gap-2 sm:gap-3">
+          <div class="grid grid-cols-5 gap-2 sm:gap-3">
             <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center">
               <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">To Clean</div>
               <div class="text-xl sm:text-3xl font-bold text-gray-900 mt-1">{{ $totalUncleaned }}</div>
@@ -84,18 +93,50 @@
               <div class="text-xl sm:text-3xl font-bold text-gray-900 mt-1">{{ $inProgress }}</div>
             </div>
             <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center">
-              <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Urgent</div>
+              <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Urgent (2h+)</div>
               <div class="text-xl sm:text-3xl font-bold mt-1 {{ $urgentCount > 0 ? 'text-red-600' : 'text-gray-900' }}">{{ $urgentCount }}</div>
             </div>
             <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center">
-              <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Done</div>
+              <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Done Today</div>
               <div class="text-xl sm:text-3xl font-bold text-gray-900 mt-1">{{ $cleanedToday }}</div>
+            </div>
+            <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center">
+              <div class="text-[10px] sm:text-xs text-red-500 uppercase tracking-wide font-semibold">Penalty</div>
+              <div class="text-xl sm:text-3xl font-bold mt-1 text-red-600">{{ $penaltyCount }}</div>
             </div>
           </div>
         </div>
 
       </div>
     </div>
+
+    {{-- Floor Filter Tabs --}}
+    @if (!request()->routeIs('roomboy.cleaning-history'))
+    <div class="mt-3 flex flex-wrap gap-2">
+        @php
+            $userFloors = auth()->user()->floors()
+                ->whereNotNull('floors.number')
+                ->orderBy('floors.id')
+                ->get()
+                ->unique('id')
+                ->values();
+        @endphp
+        <button
+            onclick="Livewire.emit('filterByFloor', 'all')"
+            class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
+            id="floor-tab-all">
+            ALL
+        </button>
+        @foreach($userFloors as $floor)
+            <button
+                onclick="Livewire.emit('filterByFloor', {{ $floor->id }})"
+                class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
+                id="floor-tab-{{ $floor->id }}">
+                {{ strtoupper($floor->number) }} FLOOR
+            </button>
+        @endforeach
+    </div>
+    @endif
 
     {{-- Main Content --}}
     <div>

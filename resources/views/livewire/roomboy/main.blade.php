@@ -12,11 +12,10 @@
                     <thead class="bg-gray-100 text-gray-600 border-b border-gray-200 sticky top-0">
                         <tr>
                             <th class="px-2 py-2 text-center font-medium">#</th>
-                            <th class="px-2 py-2 text-center font-medium">ROOM</th>
-                            <th class="px-2 py-2 text-center font-medium hidden sm:table-cell">FLOOR</th>
-                            <th class="px-2 py-2 text-center font-medium hidden md:table-cell">CHECKOUT</th>
-                            <th class="px-2 py-2 text-center font-medium">ELAPSED</th>
-                            <th class="px-2 py-2 text-center font-medium">TIME LEFT</th>
+                            <th class="px-2 py-2 text-center font-medium">ROOM #</th>
+                            <th class="px-2 py-2 text-center font-medium hidden sm:table-cell">FLOOR #</th>
+                            <th class="px-2 py-2 text-center font-medium hidden md:table-cell">CHECKOUT TIME</th>
+                            <th class="px-2 py-2 text-center font-medium">TIME TO CLEAN</th>
                             <th class="px-2 py-2 text-center font-medium">ACTION</th>
                         </tr>
                     </thead>
@@ -44,28 +43,7 @@
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $room->floor->number ?? $room->floor_id }}</td>
                                 <td class="px-2 py-2 text-center text-gray-800 hidden md:table-cell">{{ $checkoutTime->format('g:i A') }}</td>
 
-                                {{-- ELAPSED: Real-time count UP --}}
-                                <td class="px-2 py-2 text-center">
-                                    <div x-data="{
-                                        start: {{ $checkoutTimestamp }},
-                                        now: Date.now(),
-                                        init() { setInterval(() => this.now = Date.now(), 1000); },
-                                        get elapsed() {
-                                            let diff = Math.max(0, this.now - this.start);
-                                            let h = Math.floor(diff / 3600000);
-                                            let m = Math.floor((diff % 3600000) / 60000);
-                                            let s = Math.floor((diff % 60000) / 1000);
-                                            return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-                                        },
-                                        get hours() { return Math.floor((this.now - this.start) / 3600000); }
-                                    }">
-                                        <span class="font-mono text-sm"
-                                            :class="hours >= 4 ? 'text-red-600 font-bold' : (hours >= 2 ? 'text-red-600' : (hours >= 1 ? 'text-amber-600' : 'text-gray-700'))"
-                                            x-text="elapsed"></span>
-                                    </div>
-                                </td>
-
-                                {{-- TIME LEFT: Real-time countdown --}}
+                                {{-- TIME TO CLEAN: Real-time countdown --}}
                                 <td class="px-2 py-2 text-center">
                                     @if ($isExpired)
                                         <span class="font-mono text-sm text-red-600 font-bold">0:00:00</span>
@@ -86,7 +64,7 @@
                                             get isExpired() { return (this.deadline - this.now) <= 0; }
                                         }">
                                             <span class="font-mono text-sm"
-                                                :class="isExpired ? 'text-red-600 font-bold' : (isLow ? 'text-red-600 font-semibold' : 'text-green-600')"
+                                                :class="isExpired ? 'text-red-600 font-bold' : (isLow ? 'text-red-600 font-semibold' : 'text-gray-700')"
                                                 x-text="remaining"></span>
                                         </div>
                                     @endif
@@ -105,7 +83,7 @@
                                             params: [{{ $room->id }}]
                                         }"
                                     >
-                                        Start
+                                        Start Cleaning
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
@@ -114,7 +92,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-8 text-center text-gray-400 uppercase tracking-wide">
+                                <td colspan="6" class="px-4 py-8 text-center text-gray-400 uppercase tracking-wide">
                                     No Rooms To Clean
                                 </td>
                             </tr>
@@ -134,9 +112,9 @@
                     <thead class="bg-gray-100 text-gray-600 border-b border-gray-200 sticky top-0">
                         <tr>
                             <th class="px-2 py-2 text-center font-medium">#</th>
-                            <th class="px-2 py-2 text-center font-medium">ROOM</th>
-                            <th class="px-2 py-2 text-center font-medium hidden sm:table-cell">FLOOR</th>
-                            <th class="px-2 py-2 text-center font-medium">CLEANING TIME</th>
+                            <th class="px-2 py-2 text-center font-medium">ROOM #</th>
+                            <th class="px-2 py-2 text-center font-medium hidden sm:table-cell">FLOOR #</th>
+                            <th class="px-2 py-2 text-center font-medium">STARTED CLEANING</th>
                             <th class="px-2 py-2 text-center font-medium">ACTION</th>
                         </tr>
                     </thead>
@@ -146,31 +124,32 @@
                                 $startedAt = \Carbon\Carbon::parse($cleaning_room->started_cleaning_at);
                                 $startTimestamp = $startedAt->timestamp * 1000;
                                 $elapsedHours = now()->diffInHours($startedAt);
-                                $rowBg = $index % 2 == 0 ? 'bg-white' : 'bg-gray-50';
                             @endphp
-                            <tr wire:key="cleaning-{{ $cleaning_room->id }}" class="{{ $rowBg }}">
+                            <tr wire:key="cleaning-{{ $cleaning_room->id }}" class="bg-red-50">
                                 <td class="px-2 py-2 text-center text-gray-600">{{ $index + 1 }}.</td>
                                 <td class="px-2 py-2 text-center font-bold text-gray-900">{{ $cleaning_room->number }}</td>
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $cleaning_room->floor->number ?? $cleaning_room->floor_id }}</td>
 
-                                {{-- CLEANING TIME: Real-time count UP --}}
+                                {{-- STARTED CLEANING: Human readable time ago --}}
                                 <td class="px-2 py-2 text-center">
                                     <div x-data="{
                                         start: {{ $startTimestamp }},
                                         now: Date.now(),
                                         init() { setInterval(() => this.now = Date.now(), 1000); },
-                                        get elapsed() {
+                                        get timeAgo() {
                                             let diff = Math.max(0, this.now - this.start);
-                                            let h = Math.floor(diff / 3600000);
-                                            let m = Math.floor((diff % 3600000) / 60000);
-                                            let s = Math.floor((diff % 60000) / 1000);
-                                            return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                                            let s = Math.floor(diff / 1000);
+                                            let m = Math.floor(s / 60);
+                                            let h = Math.floor(m / 60);
+                                            if (h > 0) return h + ' hour' + (h > 1 ? 's' : '') + ' ago';
+                                            if (m > 0) return m + ' min' + (m > 1 ? 's' : '') + ' ago';
+                                            return s + ' second' + (s !== 1 ? 's' : '') + ' ago';
                                         },
                                         get hours() { return Math.floor((this.now - this.start) / 3600000); }
                                     }">
-                                        <span class="font-mono text-sm"
-                                            :class="hours >= 2 ? 'text-red-600 font-bold' : (hours >= 1 ? 'text-amber-600' : 'text-green-600')"
-                                            x-text="elapsed"></span>
+                                        <span class="text-sm"
+                                            :class="hours >= 2 ? 'text-red-600 font-bold' : 'text-gray-700'"
+                                            x-text="timeAgo"></span>
                                     </div>
                                 </td>
 
@@ -187,7 +166,7 @@
                                             params: [{{ $cleaning_room->id }}]
                                         }"
                                     >
-                                        Finish
+                                        Finish Cleaning
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>

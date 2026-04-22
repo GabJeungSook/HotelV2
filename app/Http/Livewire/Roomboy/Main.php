@@ -20,6 +20,13 @@ class Main extends Component
     public $rooms;
     public $selectedFloorId = 'all'; // Default to 'all' - show all rooms
 
+    protected $listeners = ['filterByFloor'];
+
+    public function filterByFloor($floorId)
+    {
+        $this->selectedFloorId = $floorId;
+    }
+
     public function mount()
     {
         $this->user = auth()->user();
