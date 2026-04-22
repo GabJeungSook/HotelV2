@@ -2,7 +2,7 @@
 
 namespace App\Http\Livewire\BackOffice\Reports;
 
-use App\Models\CheckInDetail;
+use App\Models\CheckinDetail;
 use App\Models\CleaningHistory;
 use App\Models\Rate;
 use App\Models\RoomBoyReport as reportQuery;
@@ -100,7 +100,7 @@ class RoomBoyReport extends Component
         }
 
         // Get checkout details only for rooms that have delayed cleanings
-        $occupyingDetails = CheckInDetail::whereIn('room_id', $roomIds)
+        $occupyingDetails = CheckinDetail::whereIn('room_id', $roomIds)
             ->where('is_check_out', true)
             ->whereBetween('check_out_at', [$dateFrom->copy()->subHours(24), $dateTo])
             ->with('guest:id,name')
