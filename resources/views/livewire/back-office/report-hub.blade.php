@@ -17,7 +17,7 @@
                     </label>
 
                     <select
-                        wire:model.live="report"
+                        wire:model="report"
                         class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
                     >
                         @foreach($this->reports as $key => $r)

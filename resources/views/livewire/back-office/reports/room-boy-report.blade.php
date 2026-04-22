@@ -126,7 +126,7 @@
             <div class="flex flex-wrap items-end gap-4">
                 <div class="flex-1 min-w-[300px]">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Select Shift</label>
-                    <select wire:model="selectedShiftLogId"
+                    <select wire:model.defer="selectedShiftLogId"
                             class="w-full rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500">
                         @forelse($availableShiftSessions as $session)
                             <option value="{{ $session['id'] }}">{{ $session['label'] }}</option>

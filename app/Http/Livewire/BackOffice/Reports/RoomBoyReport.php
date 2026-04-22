@@ -17,6 +17,7 @@ class RoomBoyReport extends Component
 {
     use WithPagination;
 
+    public $weekStart = null;
     public $activeTab = 'activity'; // 'activity' or 'penalties'
 
     // Activity filters
@@ -26,7 +27,7 @@ class RoomBoyReport extends Component
     public $total_cleaned = 0;
 
     // Penalty filters - shift-based like Z-Read
-    public $selectedShiftLogId;
+    public $selectedShiftLogId = '';
     public $availableShiftSessions = [];
     public $penalties = [];
     public $totalPenaltyAmount = 0;
@@ -189,7 +190,7 @@ class RoomBoyReport extends Component
 
     private function loadAvailableShiftSessions(): void
     {
-        $weekStart = now()->startOfWeek();
+        $weekStart = $this->weekStart ? Carbon::parse($this->weekStart)->startOfWeek() : now()->startOfWeek();
         $weekEnd = $weekStart->copy()->endOfWeek();
 
         $shiftLogs = ShiftLog::query()

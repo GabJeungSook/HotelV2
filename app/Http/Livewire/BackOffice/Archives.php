@@ -40,6 +40,10 @@ class Archives extends Component
                 'label' => 'Frontdesk Logs',
                 'component' => 'back-office.reports.frontdesk-logs',
             ],
+            'room-boy' => [
+                'label' => 'Room Boy Report',
+                'component' => 'back-office.reports.room-boy-report',
+            ],
         ];
     }
 
