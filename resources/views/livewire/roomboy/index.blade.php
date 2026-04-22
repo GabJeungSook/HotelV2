@@ -83,7 +83,7 @@
                   })
                   ->count();
           @endphp
-          <div class="grid grid-cols-5 gap-2 sm:gap-3">
+          <div class="grid grid-cols-4 gap-2 sm:gap-3">
             <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center border border-gray-200">
               <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">To Clean</div>
               <div class="text-xl sm:text-3xl font-bold text-gray-900 mt-1">{{ $totalUncleaned }}</div>
@@ -101,11 +101,13 @@
               <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Done Today</div>
               <div class="text-xl sm:text-3xl font-bold text-gray-900 mt-1">{{ $cleanedToday }}</div>
             </div>
+            {{-- Penalty card hidden for now - re-enable when needed
             <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center border border-red-200 cursor-pointer hover:bg-red-50 transition-colors"
                  onclick="Livewire.emit('showPenaltyModal')">
               <div class="text-[10px] sm:text-xs text-red-500 uppercase tracking-wide font-semibold">Penalty</div>
               <div class="text-xl sm:text-3xl font-bold mt-1 text-red-600">{{ $penaltyCount }}</div>
             </div>
+            --}}
           </div>
         </div>
 
