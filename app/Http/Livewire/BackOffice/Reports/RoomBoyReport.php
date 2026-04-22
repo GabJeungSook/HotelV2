@@ -96,7 +96,7 @@ class RoomBoyReport extends Component
                 ->toArray()
             : [];
 
-        // Get ALL completed cleanings within shift time window (same as Z-Read)
+        // Get ALL completed cleanings within shift time window (same as BigBoss Z-Read)
         $cleaningHistories = CleaningHistory::where('branch_id', $branchId)
             ->whereNotNull('end_time')
             ->whereBetween('end_time', [$timeIn, $timeOut])
@@ -104,88 +104,144 @@ class RoomBoyReport extends Component
             ->orderBy('end_time')
             ->get();
 
-        // Get room IDs from cleaning histories for targeted checkout query
-        $roomIds = $cleaningHistories->pluck('room_id')->unique()->toArray();
-
-        if (empty($roomIds)) {
+        if ($cleaningHistories->isEmpty()) {
             $this->penalties = [];
             $this->totalPenaltyAmount = 0;
             return;
         }
 
-        // Get checkout details - look back to catch delays from prior shift
-        // Same approach as BigBoss Z-Read uses
-        $occupyingDetails = CheckinDetail::whereIn('room_id', $roomIds)
-            ->where('is_check_out', true)
-            ->whereNotNull('check_out_at')
-            ->whereBetween('check_out_at', [$timeIn->copy()->subDays(7), $timeOut])
+        // Group cleanings by room_id, sorted by end_time (same as BigBoss)
+        $cleaningByRoom = $cleaningHistories->groupBy('room_id')->map(
+            fn ($group) => $group->sortBy(fn ($c) => Carbon::parse($c->end_time)->timestamp)->values()
+        );
+
+        $roomIdsWithCleanings = $cleaningByRoom->keys()->toArray();
+
+        // Get occupying details: checkins that overlap with this shift (same query as BigBoss)
+        $occupyingDetails = CheckinDetail::query()
+            ->whereIn('room_id', $roomIdsWithCleanings)
+            ->where('check_in_at', '<=', $timeOut)
+            ->where(function ($q) use ($timeIn) {
+                $q->whereNull('check_out_at')
+                  ->orWhere('check_out_at', '>=', $timeIn);
+            })
             ->with('guest:id,name')
+            ->get();
+
+        // Prior checkouts for orphan cleanings (same as BigBoss)
+        $priorCheckoutsByRoom = CheckinDetail::query()
+            ->whereIn('room_id', $roomIdsWithCleanings)
+            ->where('is_check_out', 1)
+            ->whereNotNull('check_out_at')
+            ->where('check_out_at', '<', $timeIn)
+            ->where('check_out_at', '>=', $timeIn->copy()->subDays(7))
+            ->with('guest:id,name')
+            ->orderBy('check_out_at', 'desc')
             ->get()
             ->groupBy('room_id');
 
         $this->penalties = [];
         $this->totalPenaltyAmount = 0;
 
-        foreach ($cleaningHistories as $cleaning) {
-            $roomCheckouts = $occupyingDetails->get($cleaning->room_id);
-            if (!$roomCheckouts) {
-                continue;
+        // Process each room that has cleanings (same matching logic as BigBoss buildRoomCleaningChart)
+        foreach ($cleaningByRoom as $roomId => $roomCleanings) {
+            $roomCheckins = $occupyingDetails->where('room_id', $roomId)->sortBy('check_in_at');
+            $usedCleaningIds = [];
+
+            // Step 1: Match checked-out guests to cleanings (checkout → first cleaning after checkout)
+            foreach ($roomCheckins as $checkin) {
+                $isCheckedOut = $checkin->is_check_out && $checkin->check_out_at
+                    && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut);
+
+                if (!$isCheckedOut) {
+                    continue;
+                }
+
+                $checkOutAt = Carbon::parse($checkin->check_out_at);
+                $matchedCleaning = $roomCleanings
+                    ->reject(fn ($c) => in_array($c->id, $usedCleaningIds))
+                    ->filter(fn ($c) => $c->end_time && Carbon::parse($c->end_time)->gte($checkOutAt))
+                    ->sortBy(fn ($c) => Carbon::parse($c->end_time)->timestamp)
+                    ->first();
+
+                if (!$matchedCleaning) {
+                    continue;
+                }
+
+                $usedCleaningIds[] = $matchedCleaning->id;
+                $cleaningEnd = Carbon::parse($matchedCleaning->end_time);
+                $durationSeconds = $checkOutAt->diffInSeconds($cleaningEnd);
+
+                $this->addPenaltyIfExceeded(
+                    $durationSeconds, $cleaningEnd, $matchedCleaning, $checkOutAt, $checkin, $baseRatesByType
+                );
             }
 
-            $cleaningEnd = Carbon::parse($cleaning->end_time);
+            // Step 2: Handle orphan cleanings (same as BigBoss orphan handling)
+            foreach ($roomCleanings as $cleaning) {
+                if (in_array($cleaning->id, $usedCleaningIds)) {
+                    continue;
+                }
 
-            // Find the most recent checkout before this cleaning ended
-            $checkoutDetail = $roomCheckouts
-                ->filter(function ($d) use ($cleaningEnd) {
-                    return Carbon::parse($d->check_out_at)->lte($cleaningEnd);
-                })
-                ->sortByDesc('check_out_at')
-                ->first();
+                $cleaningEnd = Carbon::parse($cleaning->end_time);
 
-            if (!$checkoutDetail) {
-                continue;
+                // Find prior checkout from before the shift
+                $priorCheckout = ($priorCheckoutsByRoom[$roomId] ?? collect())
+                    ->first(fn ($d) => Carbon::parse($d->check_out_at)->lte($cleaningEnd));
+
+                if (!$priorCheckout) {
+                    continue;
+                }
+
+                $checkOutAt = Carbon::parse($priorCheckout->check_out_at);
+                $durationSeconds = $checkOutAt->diffInSeconds($cleaningEnd);
+
+                $this->addPenaltyIfExceeded(
+                    $durationSeconds, $cleaningEnd, $cleaning, $checkOutAt, $priorCheckout, $baseRatesByType
+                );
             }
-
-            $checkoutTime = Carbon::parse($checkoutDetail->check_out_at);
-            $durationSeconds = $checkoutTime->diffInSeconds($cleaningEnd);
-            $durationMinutes = intdiv($durationSeconds, 60);
-
-            // Only include if cleaning took MORE than 4 hours (240 minutes)
-            if ($durationMinutes <= 240) {
-                continue;
-            }
-
-            $durationHours = intdiv($durationMinutes, 60);
-            $durationMins = $durationMinutes % 60;
-
-            // Calculate excess time over 4 hours
-            $excessMinutes = $durationMinutes - 240;
-            $excessHours = intdiv($excessMinutes, 60);
-            $excessMins = $excessMinutes % 60;
-
-            $penaltyAmount = $baseRatesByType[$cleaning->room->type_id ?? 0] ?? 0;
-
-            $this->penalties[] = [
-                'date' => $cleaningEnd->format('M d, Y'),
-                'room_number' => $cleaning->room->number ?? 'N/A',
-                'room_type' => $cleaning->room->type->name ?? 'N/A',
-                'floor' => $cleaning->room->floor->number ?? 'N/A',
-                'roomboy_name' => $cleaning->user->name ?? 'N/A',
-                'guest_name' => $checkoutDetail->guest->name ?? 'N/A',
-                'checkout_time' => $checkoutTime->format('g:i A'),
-                'cleaning_end' => $cleaningEnd->format('g:i A'),
-                'duration' => $durationHours . 'h ' . $durationMins . 'm',
-                'excess' => $excessHours . 'h ' . $excessMins . 'm',
-                'amount' => $penaltyAmount,
-            ];
-
-            $this->totalPenaltyAmount += $penaltyAmount;
         }
 
         // Sort by cleaning end time
         usort($this->penalties, function ($a, $b) {
             return strcmp($a['cleaning_end'], $b['cleaning_end']);
         });
+    }
+
+    private function addPenaltyIfExceeded(
+        int $durationSeconds, Carbon $cleaningEnd, $cleaning, Carbon $checkOutAt, $checkoutDetail, array $baseRatesByType
+    ): void {
+        $durationMinutes = intdiv($durationSeconds, 60);
+
+        // Only include if cleaning took MORE than 4 hours (240 minutes)
+        if ($durationMinutes <= 240) {
+            return;
+        }
+
+        $durationHours = intdiv($durationMinutes, 60);
+        $durationMins = $durationMinutes % 60;
+
+        $excessMinutes = $durationMinutes - 240;
+        $excessHours = intdiv($excessMinutes, 60);
+        $excessMins = $excessMinutes % 60;
+
+        $penaltyAmount = $baseRatesByType[$cleaning->room->type_id ?? 0] ?? 0;
+
+        $this->penalties[] = [
+            'date' => $cleaningEnd->format('M d, Y'),
+            'room_number' => $cleaning->room->number ?? 'N/A',
+            'room_type' => $cleaning->room->type->name ?? 'N/A',
+            'floor' => $cleaning->room->floor->number ?? 'N/A',
+            'roomboy_name' => $cleaning->user->name ?? 'N/A',
+            'guest_name' => $checkoutDetail->guest->name ?? 'N/A',
+            'checkout_time' => $checkOutAt->format('g:i A'),
+            'cleaning_end' => $cleaningEnd->format('g:i A'),
+            'duration' => $durationHours . 'h ' . $durationMins . 'm',
+            'excess' => $excessHours . 'h ' . $excessMins . 'm',
+            'amount' => $penaltyAmount,
+        ];
+
+        $this->totalPenaltyAmount += $penaltyAmount;
     }
 
     private function loadAvailableShiftSessions(): void
