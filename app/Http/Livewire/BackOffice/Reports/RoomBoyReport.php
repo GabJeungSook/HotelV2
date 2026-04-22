@@ -87,8 +87,10 @@ class RoomBoyReport extends Component
             ->with(['room.type', 'room.floor', 'user'])
             ->get();
 
-        // Get checkout details for matching
-        $occupyingDetails = CheckInDetail::where('branch_id', $branchId)
+        // Get checkout details for matching (filter via room's branch)
+        $occupyingDetails = CheckInDetail::whereHas('room', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            })
             ->where('is_check_out', true)
             ->whereBetween('check_out_at', [$dateFrom->copy()->subHours(24), $dateTo])
             ->with('guest')
