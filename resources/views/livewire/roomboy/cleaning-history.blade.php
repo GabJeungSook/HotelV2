@@ -22,7 +22,7 @@
                 <x-input label="From" type="date" wire:model="date_from" class="h-10 text-base" placeholder="Date From" />
                 <x-input label="To" type="date" wire:model="date_to" class="h-10 text-base" placeholder="Date To" />
                </div>
-              <div class="p-4">
+              <div class="p-4 overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 rounded-md overflow-hidden shadow">
                     <thead class="bg-[#009ff4]">
                         <tr>

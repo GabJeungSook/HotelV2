@@ -72,7 +72,13 @@
       </nav>
       <header class="py-10 font-rubik">
         <div class="px-4 max-w-full sm:px-6 lg:px-8 text-center xl:text-left">
-          <h1 class="text-2xl font-bold tracking-tight xl:text-3xl text-gray-50">ROOMBOY DASHBOARD</h1>
+          <h1 class="text-2xl font-bold tracking-tight xl:text-3xl text-gray-50">
+            @if(request()->routeIs('roomboy.cleaning-history'))
+              CLEANING HISTORY
+            @else
+              ROOMBOY DASHBOARD
+            @endif
+          </h1>
         </div>
       </header>
     </div>
