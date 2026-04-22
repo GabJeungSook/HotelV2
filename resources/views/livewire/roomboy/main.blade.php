@@ -47,14 +47,14 @@
                                         <div x-data="{
                                             deadline: {{ $deadlineTimestamp }},
                                             now: Date.now(),
-                                            init() { setInterval(() => this.now = Date.now(), 1000); },
+                                            init() { var self = this; setInterval(function() { self.now = Date.now(); }, 1000); },
                                             get remaining() {
-                                                let diff = Math.max(0, this.deadline - this.now);
+                                                var diff = Math.max(0, this.deadline - this.now);
                                                 if (diff <= 0) return '0:00:00';
-                                                let h = Math.floor(diff / 3600000);
-                                                let m = Math.floor((diff % 3600000) / 60000);
-                                                let s = Math.floor((diff % 60000) / 1000);
-                                                return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                                                var h = Math.floor(diff / 3600000);
+                                                var m = Math.floor((diff % 3600000) / 60000);
+                                                var s = Math.floor((diff % 60000) / 1000);
+                                                return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
                                             },
                                             get isLow() { return (this.deadline - this.now) < 1800000; },
                                             get isExpired() { return (this.deadline - this.now) <= 0; }
@@ -132,13 +132,13 @@
                                     <div x-data="{
                                         start: {{ $startTimestamp }},
                                         now: Date.now(),
-                                        init() { setInterval(() => this.now = Date.now(), 1000); },
+                                        init() { var self = this; setInterval(function() { self.now = Date.now(); }, 1000); },
                                         get timeAgo() {
-                                            let diff = Math.max(0, this.now - this.start);
-                                            let totalSecs = Math.floor(diff / 1000);
-                                            let h = Math.floor(totalSecs / 3600);
-                                            let m = Math.floor((totalSecs % 3600) / 60);
-                                            let s = totalSecs % 60;
+                                            var diff = Math.max(0, this.now - this.start);
+                                            var totalSecs = Math.floor(diff / 1000);
+                                            var h = Math.floor(totalSecs / 3600);
+                                            var m = Math.floor((totalSecs % 3600) / 60);
+                                            var s = totalSecs % 60;
                                             if (h > 0) return h + ' hr' + (h > 1 ? 's' : '') + ' ' + m + ' min' + (m !== 1 ? 's' : '') + ' ago';
                                             if (m > 0) return m + ' min' + (m !== 1 ? 's' : '') + ' ' + s + ' sec' + (s !== 1 ? 's' : '') + ' ago';
                                             return s + ' sec' + (s !== 1 ? 's' : '') + ' ago';
