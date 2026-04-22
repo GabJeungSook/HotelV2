@@ -124,8 +124,9 @@
                                 $startedAt = \Carbon\Carbon::parse($cleaning_room->started_cleaning_at);
                                 $startTimestamp = $startedAt->timestamp * 1000;
                                 $elapsedHours = now()->diffInHours($startedAt);
+                                $cleaningRowBg = $elapsedHours >= 2 ? 'bg-red-50' : ($index % 2 == 0 ? 'bg-white' : 'bg-gray-50');
                             @endphp
-                            <tr wire:key="cleaning-{{ $cleaning_room->id }}" class="bg-red-50">
+                            <tr wire:key="cleaning-{{ $cleaning_room->id }}" class="{{ $cleaningRowBg }}">
                                 <td class="px-2 py-2 text-center text-gray-600">{{ $index + 1 }}.</td>
                                 <td class="px-2 py-2 text-center font-bold text-gray-900">{{ $cleaning_room->number }}</td>
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $cleaning_room->floor->number ?? $cleaning_room->floor_id }}</td>
