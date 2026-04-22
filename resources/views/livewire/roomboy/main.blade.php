@@ -188,4 +188,103 @@
         </div>
 
     </div>
+
+    {{-- Done Today Modal --}}
+    @if($showDoneTodayModal)
+    <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="closeDoneTodayModal"></div>
+            <div class="relative bg-white rounded-lg shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+                <div class="bg-green-500 px-4 py-3 rounded-t-lg">
+                    <h3 class="text-lg font-semibold text-white uppercase">Rooms Cleaned Today</h3>
+                </div>
+                <div class="px-4 py-4 max-h-96 overflow-y-auto">
+                    @if(count($doneTodayRooms) > 0)
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-3 py-2 text-center font-medium text-gray-600">Room #</th>
+                                    <th class="px-3 py-2 text-center font-medium text-gray-600">Floor</th>
+                                    <th class="px-3 py-2 text-center font-medium text-gray-600">Finished At</th>
+                                    <th class="px-3 py-2 text-center font-medium text-gray-600">Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($doneTodayRooms as $history)
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-3 py-2 text-center font-bold">{{ $history->room->number ?? 'N/A' }}</td>
+                                        <td class="px-3 py-2 text-center">{{ $history->floor->number ?? 'N/A' }}</td>
+                                        <td class="px-3 py-2 text-center">{{ \Carbon\Carbon::parse($history->end_time)->format('g:i A') }}</td>
+                                        <td class="px-3 py-2 text-center">{{ $history->cleaning_duration }} mins</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @else
+                        <p class="text-gray-500 text-center py-8">No rooms cleaned today yet.</p>
+                    @endif
+                </div>
+                <div class="bg-gray-50 px-4 py-3 rounded-b-lg flex justify-end">
+                    <button wire:click="closeDoneTodayModal" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    {{-- Penalty Rooms Modal --}}
+    @if($showPenaltyModal)
+    <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="closePenaltyModal"></div>
+            <div class="relative bg-white rounded-lg shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+                <div class="bg-red-500 px-4 py-3 rounded-t-lg">
+                    <h3 class="text-lg font-semibold text-white uppercase">Penalty Rooms (4h+ Exceeded)</h3>
+                </div>
+                <div class="px-4 py-4 max-h-96 overflow-y-auto">
+                    @if(count($penaltyRooms) > 0)
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-3 py-2 text-center font-medium text-gray-600">Room #</th>
+                                    <th class="px-3 py-2 text-center font-medium text-gray-600">Floor</th>
+                                    <th class="px-3 py-2 text-center font-medium text-gray-600">Checkout</th>
+                                    <th class="px-3 py-2 text-center font-medium text-gray-600">Exceeded By</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($penaltyRooms as $room)
+                                    @php
+                                        $checkoutTime = \Carbon\Carbon::parse($room->check_out_time);
+                                        $deadline = $room->time_to_clean ? \Carbon\Carbon::parse($room->time_to_clean) : $checkoutTime->copy()->addHours(4);
+                                        $exceededMins = now()->diffInMinutes($deadline);
+                                        $exceededHrs = floor($exceededMins / 60);
+                                        $exceededMinsRem = $exceededMins % 60;
+                                    @endphp
+                                    <tr class="hover:bg-red-50">
+                                        <td class="px-3 py-2 text-center font-bold">{{ $room->number }}</td>
+                                        <td class="px-3 py-2 text-center">{{ $room->floor->number ?? $room->floor_id }}</td>
+                                        <td class="px-3 py-2 text-center">{{ $checkoutTime->format('g:i A') }}</td>
+                                        <td class="px-3 py-2 text-center text-red-600 font-semibold">
+                                            {{ $exceededHrs > 0 ? $exceededHrs . 'h ' : '' }}{{ $exceededMinsRem }}m
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @else
+                        <p class="text-gray-500 text-center py-8">No penalty rooms.</p>
+                    @endif
+                </div>
+                <div class="bg-gray-50 px-4 py-3 rounded-b-lg flex justify-end">
+                    <button wire:click="closePenaltyModal" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>

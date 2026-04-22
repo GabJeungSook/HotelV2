@@ -96,11 +96,13 @@
               <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Urgent (2h+)</div>
               <div class="text-xl sm:text-3xl font-bold mt-1 {{ $urgentCount > 0 ? 'text-red-600' : 'text-gray-900' }}">{{ $urgentCount }}</div>
             </div>
-            <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center">
+            <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center cursor-pointer hover:bg-gray-50 transition-colors"
+                 onclick="Livewire.emit('showDoneTodayModal')">
               <div class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Done Today</div>
               <div class="text-xl sm:text-3xl font-bold text-gray-900 mt-1">{{ $cleanedToday }}</div>
             </div>
-            <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center">
+            <div class="bg-white rounded-lg px-2 py-2 sm:px-4 sm:py-3 text-center cursor-pointer hover:bg-red-50 transition-colors"
+                 onclick="Livewire.emit('showPenaltyModal')">
               <div class="text-[10px] sm:text-xs text-red-500 uppercase tracking-wide font-semibold">Penalty</div>
               <div class="text-xl sm:text-3xl font-bold mt-1 text-red-600">{{ $penaltyCount }}</div>
             </div>

@@ -20,11 +20,52 @@ class Main extends Component
     public $rooms;
     public $selectedFloorId = 'all'; // Default to 'all' - show all rooms
 
-    protected $listeners = ['filterByFloor'];
+    protected $listeners = ['filterByFloor', 'showDoneTodayModal', 'showPenaltyModal'];
+
+    public $showDoneTodayModal = false;
+    public $showPenaltyModal = false;
+    public $doneTodayRooms = [];
+    public $penaltyRooms = [];
 
     public function filterByFloor($floorId)
     {
         $this->selectedFloorId = $floorId;
+    }
+
+    public function showDoneTodayModal()
+    {
+        $this->doneTodayRooms = CleaningHistory::where('user_id', auth()->id())
+            ->whereDate('end_time', today())
+            ->with(['room', 'floor'])
+            ->orderBy('end_time', 'desc')
+            ->get();
+        $this->showDoneTodayModal = true;
+    }
+
+    public function showPenaltyModal()
+    {
+        $floorIds = $this->floors->pluck('id')->toArray();
+        $this->penaltyRooms = Room::whereBranchId(auth()->user()->branch_id)
+            ->where('status', 'Uncleaned')
+            ->whereIn('floor_id', $floorIds)
+            ->where(function($q) {
+                $q->where('time_to_clean', '<=', now())
+                  ->orWhere('check_out_time', '<=', now()->subHours(4));
+            })
+            ->with('floor')
+            ->orderBy('check_out_time', 'asc')
+            ->get();
+        $this->showPenaltyModal = true;
+    }
+
+    public function closeDoneTodayModal()
+    {
+        $this->showDoneTodayModal = false;
+    }
+
+    public function closePenaltyModal()
+    {
+        $this->showPenaltyModal = false;
     }
 
     public function mount()
