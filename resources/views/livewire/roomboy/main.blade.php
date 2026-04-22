@@ -1,4 +1,5 @@
 <div class="mt-4" wire:poll.5s>
+    @php $serverNow = now()->timestamp * 1000; @endphp
     {{-- Side by Side Tables --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -46,8 +47,10 @@
                                     @else
                                         <div x-data="{
                                             deadline: {{ $deadlineTimestamp }},
-                                            now: Date.now(),
-                                            init() { var self = this; setInterval(function() { self.now = Date.now(); }, 1000); },
+                                            serverNow: {{ $serverNow }},
+                                            offset: {{ $serverNow }} - Date.now(),
+                                            now: {{ $serverNow }},
+                                            init() { var self = this; setInterval(function() { self.now = Date.now() + self.offset; }, 1000); },
                                             get remaining() {
                                                 var diff = Math.max(0, this.deadline - this.now);
                                                 if (diff <= 0) return '0:00:00';
@@ -131,8 +134,9 @@
                                 <td class="px-2 py-2 text-center">
                                     <div x-data="{
                                         start: {{ $startTimestamp }},
-                                        now: Date.now(),
-                                        init() { var self = this; setInterval(function() { self.now = Date.now(); }, 1000); },
+                                        offset: {{ $serverNow }} - Date.now(),
+                                        now: {{ $serverNow }},
+                                        init() { var self = this; setInterval(function() { self.now = Date.now() + self.offset; }, 1000); },
                                         get timeAgo() {
                                             var diff = Math.max(0, this.now - this.start);
                                             var totalSecs = Math.floor(diff / 1000);
