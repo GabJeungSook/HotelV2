@@ -93,11 +93,17 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @forelse ($cleaningRooms as $index => $cleaning_room)
-                            <tr wire:key="cleaning-{{ $cleaning_room->id }}" class="{{ $index % 2 == 0 ? 'bg-green-50' : 'bg-green-100' }}">
+                            @php
+                                $startedAt = \Carbon\Carbon::parse($cleaning_room->started_cleaning_at);
+                                $elapsedHours = now()->diffInHours($startedAt);
+                                // Red warning if cleaning takes 2+ hours
+                                $rowBg = $elapsedHours >= 2 ? 'bg-red-100' : ($index % 2 == 0 ? 'bg-green-50' : 'bg-green-100');
+                            @endphp
+                            <tr wire:key="cleaning-{{ $cleaning_room->id }}" class="{{ $rowBg }}">
                                 <td class="px-3 py-2 text-center text-gray-600">{{ $index + 1 }}.</td>
                                 <td class="px-3 py-2 text-center font-semibold text-gray-900">{{ $cleaning_room->number }}</td>
                                 <td class="px-3 py-2 text-center text-gray-700">{{ $cleaning_room->floor->number ?? $cleaning_room->floor_id }}</td>
-                                <td class="px-3 py-2 text-center text-gray-700">{{ \Carbon\Carbon::parse($cleaning_room->started_cleaning_at)->diffForHumans() }}</td>
+                                <td class="px-3 py-2 text-center {{ $elapsedHours >= 2 ? 'text-red-600 font-semibold' : 'text-gray-700' }}">{{ \Carbon\Carbon::parse($cleaning_room->started_cleaning_at)->diffForHumans() }}</td>
                                 <td class="px-3 py-2 text-center">
                                     <button
                                         wire:loading.attr="disabled"
