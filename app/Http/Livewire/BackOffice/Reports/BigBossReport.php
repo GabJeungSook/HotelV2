@@ -729,12 +729,12 @@ class BigBossReport extends Component
         $penalties = [];
         $total = 0;
 
-        // Get delayed cleanings (where cleaning took more than 4 hours from checkout)
-        $delayedCleanings = $cleaningHistories->filter(function($ch) {
-            return $ch->delayed_cleaning == true;
+        // Get completed cleanings only (must have end_time)
+        $completedCleanings = $cleaningHistories->filter(function($ch) {
+            return $ch->end_time !== null;
         });
 
-        foreach ($delayedCleanings as $cleaning) {
+        foreach ($completedCleanings as $cleaning) {
             // Find the checkout that this cleaning was for
             $checkoutDetail = $occupyingDetails
                 ->where('room_id', $cleaning->room_id)
@@ -747,12 +747,23 @@ class BigBossReport extends Component
                 ->sortByDesc('check_out_at')
                 ->first();
 
-            $guestName = $checkoutDetail?->guest?->name ?? 'N/A';
-            $checkoutTime = $checkoutDetail ? Carbon::parse($checkoutDetail->check_out_at) : null;
+            // Skip if no matching checkout record
+            if (!$checkoutDetail) {
+                continue;
+            }
+
+            $guestName = $checkoutDetail->guest->name ?? 'N/A';
+            $checkoutTime = Carbon::parse($checkoutDetail->check_out_at);
+            $cleaningEnd = Carbon::parse($cleaning->end_time);
 
             // Calculate duration from checkout to cleaning end
-            $cleaningEnd = Carbon::parse($cleaning->end_time);
-            $durationMinutes = $checkoutTime ? $checkoutTime->diffInMinutes($cleaningEnd) : 0;
+            $durationMinutes = $checkoutTime->diffInMinutes($cleaningEnd);
+
+            // Only include if cleaning took MORE than 4 hours (240 minutes)
+            if ($durationMinutes <= 240) {
+                continue;
+            }
+
             $durationHours = floor($durationMinutes / 60);
             $durationMins = $durationMinutes % 60;
 
@@ -766,7 +777,7 @@ class BigBossReport extends Component
                 'room_number' => $cleaning->room->number ?? 'N/A',
                 'roomboy_name' => $cleaning->user->name ?? 'N/A',
                 'guest_name' => $guestName,
-                'checkout_time' => $checkoutTime ? $checkoutTime->format('g:i A') : 'N/A',
+                'checkout_time' => $checkoutTime->format('g:i A'),
                 'duration' => $durationHours . 'h ' . $durationMins . 'm',
                 'amount' => $penaltyAmount,
             ];
