@@ -237,9 +237,17 @@
         <div class="flex gap-6">
           {{-- Left Column --}}
           <div class="flex-1 space-y-4">
-            {{-- Requester --}}
+            {{-- Guest --}}
             <div>
-              <label class="block text-xs text-gray-500 mb-1">Requester:</label>
+              <label class="block text-xs text-gray-500 mb-1">Guest:</label>
+              <div class="bg-gray-100 rounded px-3 py-2 text-sm font-medium text-gray-700">
+                {{ strtoupper($guest->name ?? 'N/A') }}
+              </div>
+            </div>
+
+            {{-- Frontdesk --}}
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Frontdesk:</label>
               <div class="bg-gray-100 rounded px-3 py-2 text-sm font-medium text-gray-700">
                 {{ strtoupper(auth()->user()->name) }}
               </div>

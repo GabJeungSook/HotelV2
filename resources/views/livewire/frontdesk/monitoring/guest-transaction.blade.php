@@ -1250,11 +1250,11 @@
       </div>
 
       <div class="space-y-4">
-        {{-- Requester --}}
+        {{-- Guest and Room --}}
         <div class="flex space-x-4">
           <div class="flex-1">
-            <label class="text-sm text-gray-500">Requester:</label>
-            <input type="text" value="{{ auth()->user()->name }}" disabled
+            <label class="text-sm text-gray-500">Guest:</label>
+            <input type="text" value="{{ $check_in_details->guest->name ?? 'N/A' }}" disabled
               class="w-full bg-gray-100 border-gray-300 rounded-lg text-gray-700">
           </div>
           <div class="w-32">
@@ -1263,6 +1263,13 @@
               <span class="text-2xl font-bold text-gray-700">{{ $check_in_details->room->number ?? 'N/A' }}</span>
             </div>
           </div>
+        </div>
+
+        {{-- Frontdesk --}}
+        <div>
+          <label class="text-sm text-gray-500">Frontdesk:</label>
+          <input type="text" value="{{ auth()->user()->name }}" disabled
+            class="w-full bg-gray-100 border-gray-300 rounded-lg text-gray-700">
         </div>
 
         {{-- Transaction Type --}}

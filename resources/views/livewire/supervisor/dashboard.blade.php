@@ -92,7 +92,7 @@
                             <tr>
                                 <th scope="col" class="w-1"></th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room #</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction Type</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transfer To</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
@@ -231,9 +231,10 @@
                             <th class="px-4 py-2 text-left text-xs font-medium uppercase">#</th>
                             <th class="px-4 py-2 text-left text-xs font-medium uppercase">Date/Time</th>
                             <th class="px-4 py-2 text-left text-xs font-medium uppercase">Room #</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Requester</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Guest</th>
                             <th class="px-4 py-2 text-left text-xs font-medium uppercase">Transaction Type</th>
                             <th class="px-4 py-2 text-left text-xs font-medium uppercase">Reason</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Frontdesk</th>
                             <th class="px-4 py-2 text-left text-xs font-medium uppercase">Action</th>
                         </tr>
                     </thead>
@@ -258,6 +259,7 @@
                                     {{ $request->transferReason->reason ?? 'N/A' }}
                                 @endif
                             </td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->requester->name ?? 'N/A' }}</td>
                             <td class="px-4 py-3 text-sm">
                                 @if($request->status === 'declined')
                                     <span class="text-red-600 font-medium">Declined</span>
@@ -268,7 +270,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-8 text-center text-gray-500">No records found for this date.</td>
+                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">No records found for this date.</td>
                         </tr>
                         @endforelse
                     </tbody>
