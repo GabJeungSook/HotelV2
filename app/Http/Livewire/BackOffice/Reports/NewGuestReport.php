@@ -47,7 +47,7 @@ class NewGuestReport extends Component
             ->where('branch_id', auth()->user()->branch_id)
             ->with([
                 'room:id,number',
-                'checkinDetail:id,guest_id,check_in_at,hours_stayed,frontdesk_id',
+                'checkinDetail:id,guest_id,check_in_at,check_out_at,hours_stayed,frontdesk_id',
                 'checkinDetail.guest:id,name',
                 'checkinDetail.frontdesk:id,name',
                 'checkinDetail.extendedGuestReports:id,checkin_details_id,total_hours',

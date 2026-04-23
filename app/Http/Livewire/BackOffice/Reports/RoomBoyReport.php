@@ -30,6 +30,7 @@ class RoomBoyReport extends Component
     public $selectedShiftLogId = '';
     public $availableShiftSessions = [];
     public $penalties = [];
+    public $groupedPenalties = [];
     public $totalPenaltyAmount = 0;
 
     protected $paginationTheme = 'tailwind';
@@ -76,6 +77,7 @@ class RoomBoyReport extends Component
         $session = $this->getSelectedSession();
         if (!$session) {
             $this->penalties = [];
+            $this->groupedPenalties = [];
             $this->totalPenaltyAmount = 0;
             return;
         }
@@ -106,6 +108,7 @@ class RoomBoyReport extends Component
 
         if ($cleaningHistories->isEmpty()) {
             $this->penalties = [];
+            $this->groupedPenalties = [];
             $this->totalPenaltyAmount = 0;
             return;
         }
@@ -206,6 +209,11 @@ class RoomBoyReport extends Component
         usort($this->penalties, function ($a, $b) {
             return strcmp($a['cleaning_end'], $b['cleaning_end']);
         });
+
+        // Group penalties by room boy name
+        $this->groupedPenalties = collect($this->penalties)
+            ->groupBy('roomboy_name')
+            ->toArray();
     }
 
     private function addPenaltyIfExceeded(
