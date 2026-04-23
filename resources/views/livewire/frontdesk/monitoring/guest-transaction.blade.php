@@ -104,7 +104,11 @@
             </div>
             <div class="mt-4">
                 @if (!$guest->transactions->whereNotIn('transaction_type_id', [1, 2])->count() > 0)
-                <x-button wire:ignore wire:click="cancelTransaction" class="w-full" label="Cancel Transaction" icon="x" negative />
+                    @if($this->hasPendingCancelRequest)
+                        <x-button wire:ignore class="w-full" label="Pending Approval" icon="clock" disabled />
+                    @else
+                        <x-button wire:ignore wire:click="cancelTransaction" class="w-full" label="Cancel Transaction" icon="x" negative />
+                    @endif
                 @endif
             </div>
           </div>
@@ -1307,10 +1311,8 @@
       </div>
 
       <div class="mt-6 flex justify-end items-center space-x-2">
-        <x-button wire:click="submitCancelOverrideRequest" class="bg-red-600 hover:bg-red-700 text-white font-bold px-6"
-          spinner="submitCancelOverrideRequest">
-          REQUEST OVERRIDE
-        </x-button>
+        <x-button wire:click="submitCancelOverrideRequest" negative label="REQUEST OVERRIDE"
+          spinner="submitCancelOverrideRequest" />
         <x-button x-on:click="close" label="CANCEL" flat />
       </div>
     </x-card>

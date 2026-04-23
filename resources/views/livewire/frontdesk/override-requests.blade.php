@@ -16,7 +16,7 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-100">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaction Type</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guest</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">To Room</th>
@@ -49,8 +49,8 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->supervisor->name ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $request->created_at->format('M d, Y h:i A') }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <button wire:click="confirmCancelRequest({{ $request->id }})" class="text-red-600 hover:text-red-800 text-sm font-medium">
-                                Cancel
+                            <button wire:click="confirmCancelRequest({{ $request->id }})" class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-4 py-1.5 rounded">
+                                CANCEL
                             </button>
                         </td>
                     </tr>
@@ -77,7 +77,7 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-red-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaction Type</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guest</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
@@ -112,8 +112,8 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             @if($request->transaction_type === 'transfer')
                                 @if(!$this->guestHasActiveRequest($request->guest_id))
-                                    <button wire:click="retryRequest({{ $request->id }})" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                                        Retry Transfer
+                                    <button wire:click="retryRequest({{ $request->id }})" class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded">
+                                        RETRY
                                     </button>
                                 @else
                                     <span class="text-gray-400 text-sm">Has Active Request</span>

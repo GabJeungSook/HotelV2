@@ -2671,6 +2671,17 @@ class GuestTransaction extends Component
     }
 
     /**
+     * Check if guest has a pending cancel override request
+     */
+    public function getHasPendingCancelRequestProperty()
+    {
+        return OverrideRequest::where('guest_id', $this->guest_id)
+            ->where('transaction_type', 'cancel')
+            ->where('status', 'pending')
+            ->exists();
+    }
+
+    /**
      * Auto-approve cancel request (when force_auto_override is enabled)
      */
     private function autoApproveCancelRequest()
