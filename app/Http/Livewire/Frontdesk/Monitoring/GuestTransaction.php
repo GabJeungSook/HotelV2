@@ -30,6 +30,7 @@ use App\Models\FrontdeskInventory;
 use App\Models\CheckOutGuestReport;
 use App\Models\ExtendedGuestReport;
 use App\Models\TransferReason;
+use App\Models\OverrideRequest;
 use Filament\Forms\Components\Actions\Modal\Actions\Action;
 
 class GuestTransaction extends Component
@@ -59,6 +60,12 @@ class GuestTransaction extends Component
     public $override_modal = false;
 
     public $deposit_summary_modal = false;
+
+    // Cancel Override
+    public $cancel_override_modal = false;
+    public $cancel_request_submitted_modal = false;
+    public $cancel_reason = '';
+    public $selected_cancel_supervisor_id = null;
 
     //Deposit
     public $deposit_amount;
@@ -2621,7 +2628,111 @@ class GuestTransaction extends Component
     public function proceedAuthorization()
     {
         $this->deposit_summary_modal = false;
-        $this->autorization_cancel_modal = true;
+
+        // Check if force_auto_override is enabled
+        if (auth()->user()->branch->force_auto_override) {
+            // Auto-approve and proceed with cancel
+            $this->autoApproveCancelRequest();
+        } else {
+            // Show the cancel override request modal
+            $this->cancel_reason = '';
+            $this->selected_cancel_supervisor_id = null;
+            $this->cancel_override_modal = true;
+        }
+    }
+
+    /**
+     * Get available supervisors for the branch
+     */
+    public function getSupervisorsProperty()
+    {
+        return User::role('supervisor')
+            ->where('branch_id', auth()->user()->branch_id)
+            ->get();
+    }
+
+    /**
+     * Auto-approve cancel request (when force_auto_override is enabled)
+     */
+    private function autoApproveCancelRequest()
+    {
+        $check_in_detail = CheckinDetail::where('guest_id', $this->guest_id)->first();
+        $guest = Guest::find($this->guest_id);
+
+        // Create auto-approved override request for record
+        OverrideRequest::create([
+            'branch_id' => auth()->user()->branch_id,
+            'requester_id' => auth()->user()->id,
+            'supervisor_id' => null,
+            'guest_id' => $this->guest_id,
+            'checkin_detail_id' => $check_in_detail->id,
+            'transfer_reason_id' => null,
+            'transaction_type' => 'cancel',
+            'from_room_id' => $guest->room_id,
+            'to_room_id' => null,
+            'from_type_id' => $guest->type_id,
+            'to_type_id' => null,
+            'current_amount' => $check_in_detail->static_amount ?? 0,
+            'new_amount' => 0,
+            'status' => 'auto_approved',
+            'responded_at' => now(),
+            'request_data' => [
+                'cancel_reason' => 'Auto-approved',
+            ],
+        ]);
+
+        // Proceed with cancel
+        $this->confirmCancel();
+    }
+
+    /**
+     * Submit cancel override request to supervisor
+     */
+    public function submitCancelOverrideRequest()
+    {
+        $this->validate([
+            'selected_cancel_supervisor_id' => 'required',
+            'cancel_reason' => 'required|min:5',
+        ], [
+            'selected_cancel_supervisor_id.required' => 'Please select a supervisor.',
+            'cancel_reason.required' => 'Please provide a reason for cancellation.',
+            'cancel_reason.min' => 'Reason must be at least 5 characters.',
+        ]);
+
+        $check_in_detail = CheckinDetail::where('guest_id', $this->guest_id)->first();
+        $guest = Guest::find($this->guest_id);
+
+        OverrideRequest::create([
+            'branch_id' => auth()->user()->branch_id,
+            'requester_id' => auth()->user()->id,
+            'supervisor_id' => $this->selected_cancel_supervisor_id,
+            'guest_id' => $this->guest_id,
+            'checkin_detail_id' => $check_in_detail->id,
+            'transfer_reason_id' => null,
+            'transaction_type' => 'cancel',
+            'from_room_id' => $guest->room_id,
+            'to_room_id' => null,
+            'from_type_id' => $guest->type_id,
+            'to_type_id' => null,
+            'current_amount' => $check_in_detail->static_amount ?? 0,
+            'new_amount' => 0,
+            'status' => 'pending',
+            'request_data' => [
+                'cancel_reason' => $this->cancel_reason,
+            ],
+        ]);
+
+        $this->cancel_override_modal = false;
+        $this->cancel_request_submitted_modal = true;
+    }
+
+    /**
+     * Close the request submitted modal and go back to monitoring
+     */
+    public function closeCancelRequestModal()
+    {
+        $this->cancel_request_submitted_modal = false;
+        return redirect()->route('frontdesk.room-monitoring');
     }
 
     //transfer room page

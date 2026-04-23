@@ -1,5 +1,5 @@
 <div class="p-6" wire:poll.5s>
-    <h2 class="text-xl font-semibold text-gray-800 mb-6">Transfer Room Requests</h2>
+    <h2 class="text-xl font-semibold text-gray-800 mb-6">Override Requests</h2>
 
     {{-- Pending Requests --}}
     @if($this->pendingRequests->count() > 0)
@@ -16,8 +16,9 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-100">
                     <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guest</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">From Room</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">To Room</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supervisor</th>
@@ -28,12 +29,25 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @foreach($this->pendingRequests as $request)
                     <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            @if($request->transaction_type === 'cancel')
+                                <span class="text-red-600 font-medium">Cancel</span>
+                            @else
+                                <span class="text-gray-900">Transfer</span>
+                            @endif
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest->name ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->fromRoom->number ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->toRoom->number ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $request->transferReason->reason ?? 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            @if($request->transaction_type === 'cancel')
+                                {{ $request->request_data['cancel_reason'] ?? 'N/A' }}
+                            @else
+                                {{ $request->transferReason->reason ?? 'N/A' }}
+                            @endif
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->supervisor->name ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $request->created_at->diffForHumans() }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $request->created_at->format('M d, Y h:i A') }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <button wire:click="confirmCancelRequest({{ $request->id }})" class="text-red-600 hover:text-red-800 text-sm font-medium">
                                 Cancel
@@ -62,8 +76,9 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-green-50">
                     <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guest</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">From Room</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">To Room</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Approved By</th>
@@ -74,16 +89,35 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @foreach($this->approvedRequests as $request)
                     <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            @if($request->transaction_type === 'cancel')
+                                <span class="text-red-600 font-medium">Cancel</span>
+                            @else
+                                <span class="text-gray-900">Transfer</span>
+                            @endif
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest->name ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->fromRoom->number ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->toRoom->number ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $request->transferReason->reason ?? 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            @if($request->transaction_type === 'cancel')
+                                {{ $request->request_data['cancel_reason'] ?? 'N/A' }}
+                            @else
+                                {{ $request->transferReason->reason ?? 'N/A' }}
+                            @endif
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->supervisor->name ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $request->responded_at ? $request->responded_at->diffForHumans() : 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <button wire:click="openConfirmModal({{ $request->id }})" class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2 rounded">
-                                COMPLETE TRANSFER
-                            </button>
+                            @if($request->transaction_type === 'cancel')
+                                <button wire:click="openConfirmCancelModal({{ $request->id }})" class="bg-red-500 hover:bg-red-600 text-white text-sm font-bold px-4 py-2 rounded">
+                                    COMPLETE CANCEL
+                                </button>
+                            @else
+                                <button wire:click="openConfirmModal({{ $request->id }})" class="bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2 rounded">
+                                    COMPLETE TRANSFER
+                                </button>
+                            @endif
                         </td>
                     </tr>
                     @endforeach
@@ -102,16 +136,18 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </span>
-            Declined Today ({{ $this->declinedRequests->count() }})
+            Declined History ({{ $this->declinedRequests->count() }})
         </h3>
         <div class="bg-white rounded-lg shadow-sm overflow-hidden">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-red-50">
                     <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Guest</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">From Room</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">To Room</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested At</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Declined At</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Decline Reason</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
@@ -119,15 +155,37 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @foreach($this->declinedRequests as $request)
                     <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            @if($request->transaction_type === 'cancel')
+                                <span class="text-red-600 font-medium">Cancel</span>
+                            @else
+                                <span class="text-gray-900">Transfer</span>
+                            @endif
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest->name ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->fromRoom->number ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->toRoom->number ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $request->transferReason->reason ?? 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            @if($request->transaction_type === 'cancel')
+                                {{ $request->request_data['cancel_reason'] ?? 'N/A' }}
+                            @else
+                                {{ $request->transferReason->reason ?? 'N/A' }}
+                            @endif
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $request->created_at->format('M d, Y h:i A') }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $request->responded_at ? $request->responded_at->format('M d, Y h:i A') : 'N/A' }}</td>
                         <td class="px-6 py-4 text-sm text-red-600 max-w-xs">{{ $request->decline_reason ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <button wire:click="retryRequest({{ $request->id }})" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                                Retry Transfer
-                            </button>
+                            @if($request->transaction_type === 'transfer')
+                                @if(!$this->guestHasActiveRequest($request->guest_id))
+                                    <button wire:click="retryRequest({{ $request->id }})" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                        Retry Transfer
+                                    </button>
+                                @else
+                                    <span class="text-gray-400 text-sm">Has Active Request</span>
+                                @endif
+                            @else
+                                <span class="text-gray-400 text-sm">-</span>
+                            @endif
                         </td>
                     </tr>
                     @endforeach
@@ -189,6 +247,48 @@
                 <div class="flex justify-center space-x-2">
                     <x-button flat label="Cancel" x-on:click="close" />
                     <x-button positive label="Complete Transfer" wire:click="completeTransfer" spinner="completeTransfer" />
+                </div>
+            </x-slot>
+        </x-card>
+    </x-modal>
+
+    {{-- Confirm Cancel Modal --}}
+    <x-modal wire:model.defer="confirmCancelModal" align="center" max-width="md">
+        <x-card>
+            @if($selectedRequest)
+            <div class="text-center py-4">
+                <div class="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-700 mb-4">Complete Cancel Transaction</h3>
+
+                <div class="bg-gray-50 rounded-lg p-4 text-left mb-4">
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-500">Guest:</span>
+                            <p class="font-medium">{{ $selectedRequest->guest->name ?? 'N/A' }}</p>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">Room:</span>
+                            <p class="font-medium">{{ $selectedRequest->fromRoom->number ?? 'N/A' }}</p>
+                        </div>
+                        <div class="col-span-2">
+                            <span class="text-gray-500">Reason:</span>
+                            <p class="font-medium text-red-600">{{ $selectedRequest->request_data['cancel_reason'] ?? 'N/A' }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-sm text-red-500 font-medium">Warning: This will permanently delete the guest record and all transactions.</p>
+            </div>
+            @endif
+
+            <x-slot name="footer">
+                <div class="flex justify-center space-x-2">
+                    <x-button flat label="Back" x-on:click="close" />
+                    <x-button negative label="Complete Cancel" wire:click="completeCancel" spinner="completeCancel" />
                 </div>
             </x-slot>
         </x-card>

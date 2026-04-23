@@ -4,6 +4,8 @@ namespace App\Http\Livewire\Supervisor;
 
 use App\Models\OverrideRequest;
 use App\Models\ActivityLog;
+use App\Services\TransferService;
+use App\Services\CancelService;
 use Livewire\Component;
 use WireUi\Traits\Actions;
 
@@ -67,9 +69,32 @@ class Dashboard extends Component
             ->count();
     }
 
+    public function confirmApprove($requestId)
+    {
+        $request = OverrideRequest::find($requestId);
+        $isCancel = $request && $request->transaction_type === 'cancel';
+
+        $this->dialog()->confirm([
+            'title' => 'Approve Request?',
+            'description' => $isCancel
+                ? 'Are you sure you want to approve this cancel transaction request? This will permanently delete the guest record.'
+                : 'Are you sure you want to approve this transfer request?',
+            'icon' => 'question',
+            'accept' => [
+                'label' => 'Yes, Approve',
+                'method' => 'approveRequest',
+                'params' => $requestId,
+            ],
+            'reject' => [
+                'label' => 'Cancel',
+            ],
+        ]);
+    }
+
     public function approveRequest($requestId)
     {
-        $request = OverrideRequest::findOrFail($requestId);
+        $request = OverrideRequest::with(['guest', 'fromRoom', 'toRoom', 'transferReason', 'requester'])
+            ->findOrFail($requestId);
 
         if (!$request->isPending()) {
             $this->dialog()->error(
@@ -79,24 +104,85 @@ class Dashboard extends Component
             return;
         }
 
+        // Update supervisor info
         $request->update([
-            'status' => 'approved',
+            'supervisor_id' => auth()->user()->id,
             'responded_at' => now(),
         ]);
 
-        ActivityLog::create([
-            'branch_id' => auth()->user()->branch_id,
-            'user_id' => auth()->user()->id,
-            'activity' => 'Override Approved',
-            'description' => 'Approved override request for guest ' . $request->guest->name . ' - Transfer from Room #' . $request->fromRoom->number . ' to Room #' . $request->toRoom->number,
-        ]);
-
-        $this->dialog()->success(
-            $title = 'Success',
-            $description = 'Override request has been approved.'
-        );
+        // Handle based on transaction type
+        if ($request->transaction_type === 'cancel') {
+            $this->processCancelApproval($request);
+        } else {
+            $this->processTransferApproval($request);
+        }
 
         $this->emit('refreshDashboard');
+    }
+
+    /**
+     * Process transfer approval
+     */
+    private function processTransferApproval(OverrideRequest $request)
+    {
+        $transferService = new TransferService();
+        $result = $transferService->completeTransfer($request, auth()->user()->id);
+
+        if ($result['success']) {
+            ActivityLog::create([
+                'branch_id' => auth()->user()->branch_id,
+                'user_id' => auth()->user()->id,
+                'activity' => 'Override Approved & Transfer Completed',
+                'description' => 'Approved override request for guest ' . ($request->guest->name ?? 'N/A') .
+                    ' - Transfer from Room #' . ($request->fromRoom->number ?? 'N/A') .
+                    ' to Room #' . ($request->toRoom->number ?? 'N/A') .
+                    ' (Requested by: ' . ($request->requester->name ?? 'N/A') . ')',
+            ]);
+
+            $this->dialog()->success(
+                $title = 'Success',
+                $description = 'Transfer has been approved and completed automatically.'
+            );
+        } else {
+            $request->update(['status' => 'approved']);
+
+            $this->dialog()->warning(
+                $title = 'Approved with Warning',
+                $description = 'Request approved but transfer could not complete: ' . $result['message'] . '. Frontdesk can complete it manually.'
+            );
+        }
+    }
+
+    /**
+     * Process cancel approval
+     */
+    private function processCancelApproval(OverrideRequest $request)
+    {
+        $cancelService = new CancelService();
+        $result = $cancelService->completeCancel($request, auth()->user()->id);
+
+        if ($result['success']) {
+            ActivityLog::create([
+                'branch_id' => auth()->user()->branch_id,
+                'user_id' => auth()->user()->id,
+                'activity' => 'Override Approved & Cancel Completed',
+                'description' => 'Approved cancel request for guest ' . ($request->guest->name ?? 'N/A') .
+                    ' - Room #' . ($request->fromRoom->number ?? 'N/A') .
+                    ' (Requested by: ' . ($request->requester->name ?? 'N/A') . ')',
+            ]);
+
+            $this->dialog()->success(
+                $title = 'Success',
+                $description = 'Transaction has been cancelled successfully.'
+            );
+        } else {
+            $request->update(['status' => 'approved']);
+
+            $this->dialog()->warning(
+                $title = 'Approved with Warning',
+                $description = 'Request approved but cancel could not complete: ' . $result['message'] . '. Frontdesk can complete it manually.'
+            );
+        }
     }
 
     public function openDeclineModal($requestId)

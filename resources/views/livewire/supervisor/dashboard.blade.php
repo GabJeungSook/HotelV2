@@ -112,20 +112,28 @@
                                     <span class="text-sm text-gray-900">{{ $request->guest->name ?? 'N/A' }}</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="text-sm text-gray-900">Transfer Room</span>
+                                    @if($request->transaction_type === 'cancel')
+                                        <span class="text-sm font-medium text-red-600">Cancel Transaction</span>
+                                    @else
+                                        <span class="text-sm text-gray-900">Transfer Room</span>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-900">{{ $request->toRoom->number ?? 'N/A' }}</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="text-sm text-gray-600">{{ $request->transferReason->reason ?? 'N/A' }}</span>
+                                    @if($request->transaction_type === 'cancel')
+                                        <span class="text-sm text-gray-600">{{ $request->request_data['cancel_reason'] ?? 'N/A' }}</span>
+                                    @else
+                                        <span class="text-sm text-gray-600">{{ $request->transferReason->reason ?? 'N/A' }}</span>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-900">{{ $request->requester->name ?? 'N/A' }}</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex flex-col space-y-1">
-                                        <button wire:click="approveRequest({{ $request->id }})"
+                                        <button wire:click="confirmApprove({{ $request->id }})"
                                             class="bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-6 py-1.5 rounded">
                                             APPROVE
                                         </button>

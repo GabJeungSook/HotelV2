@@ -17,12 +17,14 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use WireUi\Traits\Actions;
+use App\Services\CancelService;
 
 class OverrideRequests extends Component
 {
     use Actions;
 
     public $confirmModal = false;
+    public $confirmCancelModal = false;
     public $selectedRequest = null;
 
     protected $listeners = ['refreshRequests' => '$refresh'];
@@ -47,12 +49,22 @@ class OverrideRequests extends Component
 
     public function getDeclinedRequestsProperty()
     {
+        // Show all declined requests for historical reference (last 30 days)
         return OverrideRequest::with(['guest', 'fromRoom', 'toRoom', 'transferReason', 'supervisor'])
             ->where('requester_id', auth()->user()->id)
             ->where('status', 'declined')
-            ->whereDate('created_at', today())
+            ->where('created_at', '>=', now()->subDays(30))
             ->latest()
             ->get();
+    }
+
+    // Check if guest has an active request (pending, approved, or auto_approved)
+    public function guestHasActiveRequest($guestId)
+    {
+        return OverrideRequest::where('requester_id', auth()->user()->id)
+            ->where('guest_id', $guestId)
+            ->whereIn('status', ['pending', 'approved', 'auto_approved'])
+            ->exists();
     }
 
     public function getCompletedRequestsProperty()
@@ -80,6 +92,49 @@ class OverrideRequests extends Component
         }
 
         $this->confirmModal = true;
+    }
+
+    public function openConfirmCancelModal($requestId)
+    {
+        $this->selectedRequest = OverrideRequest::with(['guest', 'fromRoom'])
+            ->find($requestId);
+
+        if (!$this->selectedRequest || $this->selectedRequest->status !== 'approved') {
+            $this->dialog()->error(
+                $title = 'Error',
+                $description = 'This request is not approved or no longer exists.'
+            );
+            return;
+        }
+
+        $this->confirmCancelModal = true;
+    }
+
+    public function completeCancel()
+    {
+        if (!$this->selectedRequest) {
+            return;
+        }
+
+        $cancelService = new CancelService();
+        $result = $cancelService->completeCancel($this->selectedRequest, auth()->user()->id);
+
+        if ($result['success']) {
+            $this->confirmCancelModal = false;
+            $this->selectedRequest = null;
+
+            $this->dialog()->success(
+                $title = 'Success',
+                $description = 'Transaction has been cancelled successfully.'
+            );
+
+            $this->emit('refreshRequests');
+        } else {
+            $this->dialog()->error(
+                $title = 'Error',
+                $description = $result['message']
+            );
+        }
     }
 
     public function completeTransfer()
@@ -358,8 +413,11 @@ class OverrideRequests extends Component
         $request = OverrideRequest::find($requestId);
 
         if ($request && $request->status === 'declined' && $request->requester_id === auth()->user()->id) {
-            // Redirect to transfer room page
-            return redirect()->route('frontdesk.transfer-room', ['record' => $request->guest_id]);
+            $guestId = $request->guest_id;
+
+            // Don't delete - keep the declined record for historical reference
+            // Just redirect to transfer room page to create a NEW request
+            return redirect()->route('frontdesk.transfer-room', ['record' => $guestId]);
         }
     }
 

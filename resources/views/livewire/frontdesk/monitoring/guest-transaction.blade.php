@@ -1241,32 +1241,93 @@
         </x-card>
     </x-modal>
 
-  {{-- authorization cancel --}}
-  <x-modal wire:model.defer="autorization_cancel_modal" align="center" max-width="md">
+  {{-- Cancel Override Request Modal --}}
+  <x-modal wire:model.defer="cancel_override_modal" align="center" max-width="md">
     <x-card>
-      <div class="flex space-x-1">
-        <h1 class=" text-xl font-bold text-gray-600">AUTHORIZATION CODE</h1>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-green-600">
-          <path fill="none" d="M0 0h24v24H0z" />
-          <path d="M17 14h-4.341a6 6 0 1 1 0-4H23v4h-2v4h-4v-4zM7 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-        </svg>
-      </div>
-      <div class="mt-7">
-        <input type="password" wire:model="code"
-          class="w-full text-lg
-      @error('code')
-          border-red-500
-      @enderror
-        rounded-lg">
-      </div>
-      @error('code')
-        <span class="text-sm text-red-500 mt-1">{{ $message }}</span>
-      @enderror
-      <div class="mt-5 flex justify-end items-center space-x-2">
-        <x-button x-on:click="close" label="CLOSE" sm negative />
-        <x-button label="PROCEED" sm positive wire:click="proceedCancel" spinner="proceedCancel" />
+      <div class="bg-red-600 -mx-4 -mt-4 px-4 py-3 rounded-t-lg mb-4">
+        <h1 class="text-lg font-bold text-white">REVIEW OVERRIDE</h1>
+        <p class="text-red-100 text-sm">CANCEL TRANSACTION</p>
       </div>
 
+      <div class="space-y-4">
+        {{-- Requester --}}
+        <div class="flex space-x-4">
+          <div class="flex-1">
+            <label class="text-sm text-gray-500">Requester:</label>
+            <input type="text" value="{{ auth()->user()->name }}" disabled
+              class="w-full bg-gray-100 border-gray-300 rounded-lg text-gray-700">
+          </div>
+          <div class="w-32">
+            <label class="text-sm text-gray-500">Room #:</label>
+            <div class="bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-center">
+              <span class="text-2xl font-bold text-gray-700">{{ $check_in_details->room->number ?? 'N/A' }}</span>
+            </div>
+          </div>
+        </div>
+
+        {{-- Transaction Type --}}
+        <div>
+          <label class="text-sm text-gray-500">Transaction Type:</label>
+          <input type="text" value="Cancel Transaction" disabled
+            class="w-full bg-gray-100 border-gray-300 rounded-lg text-gray-700">
+        </div>
+
+        {{-- Reason --}}
+        <div>
+          <label class="text-sm text-gray-500">Reason/s:</label>
+          <textarea wire:model.defer="cancel_reason" rows="3"
+            class="w-full border-gray-300 rounded-lg @error('cancel_reason') border-red-500 @enderror"
+            placeholder="Please provide a reason for cancellation..."></textarea>
+          @error('cancel_reason')
+            <span class="text-sm text-red-500">{{ $message }}</span>
+          @enderror
+        </div>
+
+        {{-- Supervisor Selection --}}
+        <div>
+          <label class="text-sm text-gray-500">Supervisor: <span class="text-red-500">*</span></label>
+          <select wire:model.defer="selected_cancel_supervisor_id"
+            class="w-full border-gray-300 rounded-lg @error('selected_cancel_supervisor_id') border-red-500 @enderror">
+            <option value="">Select Supervisor</option>
+            @foreach($this->supervisors as $supervisor)
+              <option value="{{ $supervisor->id }}">{{ strtoupper($supervisor->name) }}</option>
+            @endforeach
+          </select>
+          @error('selected_cancel_supervisor_id')
+            <span class="text-sm text-red-500">{{ $message }}</span>
+          @enderror
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end items-center space-x-2">
+        <x-button wire:click="submitCancelOverrideRequest" class="bg-red-600 hover:bg-red-700 text-white font-bold px-6"
+          spinner="submitCancelOverrideRequest">
+          REQUEST OVERRIDE
+        </x-button>
+        <x-button x-on:click="close" label="CANCEL" flat />
+      </div>
+    </x-card>
+  </x-modal>
+
+  {{-- Cancel Request Submitted Modal --}}
+  <x-modal wire:model.defer="cancel_request_submitted_modal" align="center" max-width="sm">
+    <x-card>
+      <div class="text-center py-6">
+        <div class="bg-yellow-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-bold text-gray-700 mb-2">Request Submitted</h3>
+        <p class="text-sm text-gray-500 mb-4">Your cancel override request has been sent to the supervisor for approval.</p>
+        <p class="text-xs text-gray-400">You will be notified once the supervisor responds.</p>
+      </div>
+
+      <x-slot name="footer">
+        <div class="flex justify-center">
+          <x-button wire:click="closeCancelRequestModal" label="OK" primary />
+        </div>
+      </x-slot>
     </x-card>
   </x-modal>
 </div>

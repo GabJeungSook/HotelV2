@@ -241,13 +241,13 @@
               </a>
 
               @php
-                $pendingTransferCount = \App\Models\OverrideRequest::where('requester_id', auth()->user()->id)
+                $pendingOverrideCount = \App\Models\OverrideRequest::where('requester_id', auth()->user()->id)
                     ->where('status', 'pending')
                     ->count();
-                $approvedTransferCount = \App\Models\OverrideRequest::where('requester_id', auth()->user()->id)
+                $approvedOverrideCount = \App\Models\OverrideRequest::where('requester_id', auth()->user()->id)
                     ->where('status', 'approved')
                     ->count();
-                $totalTransferBadge = $pendingTransferCount + $approvedTransferCount;
+                $totalOverrideBadge = $pendingOverrideCount + $approvedOverrideCount;
               @endphp
               <a href="{{ $isBeginningCash ? '#' : route('frontdesk.override-requests') }}"
                 class="text-gray-500 fill-gray-500 group inline-flex items-center rounded-md bg-white text-base font-medium hover:text-gray-900 relative"
@@ -255,9 +255,9 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24" class="mr-2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                 </svg>
-                <span>Transfer Requests</span>
-                @if($totalTransferBadge > 0)
-                  <span class="ml-1 bg-gray-800 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $totalTransferBadge }}</span>
+                <span>Override Requests</span>
+                @if($totalOverrideBadge > 0)
+                  <span class="ml-1 bg-red-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $totalOverrideBadge }}</span>
                 @endif
               </a>
 
