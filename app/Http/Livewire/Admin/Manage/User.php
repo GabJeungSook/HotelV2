@@ -227,6 +227,7 @@ private function isUserOnline($user, $threshold)
                             Select::make('role')
                                 ->options([
                                     'admin' => 'Admin',
+                                    'supervisor' => 'Supervisor',
                                     'frontdesk' => 'Frontdesk',
                                     'kiosk' => 'Kiosk',
                                     'kitchen' => 'Kitchen',
