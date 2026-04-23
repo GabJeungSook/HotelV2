@@ -39,14 +39,14 @@
                 <div class="flex flex-col items-start space-y-2">
                     <h1 class="text-white text-2xl font-bold">DASHBOARD</h1>
                     <div class="flex space-x-2">
-                    {{-- Override Summary - White --}}
-                    <div class="bg-white rounded-lg px-6 py-3 flex flex-col justify-center min-w-[160px]">
+                    {{-- Override Summary - White (Clickable) --}}
+                    <button wire:click="openSummaryModal" class="bg-white rounded-lg px-6 py-3 flex flex-col justify-center min-w-[160px] hover:bg-gray-100 transition cursor-pointer text-left">
                         <span class="text-gray-600 text-sm">Override Summary</span>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
-                    </div>
+                    </button>
 
                     {{-- Override Requests - Dark Gray --}}
                     <div class="bg-gray-600 rounded-lg px-5 py-3 min-w-[160px]">
@@ -97,7 +97,7 @@
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transfer To</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Frontdesk</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -190,6 +190,90 @@
                     <x-button negative label="Decline Request" wire:click="declineRequest" spinner="declineRequest" />
                 </div>
             </x-slot>
+        </x-card>
+    </x-modal>
+
+    {{-- Override Summary Modal --}}
+    <x-modal wire:model.defer="summaryModal" align="center" max-width="4xl">
+        <x-card>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-700">Override Summary</h2>
+                <button wire:click="$set('summaryModal', false)" class="text-red-500 hover:text-red-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Filters --}}
+            <div class="flex items-center space-x-4 mb-4">
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm text-gray-600">DATE FILTER:</span>
+                    <input type="date" wire:model="summaryDate" class="border-gray-300 rounded-lg text-sm">
+                </div>
+                <div class="flex items-center space-x-4">
+                    <label class="flex items-center space-x-2">
+                        <input type="checkbox" wire:model="showOverride" class="rounded border-gray-300 text-green-500 focus:ring-green-500">
+                        <span class="text-sm text-gray-600">Override</span>
+                    </label>
+                    <label class="flex items-center space-x-2">
+                        <input type="checkbox" wire:model="showDeclined" class="rounded border-gray-300 text-red-500 focus:ring-red-500">
+                        <span class="text-sm text-gray-600">Declined</span>
+                    </label>
+                </div>
+            </div>
+
+            {{-- Summary Table --}}
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-800 text-white">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">#</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Date/Time</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Room #</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Requester</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Transaction Type</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Reason</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium uppercase">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @forelse($this->summaryRequests as $index => $request)
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $index + 1 }}.</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">{{ $request->created_at->format('m-d-Y') }}<br>{{ $request->created_at->format('h:i A') }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->fromRoom->number ?? 'N/A' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->guest->name ?? 'N/A' }}</td>
+                            <td class="px-4 py-3 text-sm">
+                                @if($request->transaction_type === 'cancel')
+                                    <span class="text-red-600 font-medium">Cancel Transaction</span>
+                                @else
+                                    <span class="text-gray-900">Transfer Room</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-600">
+                                @if($request->transaction_type === 'cancel')
+                                    {{ $request->request_data['cancel_reason'] ?? 'N/A' }}
+                                @else
+                                    {{ $request->transferReason->reason ?? 'N/A' }}
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm">
+                                @if($request->status === 'declined')
+                                    <span class="text-red-600 font-medium">Declined</span>
+                                @else
+                                    <span class="text-green-600 font-medium">Override</span>
+                                @endif
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="7" class="px-4 py-8 text-center text-gray-500">No records found for this date.</td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </x-card>
     </x-modal>
 </div>

@@ -263,10 +263,19 @@ class TransferRoom extends Component
         if ($this->useSupervisorOverride()) {
             // Check if force auto-override is enabled
             if ($this->isForceAutoOverrideEnabled()) {
-                // Auto-approve and proceed with transfer
-                $this->createAutoApprovedOverrideRequest();
-                $this->is_override = true;
-                $this->proceedWithTransfer();
+                // Show confirmation before auto-approve
+                $this->dialog()->confirm([
+                    'title' => 'Confirm Auto Override',
+                    'description' => 'Force auto-override is enabled. Are you sure you want to proceed with this transfer?',
+                    'icon' => 'question',
+                    'accept' => [
+                        'label' => 'Yes, Proceed',
+                        'method' => 'confirmAutoOverrideTransfer',
+                    ],
+                    'reject' => [
+                        'label' => 'Cancel',
+                    ],
+                ]);
             } else {
                 // Show supervisor selection modal
                 $this->override_request_modal = true;
@@ -276,6 +285,16 @@ class TransferRoom extends Component
             $this->authorization_modal = true;
             $this->is_override = true;
         }
+    }
+
+    /**
+     * Confirm and execute auto-override transfer
+     */
+    public function confirmAutoOverrideTransfer()
+    {
+        $this->createAutoApprovedOverrideRequest();
+        $this->is_override = true;
+        $this->proceedWithTransfer();
     }
 
     /**

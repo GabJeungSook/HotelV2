@@ -2631,14 +2631,33 @@ class GuestTransaction extends Component
 
         // Check if force_auto_override is enabled
         if (auth()->user()->branch->force_auto_override) {
-            // Auto-approve and proceed with cancel
-            $this->autoApproveCancelRequest();
+            // Show confirmation before auto-approve
+            $this->dialog()->confirm([
+                'title' => 'Confirm Auto Override',
+                'description' => 'Force auto-override is enabled. Are you sure you want to cancel this transaction? This will permanently delete the guest record.',
+                'icon' => 'warning',
+                'accept' => [
+                    'label' => 'Yes, Cancel Transaction',
+                    'method' => 'confirmAutoOverrideCancel',
+                ],
+                'reject' => [
+                    'label' => 'No',
+                ],
+            ]);
         } else {
             // Show the cancel override request modal
             $this->cancel_reason = '';
             $this->selected_cancel_supervisor_id = null;
             $this->cancel_override_modal = true;
         }
+    }
+
+    /**
+     * Confirm and execute auto-override cancel
+     */
+    public function confirmAutoOverrideCancel()
+    {
+        $this->autoApproveCancelRequest();
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Supervisor;
 
 use App\Models\OverrideRequest;
 use App\Models\ActivityLog;
+use App\Models\Branch;
 use App\Services\TransferService;
 use App\Services\CancelService;
 use Livewire\Component;
@@ -18,7 +19,22 @@ class Dashboard extends Component
     public $declineReason = '';
     public $search = '';
 
+    // Override Summary Modal
+    public $summaryModal = false;
+    public $summaryDate;
+    public $showOverride = true;
+    public $showDeclined = true;
+
+    // Force Auto-override
+    public $forceAutoOverride = false;
+
     protected $listeners = ['refreshDashboard' => '$refresh'];
+
+    public function mount()
+    {
+        $this->summaryDate = now()->format('Y-m-d');
+        $this->forceAutoOverride = auth()->user()->branch->force_auto_override ?? false;
+    }
 
     public function getOverrideRequestsProperty()
     {
@@ -144,11 +160,12 @@ class Dashboard extends Component
                 $description = 'Transfer has been approved and completed automatically.'
             );
         } else {
-            $request->update(['status' => 'approved']);
+            // Mark as auto_approved anyway (transfer failed but approval is complete)
+            $request->update(['status' => 'auto_approved']);
 
-            $this->dialog()->warning(
-                $title = 'Approved with Warning',
-                $description = 'Request approved but transfer could not complete: ' . $result['message'] . '. Frontdesk can complete it manually.'
+            $this->dialog()->error(
+                $title = 'Transfer Failed',
+                $description = $result['message'] . ' The request has been closed.'
             );
         }
     }
@@ -176,11 +193,12 @@ class Dashboard extends Component
                 $description = 'Transaction has been cancelled successfully.'
             );
         } else {
-            $request->update(['status' => 'approved']);
+            // Mark as auto_approved anyway (cancel failed but approval is complete)
+            $request->update(['status' => 'auto_approved']);
 
-            $this->dialog()->warning(
-                $title = 'Approved with Warning',
-                $description = 'Request approved but cancel could not complete: ' . $result['message'] . '. Frontdesk can complete it manually.'
+            $this->dialog()->error(
+                $title = 'Cancel Failed',
+                $description = $result['message'] . ' The request has been closed.'
             );
         }
     }
@@ -235,6 +253,99 @@ class Dashboard extends Component
         );
 
         $this->emit('refreshDashboard');
+    }
+
+    /**
+     * Open Override Summary Modal
+     */
+    public function openSummaryModal()
+    {
+        $this->summaryDate = now()->format('Y-m-d');
+        $this->showOverride = true;
+        $this->showDeclined = true;
+        $this->summaryModal = true;
+    }
+
+    /**
+     * Get Override Summary Data
+     */
+    public function getSummaryRequestsProperty()
+    {
+        $query = OverrideRequest::with(['requester', 'guest', 'fromRoom', 'toRoom', 'transferReason'])
+            ->forBranch(auth()->user()->branch_id)
+            ->whereDate('created_at', $this->summaryDate);
+
+        // Filter by status
+        $statuses = [];
+        if ($this->showOverride) {
+            $statuses[] = 'auto_approved';
+            $statuses[] = 'approved';
+        }
+        if ($this->showDeclined) {
+            $statuses[] = 'declined';
+        }
+
+        if (!empty($statuses)) {
+            $query->whereIn('status', $statuses);
+        } else {
+            // If no filter selected, show none
+            $query->whereRaw('1 = 0');
+        }
+
+        return $query->latest()->get();
+    }
+
+    /**
+     * Toggle Force Auto-override with confirmation
+     */
+    public function toggleForceAutoOverride()
+    {
+        $newValue = !$this->forceAutoOverride;
+
+        if ($newValue) {
+            // Turning ON - show confirmation
+            $this->dialog()->confirm([
+                'title' => 'Enable Force Auto-override?',
+                'description' => 'When enabled, all override requests will be automatically approved without supervisor approval. Are you sure?',
+                'icon' => 'warning',
+                'accept' => [
+                    'label' => 'Yes, Enable',
+                    'method' => 'confirmEnableAutoOverride',
+                ],
+                'reject' => [
+                    'label' => 'Cancel',
+                ],
+            ]);
+        } else {
+            // Turning OFF - no confirmation needed
+            $this->confirmDisableAutoOverride();
+        }
+    }
+
+    public function confirmEnableAutoOverride()
+    {
+        Branch::where('id', auth()->user()->branch_id)->update([
+            'force_auto_override' => true,
+        ]);
+        $this->forceAutoOverride = true;
+
+        $this->dialog()->success(
+            $title = 'Enabled',
+            $description = 'Force auto-override has been enabled.'
+        );
+    }
+
+    public function confirmDisableAutoOverride()
+    {
+        Branch::where('id', auth()->user()->branch_id)->update([
+            'force_auto_override' => false,
+        ]);
+        $this->forceAutoOverride = false;
+
+        $this->dialog()->success(
+            $title = 'Disabled',
+            $description = 'Force auto-override has been disabled.'
+        );
     }
 
     public function render()

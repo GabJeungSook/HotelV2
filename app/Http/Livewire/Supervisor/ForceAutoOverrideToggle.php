@@ -18,22 +18,61 @@ class ForceAutoOverrideToggle extends Component
         $this->enabled = $branch->force_auto_override ?? false;
     }
 
-    public function updatedEnabled($value)
+    public function toggleAutoOverride()
+    {
+        if ($this->enabled) {
+            // Currently enabled, confirm disable
+            $this->dialog()->confirm([
+                'title' => 'Disable Auto-Override?',
+                'description' => 'Override requests will require manual supervisor approval.',
+                'icon' => 'question',
+                'accept' => [
+                    'label' => 'Yes, Disable',
+                    'method' => 'confirmDisable',
+                ],
+                'reject' => [
+                    'label' => 'Cancel',
+                ],
+            ]);
+        } else {
+            // Currently disabled, confirm enable
+            $this->dialog()->confirm([
+                'title' => 'Enable Auto-Override?',
+                'description' => 'All override requests will be automatically approved without supervisor review. Are you sure?',
+                'icon' => 'warning',
+                'accept' => [
+                    'label' => 'Yes, Enable',
+                    'method' => 'confirmEnable',
+                ],
+                'reject' => [
+                    'label' => 'Cancel',
+                ],
+            ]);
+        }
+    }
+
+    public function confirmEnable()
     {
         $branch = Branch::find(auth()->user()->branch_id);
-        $branch->update(['force_auto_override' => $value]);
+        $branch->update(['force_auto_override' => true]);
+        $this->enabled = true;
 
-        if ($value) {
-            $this->dialog()->success(
-                $title = 'Auto-Override Enabled',
-                $description = 'Override requests will be auto-approved.'
-            );
-        } else {
-            $this->dialog()->info(
-                $title = 'Auto-Override Disabled',
-                $description = 'Override requests require manual approval.'
-            );
-        }
+        $this->dialog()->success(
+            $title = 'Auto-Override Enabled',
+            $description = 'Override requests will be auto-approved.'
+        );
+    }
+
+    public function confirmDisable()
+    {
+        $branch = Branch::find(auth()->user()->branch_id);
+        $branch->update(['force_auto_override' => false]);
+        $this->enabled = false;
+
+        $this->dialog()->info(
+            $title = 'Auto-Override Disabled',
+            $description = 'Override requests require manual approval.'
+        );
     }
 
     public function render()
