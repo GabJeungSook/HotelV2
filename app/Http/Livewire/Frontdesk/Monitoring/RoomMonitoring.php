@@ -445,7 +445,12 @@ class RoomMonitoring extends Component
         ])
 
         ->leftJoin('checkin_details', function ($join) {
-            $join->on('rooms.id', '=', 'checkin_details.room_id');
+            $join->on('rooms.id', '=', 'checkin_details.room_id')
+                 ->where('checkin_details.is_check_out', false)
+                 ->whereRaw('checkin_details.id = (
+                     SELECT MAX(cd.id) FROM checkin_details cd
+                     WHERE cd.room_id = rooms.id AND cd.is_check_out = 0
+                 )');
         })
 
         ->leftJoin('guests', function ($join) {
@@ -458,8 +463,6 @@ class RoomMonitoring extends Component
             (CASE WHEN rooms.status = "Occupied" THEN 1 ELSE 0 END) AS is_occupied,
             (CASE WHEN guests.has_kiosk_check_out = 1 THEN 1 ELSE 0 END) AS has_kiosk_priority
         ')
-
-        ->whereRaw('(checkin_details.is_check_out IS NULL OR checkin_details.is_check_out = 0)')
 
         ->orderByRaw('
             has_kiosk_priority DESC,
@@ -688,6 +691,11 @@ class RoomMonitoring extends Component
             true
         );
 
+        // Mark any existing active checkin_details for this room as checked out
+        CheckinDetail::where('room_id', $this->room_id)
+            ->where('is_check_out', false)
+            ->update(['is_check_out' => true, 'check_out_at' => now()]);
+
         $checkin = CheckinDetail::create([
             'guest_id' => $guest->id,
             'frontdesk_id' => $decode_frontdesk[0],
@@ -852,6 +860,11 @@ class RoomMonitoring extends Component
             $number_of_hours -= auth()->user()->branch->extension_time_reset;
             $next_extension_is_original = true;
         }
+
+        // Mark any existing active checkin_details for this room as checked out
+        CheckinDetail::where('room_id', $this->guest->room_id)
+            ->where('is_check_out', false)
+            ->update(['is_check_out' => true, 'check_out_at' => now()]);
 
         $checkin = CheckinDetail::create([
             'guest_id' => $this->guest->id,
@@ -1061,6 +1074,11 @@ class RoomMonitoring extends Component
             $number_of_hours_reserve -= auth()->user()->branch->extension_time_reset;
             $next_extension_is_original_reserve = true;
         }
+
+        // Mark any existing active checkin_details for this room as checked out
+        CheckinDetail::where('room_id', $this->guest_reserve->room_id)
+            ->where('is_check_out', false)
+            ->update(['is_check_out' => true, 'check_out_at' => now()]);
 
         $checkin = CheckinDetail::create([
             'guest_id' => $this->guest_reserve->id,

@@ -195,6 +195,11 @@ class CheckInFromKiosk extends Component
              $next_extension_is_original = true;
          }
 
+         // Mark any existing active checkin_details for this room as checked out
+         CheckinDetail::where('room_id', $this->guest->room_id)
+            ->where('is_check_out', false)
+            ->update(['is_check_out' => true, 'check_out_at' => now()]);
+
          //save check-in details
          $checkin = CheckinDetail::create([
             'guest_id' => $this->guest->id,
