@@ -30,5 +30,6 @@ class DatabaseSeeder extends Seeder
         $this->call(AdditionalUserSeeder::class);
         $this->call(AdditionalStayingHourSeeder::class);
         $this->call(SupervisorRoleSeeder::class);
+        $this->call(SupervisorAccountSeeder::class);
     }
 }
