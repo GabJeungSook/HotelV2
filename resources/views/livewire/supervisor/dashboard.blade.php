@@ -60,6 +60,12 @@
                         <p class="text-3xl font-bold text-white">{{ $this->approvedCount }}</p>
                     </div>
 
+                    {{-- Auto Override Requests - Yellow --}}
+                    <div class="bg-yellow-500 rounded-lg px-5 py-3 min-w-[160px]">
+                        <p class="text-xs text-yellow-100 font-medium">Auto Override(s)</p>
+                        <p class="text-3xl font-bold text-white">{{ $this->autoApprovedCount }}</p>
+                    </div>
+
                     {{-- Declined Requests - Red --}}
                     <div class="bg-red-500 rounded-lg px-5 py-3 min-w-[160px]">
                         <p class="text-xs text-red-100 font-medium">Declined Request(s)</p>
@@ -217,6 +223,10 @@
                         <span class="text-sm text-gray-600">Override</span>
                     </label>
                     <label class="flex items-center space-x-2">
+                        <input type="checkbox" wire:model="showAutoOverride" class="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500">
+                        <span class="text-sm text-gray-600">Auto Override</span>
+                    </label>
+                    <label class="flex items-center space-x-2">
                         <input type="checkbox" wire:model="showDeclined" class="rounded border-gray-300 text-red-500 focus:ring-red-500">
                         <span class="text-sm text-gray-600">Declined</span>
                     </label>
@@ -263,6 +273,8 @@
                             <td class="px-4 py-3 text-sm">
                                 @if($request->status === 'declined')
                                     <span class="text-red-600 font-medium">Declined</span>
+                                @elseif($request->status === 'auto_approved')
+                                    <span class="text-yellow-600 font-medium">Auto Override</span>
                                 @else
                                     <span class="text-green-600 font-medium">Override</span>
                                 @endif

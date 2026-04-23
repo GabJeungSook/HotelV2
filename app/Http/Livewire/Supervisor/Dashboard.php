@@ -23,6 +23,7 @@ class Dashboard extends Component
     public $summaryModal = false;
     public $summaryDate;
     public $showOverride = true;
+    public $showAutoOverride = true;
     public $showDeclined = true;
 
     // Force Auto-override
@@ -82,6 +83,14 @@ class Dashboard extends Component
         return OverrideRequest::forBranch(auth()->user()->branch_id)
             ->whereDate('created_at', today())
             ->declined()
+            ->count();
+    }
+
+    public function getAutoApprovedCountProperty()
+    {
+        return OverrideRequest::forBranch(auth()->user()->branch_id)
+            ->whereDate('created_at', today())
+            ->where('status', 'auto_approved')
             ->count();
     }
 
@@ -262,6 +271,7 @@ class Dashboard extends Component
     {
         $this->summaryDate = now()->format('Y-m-d');
         $this->showOverride = true;
+        $this->showAutoOverride = true;
         $this->showDeclined = true;
         $this->summaryModal = true;
     }
@@ -278,8 +288,10 @@ class Dashboard extends Component
         // Filter by status
         $statuses = [];
         if ($this->showOverride) {
-            $statuses[] = 'auto_approved';
             $statuses[] = 'approved';
+        }
+        if ($this->showAutoOverride) {
+            $statuses[] = 'auto_approved';
         }
         if ($this->showDeclined) {
             $statuses[] = 'declined';
