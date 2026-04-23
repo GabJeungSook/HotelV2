@@ -10,7 +10,11 @@ class OverrideRequests extends Component
 {
     use Actions;
 
+    public $activeTab = 'pending';
+
     protected $listeners = ['refreshRequests' => '$refresh'];
+
+    protected $queryString = ['activeTab'];
 
     public function getPendingRequestsProperty()
     {
@@ -27,6 +31,17 @@ class OverrideRequests extends Component
         return OverrideRequest::with(['guest', 'fromRoom', 'toRoom', 'transferReason', 'supervisor'])
             ->where('requester_id', auth()->user()->id)
             ->where('status', 'declined')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->latest()
+            ->get();
+    }
+
+    public function getApprovedRequestsProperty()
+    {
+        // Show all approved requests for historical reference (last 30 days)
+        return OverrideRequest::with(['guest', 'fromRoom', 'toRoom', 'transferReason', 'supervisor'])
+            ->where('requester_id', auth()->user()->id)
+            ->whereIn('status', ['approved', 'auto_approved'])
             ->where('created_at', '>=', now()->subDays(30))
             ->latest()
             ->get();
