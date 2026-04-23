@@ -11,38 +11,65 @@ class OverrideRequests extends Component
     use Actions;
 
     public $activeTab = 'pending';
+    public $search = '';
+    public $dateFilter;
 
     protected $listeners = ['refreshRequests' => '$refresh'];
 
     protected $queryString = ['activeTab'];
+
+    public function mount()
+    {
+        $this->dateFilter = now()->format('Y-m-d');
+    }
 
     public function getPendingRequestsProperty()
     {
         return OverrideRequest::with(['guest', 'fromRoom', 'toRoom', 'transferReason', 'supervisor'])
             ->where('requester_id', auth()->user()->id)
             ->where('status', 'pending')
+            ->when($this->search, function ($query) {
+                $query->where(function ($q) {
+                    $q->whereHas('guest', fn($g) => $g->where('name', 'like', '%' . $this->search . '%'))
+                      ->orWhereHas('fromRoom', fn($r) => $r->where('number', 'like', '%' . $this->search . '%'))
+                      ->orWhereHas('toRoom', fn($r) => $r->where('number', 'like', '%' . $this->search . '%'));
+                });
+            })
             ->latest()
             ->get();
     }
 
     public function getDeclinedRequestsProperty()
     {
-        // Show all declined requests for historical reference (last 30 days)
         return OverrideRequest::with(['guest', 'fromRoom', 'toRoom', 'transferReason', 'supervisor'])
             ->where('requester_id', auth()->user()->id)
             ->where('status', 'declined')
-            ->where('created_at', '>=', now()->subDays(30))
+            ->whereDate('created_at', $this->dateFilter)
+            ->when($this->search, function ($query) {
+                $query->where(function ($q) {
+                    $q->whereHas('guest', fn($g) => $g->where('name', 'like', '%' . $this->search . '%'))
+                      ->orWhereHas('fromRoom', fn($r) => $r->where('number', 'like', '%' . $this->search . '%'))
+                      ->orWhere('request_data->guest_name', 'like', '%' . $this->search . '%');
+                });
+            })
             ->latest()
             ->get();
     }
 
     public function getApprovedRequestsProperty()
     {
-        // Show all approved requests for historical reference (last 30 days)
         return OverrideRequest::with(['guest', 'fromRoom', 'toRoom', 'transferReason', 'supervisor'])
             ->where('requester_id', auth()->user()->id)
             ->whereIn('status', ['approved', 'auto_approved'])
-            ->where('created_at', '>=', now()->subDays(30))
+            ->whereDate('created_at', $this->dateFilter)
+            ->when($this->search, function ($query) {
+                $query->where(function ($q) {
+                    $q->whereHas('guest', fn($g) => $g->where('name', 'like', '%' . $this->search . '%'))
+                      ->orWhereHas('fromRoom', fn($r) => $r->where('number', 'like', '%' . $this->search . '%'))
+                      ->orWhereHas('toRoom', fn($r) => $r->where('number', 'like', '%' . $this->search . '%'))
+                      ->orWhere('request_data->guest_name', 'like', '%' . $this->search . '%');
+                });
+            })
             ->latest()
             ->get();
     }

@@ -1,5 +1,23 @@
 <div class="p-6" wire:poll.5s>
-    <h2 class="text-xl font-semibold text-gray-800 mb-6">Override Requests</h2>
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-semibold text-gray-800">Override Requests</h2>
+
+        {{-- Search and Date Filter --}}
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <label class="text-sm text-gray-600">Date:</label>
+                <input type="date" wire:model="dateFilter"
+                    class="border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-400 focus:border-transparent">
+            </div>
+            <div class="relative">
+                <input type="text" wire:model.debounce.300ms="search" placeholder="Search guest, room..."
+                    class="w-64 pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:border-transparent">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </div>
+        </div>
+    </div>
 
     {{-- Tabs --}}
     <div class="border-b border-gray-200 mb-6">
