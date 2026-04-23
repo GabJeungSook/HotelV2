@@ -60,6 +60,7 @@ class TransferRoom extends Component
     public $selected_supervisor_id = null;
     public $supervisors = [];
     public $request_submitted_modal = false;
+    public $current_override_request_id = null;
 
     public function mount($record)
     {
