@@ -213,8 +213,22 @@ class TransferService
                 'description' => 'Guest ' . $guest->name . ' transferred from Room #' . $request->fromRoom->number . ' to Room #' . $toRoom->number,
             ]);
 
-            // Mark override request as completed (using auto_approved status)
-            $request->update(['status' => 'auto_approved']);
+            // Mark override request as completed
+            // If supervisor_id is set, it was manually approved; otherwise it was auto-approved
+            $status = $request->supervisor_id ? 'approved' : 'auto_approved';
+
+            // Store guest/room info in request_data for historical reference (before guest might be deleted)
+            $historicalData = array_merge($requestData, [
+                'guest_name' => $guest->name,
+                'from_room_number' => $request->fromRoom->number ?? null,
+                'to_room_number' => $toRoom->number ?? null,
+                'requester_name' => $requester->name ?? null,
+            ]);
+
+            $request->update([
+                'status' => $status,
+                'request_data' => $historicalData,
+            ]);
 
             DB::commit();
 

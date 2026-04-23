@@ -253,8 +253,8 @@
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3 text-sm text-gray-900">{{ $index + 1 }}.</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $request->created_at->format('m-d-Y') }}<br>{{ $request->created_at->format('h:i A') }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->fromRoom->number ?? 'N/A' }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->guest->name ?? 'N/A' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->fromRoom->number ?? $request->request_data['from_room_number'] ?? 'N/A' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->guest->name ?? $request->request_data['guest_name'] ?? 'N/A' }}</td>
                             <td class="px-4 py-3 text-sm">
                                 @if($request->transaction_type === 'cancel')
                                     <span class="text-red-600 font-medium">Cancel Transaction</span>
@@ -269,7 +269,7 @@
                                     {{ $request->transferReason->reason ?? 'N/A' }}
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->requester->name ?? 'N/A' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $request->requester->name ?? $request->request_data['requester_name'] ?? 'N/A' }}</td>
                             <td class="px-4 py-3 text-sm">
                                 @if($request->status === 'declined')
                                     <span class="text-red-600 font-medium">Declined</span>

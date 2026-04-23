@@ -30,6 +30,11 @@ class CancelService
             return ['success' => false, 'message' => 'Guest has already been checked out.'];
         }
 
+        // Store guest/room info for historical reference BEFORE deletions
+        $guestName = $guest->name;
+        $roomNumber = $request->fromRoom->number ?? null;
+        $requesterName = $request->requester->name ?? null;
+
         DB::beginTransaction();
         try {
             // Update room status to Available
@@ -42,8 +47,8 @@ class CancelService
                 'branch_id' => $request->branch_id,
                 'user_id' => $approvedByUserId ?? $request->requester_id,
                 'activity' => 'Cancel Transaction (Override Approved)',
-                'description' => 'Cancelled transaction for guest ' . $guest->name .
-                    ' in Room #' . ($request->fromRoom->number ?? 'N/A') .
+                'description' => 'Cancelled transaction for guest ' . $guestName .
+                    ' in Room #' . ($roomNumber ?? 'N/A') .
                     ' - Reason: ' . ($requestData['cancel_reason'] ?? 'N/A'),
             ]);
 
@@ -57,7 +62,20 @@ class CancelService
             Guest::where('id', $guest->id)->delete();
 
             // Mark override request as completed
-            $request->update(['status' => 'auto_approved']);
+            // If supervisor_id is set, it was manually approved; otherwise it was auto-approved
+            $status = $request->supervisor_id ? 'approved' : 'auto_approved';
+
+            // Save historical data in request_data for reports
+            $historicalData = array_merge($requestData, [
+                'guest_name' => $guestName,
+                'from_room_number' => $roomNumber,
+                'requester_name' => $requesterName,
+            ]);
+
+            $request->update([
+                'status' => $status,
+                'request_data' => $historicalData,
+            ]);
 
             DB::commit();
 
