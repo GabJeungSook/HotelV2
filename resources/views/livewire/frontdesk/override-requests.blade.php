@@ -90,12 +90,12 @@
                                 <span class="text-gray-900">Transfer</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest->name ?? $request->request_data['guest_name'] ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->fromRoom->number ?? $request->request_data['from_room_number'] ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->toRoom->number ?? $request->request_data['to_room_number'] ?? 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->from_room_number }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->to_room_number }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             @if($request->transaction_type === 'cancel')
-                                {{ $request->request_data['cancel_reason'] ?? 'N/A' }}
+                                {{ $request->cancel_reason }}
                             @else
                                 {{ $request->transferReason->reason ?? 'N/A' }}
                             @endif
@@ -151,12 +151,12 @@
                                 <span class="text-gray-900">Transfer</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest->name ?? $request->request_data['guest_name'] ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->fromRoom->number ?? $request->request_data['from_room_number'] ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->toRoom->number ?? $request->request_data['to_room_number'] ?? 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->from_room_number }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->to_room_number }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             @if($request->transaction_type === 'cancel')
-                                {{ $request->request_data['cancel_reason'] ?? 'N/A' }}
+                                {{ $request->cancel_reason }}
                             @else
                                 {{ $request->transferReason->reason ?? 'N/A' }}
                             @endif
@@ -214,11 +214,11 @@
                                 <span class="text-gray-900">Transfer</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest->name ?? $request->request_data['guest_name'] ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->fromRoom->number ?? $request->request_data['from_room_number'] ?? 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->guest_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $request->from_room_number }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             @if($request->transaction_type === 'cancel')
-                                {{ $request->request_data['cancel_reason'] ?? 'N/A' }}
+                                {{ $request->cancel_reason }}
                             @else
                                 {{ $request->transferReason->reason ?? 'N/A' }}
                             @endif

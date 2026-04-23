@@ -192,4 +192,52 @@ class OverrideRequest extends Model
             'responded_at' => now(),
         ]);
     }
+
+    /**
+     * Safely get a value from request_data
+     */
+    public function getRequestDataValue($key, $default = 'N/A')
+    {
+        return data_get($this->request_data, $key, $default);
+    }
+
+    /**
+     * Get guest name (from relation or stored data)
+     */
+    public function getGuestNameAttribute()
+    {
+        return $this->guest?->name ?? $this->getRequestDataValue('guest_name');
+    }
+
+    /**
+     * Get from room number (from relation or stored data)
+     */
+    public function getFromRoomNumberAttribute()
+    {
+        return $this->fromRoom?->number ?? $this->getRequestDataValue('from_room_number');
+    }
+
+    /**
+     * Get to room number (from relation or stored data)
+     */
+    public function getToRoomNumberAttribute()
+    {
+        return $this->toRoom?->number ?? $this->getRequestDataValue('to_room_number');
+    }
+
+    /**
+     * Get requester name (from relation or stored data)
+     */
+    public function getRequesterNameAttribute()
+    {
+        return $this->requester?->name ?? $this->getRequestDataValue('requester_name');
+    }
+
+    /**
+     * Get cancel reason from request_data
+     */
+    public function getCancelReasonAttribute()
+    {
+        return $this->getRequestDataValue('cancel_reason');
+    }
 }
