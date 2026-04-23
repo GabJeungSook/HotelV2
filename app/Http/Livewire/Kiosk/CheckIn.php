@@ -54,12 +54,21 @@ class CheckIn extends Component
         )
             ->pluck('room_id')
             ->toArray();
+
+        // Exclude rooms with orphaned kiosk Guest records (hold expired but guest never confirmed by frontdesk).
+        // Without this, the same room reappears in kiosk and a second customer can double-check-in.
+        $pendingGuestRooms = Guest::where('branch_id', auth()->user()->branch_id)
+            ->whereDoesntHave('checkInDetail')
+            ->pluck('room_id')
+            ->toArray();
+
         // Get all available rooms, prioritize unused rooms (last_checkin_at null or oldest)
         $allRooms = Room::where('branch_id', auth()->user()->branch_id)
             ->whereTypeId($this->type_id)
             ->whereIn('status', ['Available', 'Cleaned'])
             ->whereNotIn('id', $temporaryCheckInKiosk)
             ->whereNotIn('id', $temporaryReserved)
+            ->whereNotIn('id', $pendingGuestRooms)
             ->where('is_priority', true)
             ->when($this->floor_id, function ($query) {
                 return $query->where('floor_id', $this->floor_id);
@@ -114,12 +123,18 @@ class CheckIn extends Component
             ->pluck('room_id')
             ->toArray();
 
+        $pendingGuestRooms = Guest::where('branch_id', auth()->user()->branch_id)
+            ->whereDoesntHave('checkInDetail')
+            ->pluck('room_id')
+            ->toArray();
+
         if (
             Room::where('branch_id', auth()->user()->branch_id)
                 ->where('type_id', $type_id)
                 ->whereIn('status', ['Available', 'Cleaned'])
                 ->whereNotIn('id', $temporaryCheckInKiosk)
                 ->whereNotIn('id', $temporaryReserved)
+                ->whereNotIn('id', $pendingGuestRooms)
                 ->where('is_priority', true)
                 ->count() <= 0
         ) {
