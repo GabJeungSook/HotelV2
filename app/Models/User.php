@@ -118,6 +118,21 @@ class User extends Authenticatable
         return $this->hasMany(Remittance::class);
     }
 
+    /**
+     * Override requests made by this user (as frontdesk)
+     */
+    public function overrideRequestsRequested()
+    {
+        return $this->hasMany(OverrideRequest::class, 'requester_id');
+    }
+
+    /**
+     * Override requests assigned to this user (as supervisor)
+     */
+    public function overrideRequestsAssigned()
+    {
+        return $this->hasMany(OverrideRequest::class, 'supervisor_id');
+    }
 
     // public function assignedFrontdesks()
     // {

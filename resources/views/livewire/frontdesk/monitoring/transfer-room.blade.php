@@ -113,15 +113,15 @@
                 @endif
                 <div class="flex justify-between text-xl my-2 mt-5">
                     <span class="text-gray-600">Current Room Rate:</span>
-                <span class="text-gray-800 font-medium">₱ {{ number_format($current_room_rate ?? 0, 2) }}</span>
+                <span class="text-gray-800 font-medium">&#8369; {{ number_format($current_room_rate ?? 0, 2) }}</span>
                 </div>
                 <div class="flex justify-between text-xl my-2">
                     <span class="text-gray-600">New Room Rate:</span>
-                <span class="text-gray-800 font-medium">₱ {{ number_format($new_room_rate  ?? 0, 2) }}</span>
+                <span class="text-gray-800 font-medium">&#8369; {{ number_format($new_room_rate  ?? 0, 2) }}</span>
                 </div>
                 <div class="flex justify-between text-xl my-2">
                     <span class="text-gray-600">Excess Amount:</span>
-                <span class="text-gray-800 font-medium">₱ {{ number_format($excess_amount ?? 0, 2) }}</span>
+                <span class="text-gray-800 font-medium">&#8369; {{ number_format($excess_amount ?? 0, 2) }}</span>
                 </div>
             </div>
 
@@ -129,77 +129,19 @@
 
            <div class="flex justify-between text-4xl font-semibold text-gray-800 mt-8 mb-4">
                 <span>Payable Amount:</span>
-                <span>₱ {{ number_format($payable_amount, 2) }}</span>
+                <span>&#8369; {{ number_format($payable_amount, 2) }}</span>
             </div>
-            <!-- amount paid -->
-            <!-- @if($payable_amount > 0)
-               <div class="mt-20 flex items-center justify-between gap-6">
-    <label class="font-semibold text-xl whitespace-nowrap">
-        Amount Paid
-    </label>
-
-    <div class="relative w-1/2">
-        <span class="absolute left-0 top-1/2 -translate-y-1/2 text-gray-700 font-semibold text-3xl">
-            ₱
-        </span>
-<input
-    wire:model.defer="amountPaid"
-    type="number"
-    autofocus
-    min="0"
-    placeholder="0.00"
-    class="
-        w-full
-        text-right
-        text-3xl
-        font-semibold
-        bg-transparent
-        border-0
-        border-b-2
-        border-gray-400
-        focus:border-blue-600
-        focus:outline-none
-        focus:ring-0
-        focus:shadow-none
-        appearance-none
-
-        pl-8
-        pb-1
-    "
-/>
-    </div>
-</div>
-@endif -->
-<!-- amount paid end -->
         </div>
     </div>
 
     <div class="flex justify-end mt-6 space-x-2">
         <div class="flex justify-between items-center w-full">
             <div>
-                {{-- @if ($rate->has_discount)
-                <label class="inline-flex items-center">
-                    <input type="checkbox" wire:model="has_discount" class="form-checkbox rounded text-[#1877F2] focus:ring-[#1877F2] border-gray-300" />
-                    <span class="ml-2 text-sm text-gray-700">Grant Discount</span>
-                </label>
-                @endif --}}
-
             </div>
             <div class="flex space-x-2">
                 <button wire:click="cancelTransfer" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-opacity-50">
                     Cancel
                 </button>
-                  {{-- <button wire:click="savePayExtend" class="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-[#1877F2] focus:ring-opacity-50">
-                    Save & Pay
-                </button> --}}
-                {{-- <button x-on:confirm="{
-                        title: 'Confirm Save',
-                        description: 'Are you sure you want to transfer guest?',
-                        icon: 'warning',
-                        method: 'saveTransfer'
-                    }" class="px-4 py-2 bg-[#1877F2] text-white rounded-md hover:bg-[#5194ec] focus:outline-none focus:ring-2 focus:ring-[#1877F2] focus:ring-opacity-50">
-                    Save
-                </button> --}}
                 @if($guest->transferTransactions()->count() < 2 && $guest->extendTransactions()->count() == 0)
                 <button wire:click="confirmTransfer" class="px-4 py-2 bg-[#1877F2] text-white rounded-md hover:bg-[#5194ec] focus:outline-none focus:ring-2 focus:ring-[#1877F2] focus:ring-opacity-50">
                     Save & Pay
@@ -223,7 +165,7 @@
                     <div class="w-full divide-y divide-gray-400 ">
                         <div class="flex justify-between items-center py-2">
                             <dt class="text-gray-600 text-2xl font-bold">Excess Amount:</dt>
-                            <dd class="text-gray-800 text-2xl font-bold">₱ {{ number_format($excess_amount, 2) }}</dd>
+                            <dd class="text-gray-800 text-2xl font-bold">&#8369; {{ number_format($excess_amount, 2) }}</dd>
                         </div>
                     </div>
                 </div>
@@ -251,7 +193,7 @@
       </x-card>
     </x-modal>
 
-    {{-- moadal for authorization code --}}
+    {{-- modal for authorization code (legacy system) --}}
       <x-modal wire:model.defer="authorization_modal" align="center" max-width="md">
     <x-card>
       <div class="flex space-x-1">
@@ -278,6 +220,127 @@
 
       </div>
 
+    </x-card>
+  </x-modal>
+
+  {{-- Modal for Override Request (Supervisor System) - EXACT UI --}}
+  <x-modal wire:model.defer="override_request_modal" align="center" max-width="2xl" blur="md">
+    <div class="bg-white rounded-lg overflow-hidden">
+      {{-- Red Header --}}
+      <div class="bg-red-600 px-6 py-4">
+        <h2 class="text-white text-xl font-bold">REVIEW OVERRIDE</h2>
+        <p class="text-white text-sm font-medium">TRANSFER ROOM</p>
+      </div>
+
+      {{-- Content --}}
+      <div class="p-6">
+        <div class="flex gap-6">
+          {{-- Left Column --}}
+          <div class="flex-1 space-y-4">
+            {{-- Requester --}}
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Requester:</label>
+              <div class="bg-gray-100 rounded px-3 py-2 text-sm font-medium text-gray-700">
+                {{ strtoupper(auth()->user()->name) }}
+              </div>
+            </div>
+
+            {{-- Transaction Type --}}
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Transaction Type:</label>
+              <div class="bg-gray-100 rounded px-3 py-2 text-sm font-medium text-gray-700">
+                Transfer room
+              </div>
+            </div>
+
+            {{-- Reason/s --}}
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Reason/s:</label>
+              <div class="bg-gray-100 rounded px-3 py-2 text-sm font-medium text-gray-700 min-h-[80px]">
+                @if($selected_reason)
+                  {{ strtoupper(\App\Models\TransferReason::find($selected_reason)?->reason ?? 'N/A') }}
+                @else
+                  N/A
+                @endif
+              </div>
+            </div>
+
+            {{-- Supervisor Dropdown --}}
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Supervisor: <span class="text-red-500">*</span></label>
+              <select wire:model="selected_supervisor_id"
+                class="w-full bg-gray-100 border-0 rounded px-3 py-2 text-sm font-medium text-gray-700 focus:ring-2 focus:ring-red-500">
+                <option value="">Select supervisor</option>
+                @foreach($supervisors as $supervisor)
+                  <option value="{{ $supervisor->id }}">{{ strtoupper($supervisor->name) }}</option>
+                @endforeach
+              </select>
+              @error('selected_supervisor_id')
+                <span class="text-xs text-red-500 mt-1">{{ $message }}</span>
+              @enderror
+            </div>
+          </div>
+
+          {{-- Right Column - Room Numbers --}}
+          <div class="w-32 flex flex-col items-center justify-center">
+            <label class="text-xs text-gray-500 mb-1">Transfer From Room #:</label>
+            <div class="text-5xl font-bold text-gray-800 mb-4">
+              {{ $room->number ?? '0' }}
+            </div>
+
+            {{-- Arrow Down --}}
+            <div class="text-gray-400 my-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </div>
+
+            <label class="text-xs text-gray-500 mb-1">To:</label>
+            <div class="text-5xl font-bold text-red-500">
+              @if($selected_room_id)
+                {{ \App\Models\Room::find($selected_room_id)?->number ?? '0' }}
+              @else
+                0
+              @endif
+            </div>
+          </div>
+        </div>
+
+        {{-- Buttons --}}
+        <div class="flex gap-3 mt-6">
+          <button wire:click="submitOverrideRequest"
+            class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded transition-colors">
+            REQUEST OVERRIDE
+          </button>
+          <button x-on:click="close"
+            class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-6 rounded transition-colors">
+            CANCEL
+          </button>
+        </div>
+      </div>
+    </div>
+  </x-modal>
+
+  {{-- Modal for Request Submitted Success --}}
+  <x-modal wire:model.defer="request_submitted_modal" align="center" max-width="md">
+    <x-card>
+      <div class="text-center py-6">
+        <div class="bg-green-100 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-bold text-gray-700 mb-2">Request Submitted!</h3>
+        <p class="text-gray-500 mb-4">Your override request has been sent to the supervisor.</p>
+        <p class="text-sm text-gray-400">Check the <strong>Transfer Requests</strong> page for status updates.</p>
+      </div>
+
+      <x-slot name="footer">
+        <div class="flex justify-center space-x-2">
+          <x-button primary label="Go to Transfer Requests" href="{{ route('frontdesk.override-requests') }}" />
+          <x-button flat label="Stay Here" x-on:click="close" />
+        </div>
+      </x-slot>
     </x-card>
   </x-modal>
 </div>

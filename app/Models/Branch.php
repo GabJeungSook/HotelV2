@@ -10,6 +10,10 @@ class Branch extends Model
     use HasFactory;
     protected $guarded = [];
 
+    protected $casts = [
+        'force_auto_override' => 'boolean',
+    ];
+
     public function users()
     {
         return $this->hasMany(User::class);
@@ -33,5 +37,10 @@ class Branch extends Model
     public function activity_logs()
     {
         return $this->hasMany(ActivityLog::class);
+    }
+
+    public function overrideRequests()
+    {
+        return $this->hasMany(OverrideRequest::class);
     }
 }

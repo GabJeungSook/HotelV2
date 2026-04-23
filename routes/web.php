@@ -84,6 +84,13 @@ Route::middleware([
         ) {
             return redirect()->route('pub_kitchen.dashboard');
         }
+        if (
+            auth()
+                ->user()
+                ->hasRole('supervisor')
+        ) {
+            return redirect()->route('supervisor.dashboard');
+        }
     })->name('dashboard');
     
 });

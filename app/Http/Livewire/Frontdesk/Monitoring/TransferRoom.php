@@ -3,11 +3,13 @@
 namespace App\Http\Livewire\Frontdesk\Monitoring;
 
 use App\Models\ActivityLog;
+use App\Models\Branch;
 use App\Models\User;
 use App\Models\CashOnDrawer;
 use App\Models\CheckinDetail;
 use App\Models\Floor;
 use App\Models\Guest;
+use App\Models\OverrideRequest;
 use App\Models\Rate;
 use App\Models\Room;
 use App\Models\TemporaryCheckInKiosk;
@@ -53,6 +55,12 @@ class TransferRoom extends Component
     public $current_room_rate;
     public $new_room_rate;
 
+    // New properties for supervisor override system
+    public $override_request_modal = false;
+    public $selected_supervisor_id = null;
+    public $supervisors = [];
+    public $request_submitted_modal = false;
+
     public function mount($record)
     {
         $this->assigned_frontdesk = auth()->user()->assigned_frontdesks;
@@ -80,6 +88,38 @@ class TransferRoom extends Component
 
         $this->reasons = TransferReason::where('branch_id', auth()->user()->branch_id)
             ->get();
+
+        // Load supervisors for the branch
+        $this->loadSupervisors();
+    }
+
+    /**
+     * Load supervisors for the current branch
+     */
+    private function loadSupervisors()
+    {
+        $this->supervisors = User::role('supervisor')
+            ->where('branch_id', auth()->user()->branch_id)
+            ->get();
+    }
+
+    /**
+     * Check if supervisor override system should be used
+     */
+    private function useSupervisorOverride(): bool
+    {
+        return User::role('supervisor')
+            ->where('branch_id', auth()->user()->branch_id)
+            ->exists();
+    }
+
+    /**
+     * Check if force auto-override is enabled for the branch
+     */
+    private function isForceAutoOverrideEnabled(): bool
+    {
+        $branch = Branch::find(auth()->user()->branch_id);
+        return $branch->force_auto_override ?? false;
     }
 
      public function updatedSelectedTypeId()
@@ -219,8 +259,119 @@ class TransferRoom extends Component
             'selected_reason.required' => 'Please select a reason for transfer.',
         ]);
 
-        $this->authorization_modal = true;
-        $this->is_override = true;
+        // Check if supervisor override system should be used
+        if ($this->useSupervisorOverride()) {
+            // Check if force auto-override is enabled
+            if ($this->isForceAutoOverrideEnabled()) {
+                // Auto-approve and proceed with transfer
+                $this->createAutoApprovedOverrideRequest();
+                $this->is_override = true;
+                $this->proceedWithTransfer();
+            } else {
+                // Show supervisor selection modal
+                $this->override_request_modal = true;
+            }
+        } else {
+            // Use legacy authorization code system
+            $this->authorization_modal = true;
+            $this->is_override = true;
+        }
+    }
+
+    /**
+     * Create an auto-approved override request (when force_auto_override is enabled)
+     */
+    private function createAutoApprovedOverrideRequest()
+    {
+        $check_in_detail = CheckinDetail::where('guest_id', $this->guest->id)->first();
+
+        OverrideRequest::create([
+            'branch_id' => auth()->user()->branch_id,
+            'requester_id' => auth()->user()->id,
+            'supervisor_id' => null,
+            'guest_id' => $this->guest->id,
+            'checkin_detail_id' => $check_in_detail->id,
+            'transfer_reason_id' => $this->selected_reason,
+            'transaction_type' => 'transfer',
+            'from_room_id' => $this->room->id,
+            'to_room_id' => $this->selected_room_id,
+            'from_type_id' => $this->room->type_id,
+            'to_type_id' => $this->selected_type_id,
+            'current_amount' => $this->current_room_rate,
+            'new_amount' => $this->new_room_rate ?? 0,
+            'status' => 'auto_approved',
+            'responded_at' => now(),
+            'request_data' => [
+                'selected_status' => $this->selected_status,
+                'excess_amount' => $this->excess_amount,
+                'payable_amount' => $this->payable_amount,
+                'save_excess' => $this->save_excess,
+            ],
+        ]);
+    }
+
+    /**
+     * Submit override request to supervisor
+     */
+    public function submitOverrideRequest()
+    {
+        $this->validate([
+            'selected_supervisor_id' => 'required',
+        ], [
+            'selected_supervisor_id.required' => 'Please select a supervisor.',
+        ]);
+
+        $check_in_detail = CheckinDetail::where('guest_id', $this->guest->id)->first();
+
+        $overrideRequest = OverrideRequest::create([
+            'branch_id' => auth()->user()->branch_id,
+            'requester_id' => auth()->user()->id,
+            'supervisor_id' => $this->selected_supervisor_id,
+            'guest_id' => $this->guest->id,
+            'checkin_detail_id' => $check_in_detail->id,
+            'transfer_reason_id' => $this->selected_reason,
+            'transaction_type' => 'transfer',
+            'from_room_id' => $this->room->id,
+            'to_room_id' => $this->selected_room_id,
+            'from_type_id' => $this->room->type_id,
+            'to_type_id' => $this->selected_type_id,
+            'current_amount' => $this->current_room_rate,
+            'new_amount' => $this->new_room_rate ?? 0,
+            'status' => 'pending',
+            'request_data' => [
+                'selected_status' => $this->selected_status,
+                'excess_amount' => $this->excess_amount,
+                'payable_amount' => $this->payable_amount,
+                'save_excess' => $this->save_excess,
+            ],
+        ]);
+
+        $this->override_request_modal = false;
+        $this->request_submitted_modal = true;
+    }
+
+    /**
+     * Proceed with transfer after approval (for auto-approve only)
+     */
+    private function proceedWithTransfer()
+    {
+        if ($this->excess_amount > 0) {
+            $this->save_pay_modal = true;
+        } else {
+            $this->dialog()->confirm([
+                'title' => 'Are you Sure?',
+                'description' => 'Transfer guest to new room?',
+                'icon' => 'question',
+                'accept' => [
+                    'label' => 'Confirm Transfer',
+                    'method' => 'saveTransfer',
+                    'params' => true,
+                ],
+                'reject' => [
+                    'label' => 'Cancel',
+                ],
+            ]);
+        }
     }
 
     public function saveTransfer()
@@ -245,6 +396,18 @@ class TransferRoom extends Component
             }
 
             $shiftLogId = collect($onlineUsers)->where('frontdesk_id', auth()->user()->id)->first()->id ?? null;
+
+        // Get override request info if exists
+        $overrideRequestId = $this->current_override_request_id;
+        $approvedByUserId = null;
+
+        if ($overrideRequestId) {
+            $overrideRequest = OverrideRequest::find($overrideRequestId);
+            if ($overrideRequest && $overrideRequest->supervisor_id) {
+                $approvedByUserId = $overrideRequest->supervisor_id;
+            }
+        }
+
         $transaction = Transaction::create([
             'branch_id' => auth()->user()->branch_id,
             'shift_log_id' => $shiftLogId,
@@ -277,6 +440,8 @@ class TransferRoom extends Component
             'transfer_reason_id' => $this->selected_reason,
             'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
             'is_override' => $this->is_override,
+            'override_request_id' => $overrideRequestId,
+            'approved_by_user_id' => $approvedByUserId,
         ]);
 
         if($this->save_excess)
