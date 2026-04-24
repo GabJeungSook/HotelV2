@@ -11,6 +11,7 @@ use WireUi\Traits\Actions;
 use App\Models\Guest;
 use App\Models\TemporaryCheckInKiosk;
 use App\Models\CheckinDetail;
+use App\Services\KioskBatchService;
 use Carbon\Carbon;
 use App\Jobs\TerminationInKiosk;
 use App\Models\StayingHour;
@@ -42,49 +43,51 @@ class CheckIn extends Component
 
     public function render()
     {
-        $temporaryCheckInKiosk = TemporaryCheckInKiosk::where(
-            'branch_id',
-            auth()->user()->branch_id
-        )
+        $branchId = auth()->user()->branch_id;
+
+        // First render (or after every active room has been picked): initialize
+        // or throw the next batch. This is how the batch "rolls over".
+        if (KioskBatchService::isEmpty($branchId)) {
+            KioskBatchService::throwNextBatch($branchId);
+        }
+
+        $activeRoomIds = KioskBatchService::activeRoomIds($branchId);
+
+        $temporaryCheckInKiosk = TemporaryCheckInKiosk::where('branch_id', $branchId)
             ->pluck('room_id')
             ->toArray();
 
-        $temporaryReserved = TemporaryReserved::where(
-            'branch_id',
-            auth()->user()->branch_id
-        )
+        $temporaryReserved = TemporaryReserved::where('branch_id', $branchId)
             ->pluck('room_id')
             ->toArray();
 
-        // Exclude rooms with orphaned kiosk Guest records (hold expired but guest never confirmed by frontdesk).
-        // Without this, the same room reappears in kiosk and a second customer can double-check-in.
-        $pendingGuestRooms = Guest::where('branch_id', auth()->user()->branch_id)
+        // Exclude rooms with orphaned kiosk Guest records (hold expired but
+        // guest never confirmed by frontdesk). Double-check-in protection.
+        $pendingGuestRooms = Guest::where('branch_id', $branchId)
             ->whereDoesntHave('checkInDetail')
             ->pluck('room_id')
             ->toArray();
 
-        // Get all available rooms, prioritize unused rooms (last_checkin_at null or oldest)
-        $allRooms = Room::where('branch_id', auth()->user()->branch_id)
-            ->whereTypeId($this->type_id)
+        // The batch service decides which rooms are "active" on the kiosk.
+        // We still apply the type filter and safety filters on top.
+        $rooms = Room::where('branch_id', $branchId)
+            ->whereIn('id', $activeRoomIds)
+            ->when($this->type_id, function ($query) {
+                return $query->where('type_id', $this->type_id);
+            })
             ->whereIn('status', ['Available', 'Cleaned'])
             ->whereNotIn('id', $temporaryCheckInKiosk)
             ->whereNotIn('id', $temporaryReserved)
             ->whereNotIn('id', $pendingGuestRooms)
-            ->where('is_priority', true)
             ->when($this->floor_id, function ($query) {
                 return $query->where('floor_id', $this->floor_id);
             })
             ->with(['type.rates', 'floor'])
-            ->orderByRaw('last_checkin_at IS NOT NULL, last_checkin_at ASC')
-            ->orderBy('number', 'asc')
-            ->get();
-
-        // Pick only 1 room per floor (prioritizing unused/least used)
-        $rooms = $allRooms->groupBy('floor_id')->map(function ($floorRooms) {
-            return $floorRooms->first();
-        })->sortBy(function ($room) {
-            return $room->floor->number ?? 0;
-        })->values();
+            ->get()
+            ->sortBy(function ($room) {
+                return $room->floor->number ?? 0;
+            })
+            ->values();
 
         return view('livewire.kiosk.check-in', [
             'rooms' => $rooms,
@@ -110,35 +113,33 @@ class CheckIn extends Component
 
     public function selectType($type_id)
     {
-        $temporaryCheckInKiosk = TemporaryCheckInKiosk::where(
-            'branch_id',
-            auth()->user()->branch_id
-        )
+        $branchId = auth()->user()->branch_id;
+
+        $activeRoomIds = KioskBatchService::activeRoomIds($branchId);
+
+        $temporaryCheckInKiosk = TemporaryCheckInKiosk::where('branch_id', $branchId)
             ->pluck('room_id')
             ->toArray();
 
-        $temporaryReserved = TemporaryReserved::where(
-            'branch_id',
-            auth()->user()->branch_id
-        )
+        $temporaryReserved = TemporaryReserved::where('branch_id', $branchId)
             ->pluck('room_id')
             ->toArray();
 
-        $pendingGuestRooms = Guest::where('branch_id', auth()->user()->branch_id)
+        $pendingGuestRooms = Guest::where('branch_id', $branchId)
             ->whereDoesntHave('checkInDetail')
             ->pluck('room_id')
             ->toArray();
 
-        if (
-            Room::where('branch_id', auth()->user()->branch_id)
-                ->where('type_id', $type_id)
-                ->whereIn('status', ['Available', 'Cleaned'])
-                ->whereNotIn('id', $temporaryCheckInKiosk)
-                ->whereNotIn('id', $temporaryReserved)
-                ->whereNotIn('id', $pendingGuestRooms)
-                ->where('is_priority', true)
-                ->count() <= 0
-        ) {
+        $available = Room::where('branch_id', $branchId)
+            ->where('type_id', $type_id)
+            ->whereIn('id', $activeRoomIds)
+            ->whereIn('status', ['Available', 'Cleaned'])
+            ->whereNotIn('id', $temporaryCheckInKiosk)
+            ->whereNotIn('id', $temporaryReserved)
+            ->whereNotIn('id', $pendingGuestRooms)
+            ->count();
+
+        if ($available <= 0) {
             $this->dialog()->error(
                 $title = 'SORRY',
                 $description = 'There is no available room in this type.'
@@ -378,6 +379,10 @@ class CheckIn extends Component
                 DB::rollBack();
                 throw $e; // do not silently swallow errors in production
             }
+
+            // Mark this room's batch slot as picked. If this drains the last
+            // active slot, the service auto-throws the next batch.
+            KioskBatchService::markPicked(auth()->user()->branch_id, $this->room_id);
 
             $this->steps = 5;
     }
