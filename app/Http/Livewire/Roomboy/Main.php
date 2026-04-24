@@ -93,9 +93,16 @@ class Main extends Component
     {
         $floorIds = $this->floors->pluck('id')->toArray();
 
+        // Hide rooms where the previous guest has not checked out yet.
+        // finishCleaning keeps the guard as a second line of defense.
+        $unresolvedRooms = CheckinDetail::where('is_check_out', false)
+            ->pluck('room_id')
+            ->toArray();
+
         return Room::whereBranchId(auth()->user()->branch_id)
             ->where('status', 'Uncleaned')
             ->whereIn('floor_id', $floorIds)
+            ->whereNotIn('id', $unresolvedRooms)
             ->with('floor')
             ->orderBy('check_out_time', 'asc')
             ->get();
@@ -108,9 +115,14 @@ class Main extends Component
     {
         $floorIds = $this->floors->pluck('id')->toArray();
 
+        $unresolvedRooms = CheckinDetail::where('is_check_out', false)
+            ->pluck('room_id')
+            ->toArray();
+
         return Room::whereBranchId(auth()->user()->branch_id)
             ->where('status', 'Uncleaned')
             ->whereIn('floor_id', $floorIds)
+            ->whereNotIn('id', $unresolvedRooms)
             ->count();
     }
 
