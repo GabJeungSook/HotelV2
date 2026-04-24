@@ -63,13 +63,6 @@ class CheckIn extends Component
             ->pluck('room_id')
             ->toArray();
 
-        // Exclude rooms with an open (not-checked-out) CheckinDetail — a "ghost".
-        // The previous guest's session was never closed, so the room is not
-        // truly available. The confirm-time guard remains as a second line of defense.
-        $ghostRooms = CheckinDetail::where('is_check_out', false)
-            ->pluck('room_id')
-            ->toArray();
-
         // Get all available rooms, prioritize unused rooms (last_checkin_at null or oldest)
         $allRooms = Room::where('branch_id', auth()->user()->branch_id)
             ->whereTypeId($this->type_id)
@@ -77,7 +70,6 @@ class CheckIn extends Component
             ->whereNotIn('id', $temporaryCheckInKiosk)
             ->whereNotIn('id', $temporaryReserved)
             ->whereNotIn('id', $pendingGuestRooms)
-            ->whereNotIn('id', $ghostRooms)
             ->where('is_priority', true)
             ->when($this->floor_id, function ($query) {
                 return $query->where('floor_id', $this->floor_id);
@@ -137,10 +129,6 @@ class CheckIn extends Component
             ->pluck('room_id')
             ->toArray();
 
-        $ghostRooms = CheckinDetail::where('is_check_out', false)
-            ->pluck('room_id')
-            ->toArray();
-
         if (
             Room::where('branch_id', auth()->user()->branch_id)
                 ->where('type_id', $type_id)
@@ -148,7 +136,6 @@ class CheckIn extends Component
                 ->whereNotIn('id', $temporaryCheckInKiosk)
                 ->whereNotIn('id', $temporaryReserved)
                 ->whereNotIn('id', $pendingGuestRooms)
-                ->whereNotIn('id', $ghostRooms)
                 ->where('is_priority', true)
                 ->count() <= 0
         ) {
