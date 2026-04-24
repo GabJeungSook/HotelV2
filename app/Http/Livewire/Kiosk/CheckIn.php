@@ -10,6 +10,7 @@ use App\Models\Floor;
 use WireUi\Traits\Actions;
 use App\Models\Guest;
 use App\Models\TemporaryCheckInKiosk;
+use App\Models\CheckinDetail;
 use Carbon\Carbon;
 use App\Jobs\TerminationInKiosk;
 use App\Models\StayingHour;
@@ -301,6 +302,30 @@ class CheckIn extends Component
                     $this->dialog()->error(
                         'SORRY',
                         'Room is already reserved. Please select another room.'
+                    );
+                    return;
+                }
+
+                // Guard: block if a previous guest's checkin_details is still open
+                // on this room. Without this, a ghost-in-the-making — the room
+                // is physically free but the old record never closed, so reports
+                // and deposits get corrupted. Front desk must resolve the old
+                // checkout before this room can be reused.
+                $openCheckin = CheckinDetail::where('room_id', $this->room_id)
+                    ->where('is_check_out', false)
+                    ->with('guest:id,name')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($openCheckin) {
+                    DB::rollBack();
+                    $ghostName = $openCheckin->guest->name ?? 'Unknown';
+                    $ghostDate = $openCheckin->check_in_at
+                        ? Carbon::parse($openCheckin->check_in_at)->format('M d, Y g:i A')
+                        : 'unknown date';
+                    $this->dialog()->error(
+                        'SORRY',
+                        "Room has unresolved previous guest: {$ghostName} (checked in {$ghostDate}). Please contact the front desk."
                     );
                     return;
                 }
