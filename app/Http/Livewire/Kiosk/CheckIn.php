@@ -56,10 +56,14 @@ class CheckIn extends Component
             ->pluck('room_id')
             ->toArray();
 
-        // Exclude rooms with orphaned kiosk Guest records (hold expired but guest never confirmed by frontdesk).
-        // Without this, the same room reappears in kiosk and a second customer can double-check-in.
+        // Exclude rooms with RECENT orphaned kiosk Guest records (hold expired but guest
+        // never confirmed by frontdesk). Scoped to the last 2 hours so stale historical
+        // orphans (e.g. guests with transactions but no check-in detail that cleanup skips)
+        // do not silently block all kiosk rooms. The kiosk:cleanup job runs every minute,
+        // so a 2-hour window is far wider than any legitimate race.
         $pendingGuestRooms = Guest::where('branch_id', auth()->user()->branch_id)
             ->whereDoesntHave('checkInDetail')
+            ->where('created_at', '>=', now()->subHours(2))
             ->pluck('room_id')
             ->toArray();
 
@@ -124,8 +128,11 @@ class CheckIn extends Component
             ->pluck('room_id')
             ->toArray();
 
+        // Same 2-hour scope as render() — stale historical orphans must not
+        // silently block the type-selection step either.
         $pendingGuestRooms = Guest::where('branch_id', auth()->user()->branch_id)
             ->whereDoesntHave('checkInDetail')
+            ->where('created_at', '>=', now()->subHours(2))
             ->pluck('room_id')
             ->toArray();
 

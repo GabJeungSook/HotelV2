@@ -197,6 +197,23 @@ class RoomBoyReport extends Component
                 }
 
                 $checkOutAt = Carbon::parse($priorCheckout->check_out_at);
+
+                // If another guest checked in between the prior checkout and
+                // this cleaning, the room was re-occupied. This cleaning is a
+                // re-clean for that later stay, not a late cleanup for the
+                // prior guest — skip to prevent duplicate penalty rows.
+                $hasInterveningCheckin = $roomCheckins->contains(function ($c) use ($checkOutAt, $cleaningEnd) {
+                    if (!$c->check_in_at) {
+                        return false;
+                    }
+                    $checkInAt = Carbon::parse($c->check_in_at);
+                    return $checkInAt->gt($checkOutAt) && $checkInAt->lt($cleaningEnd);
+                });
+
+                if ($hasInterveningCheckin) {
+                    continue;
+                }
+
                 $durationSeconds = $checkOutAt->diffInSeconds($cleaningEnd);
 
                 $this->addPenaltyIfExceeded(
