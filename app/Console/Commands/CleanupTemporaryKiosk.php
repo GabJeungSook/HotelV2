@@ -49,9 +49,12 @@ public function handle()
             DB::transaction(function () use ($hold, &$totalGuestsDeleted) {
                 // Delete the orphaned Guest so the room does not reappear in kiosk
                 // with a pending (never-confirmed) guest record attached to it.
+                // Skip any guest that already has transactions attached — those
+                // represent real money and must be investigated manually.
                 if ($hold->guest_id) {
                     $guestDeleted = Guest::where('id', $hold->guest_id)
                         ->whereDoesntHave('checkInDetail')
+                        ->whereDoesntHave('transactions')
                         ->delete();
                     $totalGuestsDeleted += $guestDeleted;
                 }

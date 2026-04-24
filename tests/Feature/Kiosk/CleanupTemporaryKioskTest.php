@@ -8,6 +8,7 @@ use App\Models\Floor;
 use App\Models\Guest;
 use App\Models\Room;
 use App\Models\TemporaryCheckInKiosk;
+use App\Models\Transaction;
 use App\Models\Type;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -93,6 +94,53 @@ class CleanupTemporaryKioskTest extends TestCase
 
         $this->assertDatabaseMissing('temporary_check_in_kiosks', ['id' => $expiredHold->id]);
         $this->assertDatabaseHas('guests', ['id' => $confirmedGuest->id]);
+    }
+
+    /** @test */
+    public function cleanup_keeps_orphan_guest_that_has_transactions_attached()
+    {
+        // Past records may contain orphan guests (no CheckinDetail) that still
+        // have real transactions tied to them — representing real money.
+        // Cleanup must skip these so the guest/transaction link is preserved
+        // for manual investigation. Deleting them would silently corrupt reports.
+        [$branch, $floor, $type, $room] = $this->seedScaffolding();
+
+        $moneyOrphan = Guest::create([
+            'branch_id' => $branch->id,
+            'name' => 'Orphan With Transactions',
+            'qr_code' => 'TEST-MONEY-ORPHAN-001',
+            'room_id' => $room->id,
+            'rate_id' => 1,
+            'type_id' => $type->id,
+            'static_amount' => 300,
+        ]);
+
+        Transaction::create([
+            'branch_id' => $branch->id,
+            'room_id' => $room->id,
+            'guest_id' => $moneyOrphan->id,
+            'floor_id' => $floor->id,
+            'transaction_type_id' => 1,
+            'assigned_frontdesk_id' => json_encode([1]),
+            'description' => 'Test charge',
+            'payable_amount' => 300,
+            'deposit_amount' => 0,
+            'remarks' => 'Test transaction for orphan',
+        ]);
+
+        $expiredHold = TemporaryCheckInKiosk::create([
+            'branch_id' => $branch->id,
+            'room_id' => $room->id,
+            'guest_id' => $moneyOrphan->id,
+            'terminated_at' => Carbon::now()->subHours(1),
+            'created_at' => Carbon::now()->subMinutes(30),
+            'updated_at' => Carbon::now()->subMinutes(30),
+        ]);
+
+        $this->artisan('kiosk:cleanup')->assertExitCode(0);
+
+        $this->assertDatabaseMissing('temporary_check_in_kiosks', ['id' => $expiredHold->id]);
+        $this->assertDatabaseHas('guests', ['id' => $moneyOrphan->id]);
     }
 
     /** @test */
