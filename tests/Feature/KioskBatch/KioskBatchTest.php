@@ -194,6 +194,65 @@ class KioskBatchTest extends TestCase
     }
 
     /** @test */
+    public function return_to_batch_flips_picked_slot_back_to_active()
+    {
+        [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
+            floors: 2,
+            roomsPerFloor: 1,
+        );
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $floor1RoomId = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->where('floor_id', $floors[0]->id)
+            ->value('room_id');
+
+        // Pick it — floor goes blank.
+        KioskBatchService::markPicked($branch->id, $floor1RoomId);
+        $this->assertEquals(
+            'picked',
+            KioskCurrentBatch::where('room_id', $floor1RoomId)->value('slot_status'),
+        );
+
+        // Simulate the guest walking away — cancel/timeout path.
+        KioskBatchService::returnToBatch($branch->id, $floor1RoomId);
+
+        $this->assertEquals(
+            'active',
+            KioskCurrentBatch::where('room_id', $floor1RoomId)->value('slot_status'),
+            'Cancelled / timed-out rooms must reappear on the kiosk, not stay blank.',
+        );
+
+        // Floor should now be listed among active room ids again.
+        $activeIds = KioskBatchService::activeRoomIds($branch->id, $type->id);
+        $this->assertContains($floor1RoomId, $activeIds);
+    }
+
+    /** @test */
+    public function return_to_batch_is_noop_when_slot_is_not_picked()
+    {
+        [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
+            floors: 1,
+            roomsPerFloor: 1,
+        );
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $activeRoomId = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->value('room_id');
+
+        // Not picked — still active. Return should leave it alone.
+        KioskBatchService::returnToBatch($branch->id, $activeRoomId);
+
+        $this->assertEquals(
+            'active',
+            KioskCurrentBatch::where('room_id', $activeRoomId)->value('slot_status'),
+        );
+    }
+
+    /** @test */
     public function batches_are_independent_per_type()
     {
         // Branch with 2 floors. Each floor has ONE Double room and ONE Single.

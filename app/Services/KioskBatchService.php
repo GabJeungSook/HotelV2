@@ -115,6 +115,21 @@ class KioskBatchService
     }
 
     /**
+     * Flip a picked slot back to active. Called when a kiosk check-in is
+     * cancelled or times out before the frontdesk confirms — the floor's
+     * slot should reappear on the kiosk instead of staying blank until the
+     * next batch. No-op if the slot is not currently picked for this room
+     * (e.g. cleanup runs twice, or the batch has already rotated).
+     */
+    public static function returnToBatch(int $branchId, int $roomId): void
+    {
+        KioskCurrentBatch::where('branch_id', $branchId)
+            ->where('room_id', $roomId)
+            ->where('slot_status', KioskCurrentBatch::STATUS_PICKED)
+            ->update(['slot_status' => KioskCurrentBatch::STATUS_ACTIVE]);
+    }
+
+    /**
      * Returns the list of room ids currently 'active' for (branch, type).
      * Used by the kiosk render to filter rooms.
      */

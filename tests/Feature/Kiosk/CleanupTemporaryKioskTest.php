@@ -6,10 +6,12 @@ use App\Models\Branch;
 use App\Models\CheckinDetail;
 use App\Models\Floor;
 use App\Models\Guest;
+use App\Models\KioskCurrentBatch;
 use App\Models\Room;
 use App\Models\TemporaryCheckInKiosk;
 use App\Models\Transaction;
 use App\Models\Type;
+use App\Services\KioskBatchService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
@@ -141,6 +143,71 @@ class CleanupTemporaryKioskTest extends TestCase
 
         $this->assertDatabaseMissing('temporary_check_in_kiosks', ['id' => $expiredHold->id]);
         $this->assertDatabaseHas('guests', ['id' => $moneyOrphan->id]);
+    }
+
+    /** @test */
+    public function cleanup_returns_picked_slot_to_batch_on_timeout()
+    {
+        // Seed TWO floors so picking one room does not drain the whole batch
+        // and trigger an auto re-throw — we need the slot to stay 'picked'
+        // to verify that cleanup flips it back to 'active'.
+        [$branch, $floor, $type, $room] = $this->seedScaffolding();
+
+        $secondFloor = Floor::create([
+            'branch_id' => $branch->id,
+            'number' => 2,
+        ]);
+
+        $secondRoom = Room::create([
+            'branch_id' => $branch->id,
+            'floor_id' => $secondFloor->id,
+            'type_id' => $type->id,
+            'number' => rand(9000, 9999),
+            'status' => 'Available',
+            'is_priority' => true,
+        ]);
+
+        // Simulate kiosk batch state: this room was picked by a guest that
+        // then walked away without frontdesk confirmation.
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+        KioskBatchService::markPicked($branch->id, $room->id);
+
+        $this->assertEquals(
+            'picked',
+            KioskCurrentBatch::where('room_id', $room->id)->value('slot_status'),
+            'precondition: slot should be picked before cleanup runs',
+        );
+
+        $orphanGuest = Guest::create([
+            'branch_id' => $branch->id,
+            'name' => 'Orphan Timeout Guest',
+            'qr_code' => 'TEST-ORPHAN-TIMEOUT-001',
+            'room_id' => $room->id,
+            'rate_id' => 1,
+            'type_id' => $type->id,
+            'static_amount' => 300,
+        ]);
+
+        $expiredHold = TemporaryCheckInKiosk::create([
+            'branch_id' => $branch->id,
+            'room_id' => $room->id,
+            'guest_id' => $orphanGuest->id,
+            'terminated_at' => Carbon::now()->subHours(1),
+            'created_at' => Carbon::now()->subMinutes(30),
+            'updated_at' => Carbon::now()->subMinutes(30),
+        ]);
+
+        $this->artisan('kiosk:cleanup')->assertExitCode(0);
+
+        // Hold + orphan guest removed, AND slot is active again so the
+        // floor reappears on the kiosk instead of staying blank.
+        $this->assertDatabaseMissing('temporary_check_in_kiosks', ['id' => $expiredHold->id]);
+        $this->assertDatabaseMissing('guests', ['id' => $orphanGuest->id]);
+        $this->assertEquals(
+            'active',
+            KioskCurrentBatch::where('room_id', $room->id)->value('slot_status'),
+            'cleanup must return the picked slot to active so the floor reappears',
+        );
     }
 
     /** @test */

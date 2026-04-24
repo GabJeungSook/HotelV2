@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\TemporaryCheckInKiosk;
 use App\Models\Guest;
 use App\Models\Branch;
+use App\Services\KioskBatchService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -46,6 +47,9 @@ public function handle()
             ->get();
 
         foreach ($expired as $hold) {
+            $branchId = $hold->branch_id;
+            $roomId = $hold->room_id;
+
             DB::transaction(function () use ($hold, &$totalGuestsDeleted) {
                 // Delete the orphaned Guest so the room does not reappear in kiosk
                 // with a pending (never-confirmed) guest record attached to it.
@@ -60,6 +64,11 @@ public function handle()
                 }
                 $hold->delete();
             });
+
+            // The guest never made it to frontdesk — return the floor slot
+            // to the kiosk so it does not stay blank until the next batch.
+            KioskBatchService::returnToBatch($branchId, $roomId);
+
             $totalDeleted++;
         }
     }
