@@ -3,8 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\TemporaryCheckInKiosk;
+use App\Models\Guest;
 use App\Models\Branch;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 class CleanupTemporaryKiosk extends Command
 {
@@ -31,6 +33,7 @@ class CleanupTemporaryKiosk extends Command
 public function handle()
 {
     $totalDeleted = 0;
+    $totalGuestsDeleted = 0;
 
     $branches = Branch::all();
 
@@ -38,13 +41,29 @@ public function handle()
 
         $minutes = $branch->kiosk_time_limit ?? 10;
 
-        $deleted = TemporaryCheckInKiosk::where('branch_id', $branch->id)
+        $expired = TemporaryCheckInKiosk::where('branch_id', $branch->id)
             ->where('created_at', '<=', now()->subMinutes($minutes))
-            ->delete();
+            ->get();
 
-        $totalDeleted += $deleted;
+        foreach ($expired as $hold) {
+            DB::transaction(function () use ($hold, &$totalGuestsDeleted) {
+                // Delete the orphaned Guest so the room does not reappear in kiosk
+                // with a pending (never-confirmed) guest record attached to it.
+                // Skip any guest that already has transactions attached — those
+                // represent real money and must be investigated manually.
+                if ($hold->guest_id) {
+                    $guestDeleted = Guest::where('id', $hold->guest_id)
+                        ->whereDoesntHave('checkInDetail')
+                        ->whereDoesntHave('transactions')
+                        ->delete();
+                    $totalGuestsDeleted += $guestDeleted;
+                }
+                $hold->delete();
+            });
+            $totalDeleted++;
+        }
     }
 
-    $this->info("Deleted {$totalDeleted} expired kiosk entries.");
+    $this->info("Deleted {$totalDeleted} expired kiosk entries and {$totalGuestsDeleted} orphan guests.");
 }
 }
