@@ -16,9 +16,6 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <div class="absolute top-3 left-3 bg-green-500 text-white text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full shadow-md">
-              Selected
-            </div>
           @endif
            @switch($type->id)
                @case($type->id == 1)
