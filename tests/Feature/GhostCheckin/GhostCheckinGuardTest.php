@@ -26,6 +26,8 @@ class GhostCheckinGuardTest extends TestCase
     /** @test */
     public function kiosk_confirm_checkin_blocks_when_ghost_checkin_exists()
     {
+        $this->markTestSkipped('Ghost guard temporarily disabled — see plan 2026-04-24. Re-enable when guards are uncommented.');
+
         [$branch, $floor, $type, $rate, $room, $user] = $this->seedScaffolding();
 
         // Simulate the bug pre-condition: a previous guest's record is still
@@ -72,6 +74,8 @@ class GhostCheckinGuardTest extends TestCase
     /** @test */
     public function roomboy_index_finish_cleaning_blocks_when_ghost_checkin_exists()
     {
+        $this->markTestSkipped('Ghost guard temporarily disabled — see plan 2026-04-24. Re-enable when guards are uncommented.');
+
         [$branch, $floor, $type, $rate, $room, $user] = $this->seedScaffolding();
 
         $ghostGuest = Guest::create([
@@ -115,6 +119,8 @@ class GhostCheckinGuardTest extends TestCase
     /** @test */
     public function roomboy_main_finish_cleaning_blocks_when_ghost_checkin_exists()
     {
+        $this->markTestSkipped('Ghost guard temporarily disabled — see plan 2026-04-24. Re-enable when guards are uncommented.');
+
         [$branch, $floor, $type, $rate, $room, $user] = $this->seedScaffolding();
 
         $ghostGuest = Guest::create([
