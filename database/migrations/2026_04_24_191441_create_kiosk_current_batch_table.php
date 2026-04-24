@@ -16,13 +16,15 @@ return new class extends Migration
         Schema::create('kiosk_current_batch', function (Blueprint $table) {
             $table->id();
             $table->foreignId('branch_id');
+            $table->foreignId('type_id');
             $table->foreignId('room_id');
             $table->foreignId('floor_id');
             $table->enum('slot_status', ['active', 'picked'])->default('active');
             $table->timestamps();
 
-            $table->index(['branch_id', 'slot_status']);
-            $table->index(['branch_id', 'floor_id']);
+            // Each type rotates its own batch independently per branch.
+            $table->index(['branch_id', 'type_id', 'slot_status']);
+            $table->index(['branch_id', 'type_id', 'floor_id']);
         });
     }
 
