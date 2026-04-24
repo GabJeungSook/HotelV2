@@ -17,11 +17,19 @@ class Index extends Component
     use Actions;
     public function render()
     {
+        // Hide rooms with an open (not-checked-out) CheckinDetail — a "ghost".
+        // Roomboy should not clean a room where the previous guest's session
+        // is still open. finishCleaning keeps the guard as second defense.
+        $ghostRooms = CheckinDetail::where('is_check_out', false)
+            ->pluck('room_id')
+            ->toArray();
+
         return view('livewire.roomboy.index', [
             // Sorted by check_out_time ascending (earliest checkout first)
             'assignedRooms' => Room::whereBranchId(auth()->user()->branch_id)
                 ->where('status', 'Uncleaned')
                 ->whereFloorId(auth()->user()->roomboy_assigned_floor_id)
+                ->whereNotIn('id', $ghostRooms)
                 ->orderBy('check_out_time', 'asc')
                 ->get(),
 
@@ -32,6 +40,7 @@ class Index extends Component
                     '!=',
                     auth()->user()->roomboy_assigned_floor_id
                 )
+                ->whereNotIn('id', $ghostRooms)
                 ->orderBy('check_out_time', 'asc')
                 ->get(),
         ]);
