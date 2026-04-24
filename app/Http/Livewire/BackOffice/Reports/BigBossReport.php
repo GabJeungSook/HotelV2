@@ -481,12 +481,26 @@ class BigBossReport extends Component
                             $status = 'Clean';
                             $endTime = Carbon::parse($delayedCleaning->end_time);
                             $time = $endTime->format('g:iA');
-                            // Elapse = checkout → cleaning end (find prior checkout)
+                            // Elapse = checkout → cleaning end (find prior checkout).
+                            // Skip the elapse when another guest checked in between
+                            // the prior checkout and this cleaning — a later stay
+                            // intervened, so that prior checkout is not the true
+                            // start of the cleaning wait.
                             $priorCheckout = ($priorCheckoutsByRoom[$room->id] ?? collect())
                                 ->first(fn($d) => Carbon::parse($d->check_out_at)->lte($endTime));
                             if ($priorCheckout) {
-                                $durationSeconds = Carbon::parse($priorCheckout->check_out_at)->diffInSeconds($endTime);
-                                $duration = $this->formatDuration($durationSeconds);
+                                $priorCheckOutAt = Carbon::parse($priorCheckout->check_out_at);
+                                $hasInterveningCheckin = $roomCheckins->contains(function ($c) use ($priorCheckOutAt, $endTime) {
+                                    if (!$c->check_in_at) {
+                                        return false;
+                                    }
+                                    $ci = Carbon::parse($c->check_in_at);
+                                    return $ci->gt($priorCheckOutAt) && $ci->lt($endTime);
+                                });
+                                if (!$hasInterveningCheckin) {
+                                    $durationSeconds = $priorCheckOutAt->diffInSeconds($endTime);
+                                    $duration = $this->formatDuration($durationSeconds);
+                                }
                             }
                         }
                     }
@@ -506,15 +520,28 @@ class BigBossReport extends Component
                     $orphanEnd = Carbon::parse($orphan->end_time);
                     $usedCleaningIds[] = $orphan->id;
 
-                    // Elapse = checkout → cleaning end
+                    // Elapse = checkout → cleaning end. Skip the elapse when another
+                    // guest checked in between the prior checkout and this cleaning —
+                    // the room was re-occupied, so the prior checkout is not the true
+                    // start of the cleaning wait (and 30h "red" elapses would mislead).
                     $orphanDurationSeconds = 0;
                     $orphanDuration = '';
                     $priorCheckout = ($priorCheckoutsByRoom[$room->id] ?? collect())
                         ->first(fn($d) => Carbon::parse($d->check_out_at)->lte($orphanEnd));
 
                     if ($priorCheckout) {
-                        $orphanDurationSeconds = Carbon::parse($priorCheckout->check_out_at)->diffInSeconds($orphanEnd);
-                        $orphanDuration = $this->formatDuration($orphanDurationSeconds);
+                        $priorCheckOutAt = Carbon::parse($priorCheckout->check_out_at);
+                        $hasInterveningCheckin = $roomCheckins->contains(function ($c) use ($priorCheckOutAt, $orphanEnd) {
+                            if (!$c->check_in_at) {
+                                return false;
+                            }
+                            $ci = Carbon::parse($c->check_in_at);
+                            return $ci->gt($priorCheckOutAt) && $ci->lt($orphanEnd);
+                        });
+                        if (!$hasInterveningCheckin) {
+                            $orphanDurationSeconds = $priorCheckOutAt->diffInSeconds($orphanEnd);
+                            $orphanDuration = $this->formatDuration($orphanDurationSeconds);
+                        }
                     }
 
                     $roomRows[] = [
