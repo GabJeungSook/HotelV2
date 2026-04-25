@@ -88,25 +88,48 @@ For 1 hour after deploying Tasks 6 or 7:
 
 ## File map
 
-**Create:**
-- `database/migrations/2026_04_25_120001_make_transactions_guest_room_floor_nullable.php`
-- `database/migrations/2026_04_25_120002_create_stock_movements_table.php`
-- `database/migrations/2026_04_25_120003_backfill_stock_movements_opening_balances.php`
+**Create (migrations):**
+- `2026_04_25_120001_make_transactions_guest_room_floor_nullable.php`
+- `2026_04_25_120002_create_stock_movements_table.php`
+- `2026_04_25_120003_backfill_stock_movements_opening_balances.php`
+- `2026_04_25_120004_add_snapshot_columns_to_transactions_table.php`
+- `2026_04_25_120005_create_menu_price_changes_table.php`
+- `2026_04_25_120006_create_pos_orders_table.php`
+- `2026_04_25_120007_add_order_id_to_transactions_table.php`
+
+**Create (models / services):**
 - `app/Models/StockMovement.php`
+- `app/Models/MenuPriceChange.php`
+- `app/Models/PosOrder.php`
 - `app/Services/Pos/StockService.php`
 - `app/Services/Pos/StockSourceResolver.php`
+- `app/Observers/MenuPriceObserver.php`
+
+**Create (UI):**
 - `app/Http/Livewire/Frontdesk/StockIn.php`
 - `resources/views/livewire/frontdesk/stock-in.blade.php`
+
+**Create (tests):**
+- `tests/Feature/Pos/TransactionsNullableColumnsTest.php`
+- `tests/Feature/Pos/StockMovementSchemaTest.php`
 - `tests/Feature/Pos/StockServiceTest.php`
 - `tests/Feature/Pos/StockSourceResolverTest.php`
+- `tests/Feature/Pos/BackfillOpeningBalancesTest.php`
+- `tests/Feature/Pos/TransactionsSnapshotColumnsTest.php`
+- `tests/Feature/Pos/MenuPriceChangeAuditTest.php`
+- `tests/Feature/Pos/PosOrdersSchemaTest.php`
 - `tests/Feature/Pos/StockInTest.php`
 - `tests/Feature/Pos/KitchenTransactionUsesStockServiceTest.php`
 - `tests/Feature/Pos/PubTransactionUsesStockServiceTest.php`
 
 **Modify:**
-- `app/Http/Livewire/Kitchen/Transaction.php` — replace direct `Inventory::update()` with `StockService::out()`
-- `app/Http/Livewire/Pub/PubTransaction.php` — same pattern
+- `app/Http/Livewire/Kitchen/Transaction.php` — shadow-write to StockService; populate snapshot columns
+- `app/Http/Livewire/Pub/PubTransaction.php` — shadow-write to StockService; populate snapshot columns
+- `app/Models/FrontdeskMenu.php` — register `MenuPriceObserver`
+- `app/Models/Menu.php` — register `MenuPriceObserver`
+- `app/Models/PubMenu.php` — register `MenuPriceObserver`
 - `routes/frontdesk.php` — add `frontdesk.stock-in` route
+- `app/Providers/EventServiceProvider.php` (if observers wired here in this codebase — confirm)
 
 **Untouched in this plan:**
 - POS UI (`PointOfSale.php`) — Plan 2
@@ -1939,9 +1962,615 @@ git commit -m "add Stock-In nav link in frontdesk sidebar"
 
 ---
 
+## Task 10: Add snapshot columns to `transactions`
+
+**Why:** Menu prices and names will change. Every historical transaction must remember the price/name at the time of sale, independent of the current menu.
+
+**Files:**
+- Create: `database/migrations/2026_04_25_120004_add_snapshot_columns_to_transactions_table.php`
+- Test: `tests/Feature/Pos/TransactionsSnapshotColumnsTest.php`
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Pos;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+class TransactionsSnapshotColumnsTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_transactions_has_snapshot_columns(): void
+    {
+        foreach (['source_type', 'menu_id', 'item_name', 'unit_price', 'quantity'] as $col) {
+            $this->assertTrue(
+                Schema::hasColumn('transactions', $col),
+                "transactions is missing snapshot column {$col}"
+            );
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run — verify FAIL**
+
+```bash
+php artisan test --filter=TransactionsSnapshotColumnsTest
+```
+
+- [ ] **Step 3: Write the migration**
+
+`database/migrations/2026_04_25_120004_add_snapshot_columns_to_transactions_table.php`:
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::table('transactions', function (Blueprint $table) {
+            $table->string('source_type', 20)->nullable()->after('transaction_type_id');
+            $table->unsignedBigInteger('menu_id')->nullable()->after('source_type');
+            $table->string('item_name', 255)->nullable()->after('menu_id');
+            $table->integer('unit_price')->nullable()->after('item_name');
+            $table->decimal('quantity', 10, 2)->nullable()->after('unit_price');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('transactions', function (Blueprint $table) {
+            $table->dropColumn(['source_type', 'menu_id', 'item_name', 'unit_price', 'quantity']);
+        });
+    }
+};
+```
+
+- [ ] **Step 4: Run — verify PASS**
+
+```bash
+php artisan test --filter=TransactionsSnapshotColumnsTest
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add database/migrations/2026_04_25_120004_add_snapshot_columns_to_transactions_table.php tests/Feature/Pos/TransactionsSnapshotColumnsTest.php
+git commit -m "add line-item snapshot columns to transactions (menu_id, item_name, unit_price, quantity)"
+```
+
+---
+
+## Task 11: Populate snapshot columns from Kitchen / Pub create() calls
+
+**Why:** Tasks 6 and 7 already touched these flows. Now that snapshot columns exist, populate them so historical kitchen/pub transactions can be traced even if the menu later changes. Additive — no UX impact.
+
+**Files:**
+- Modify: `app/Http/Livewire/Kitchen/Transaction.php`
+- Modify: `app/Http/Livewire/Pub/PubTransaction.php`
+
+- [ ] **Step 1: Update Kitchen `Transaction.php`**
+
+In the `TransactionModel::create([...])` array (the same call from Task 6), add the five snapshot fields. The existing `$food` variable (the Menu Eloquent model) already has the data:
+
+```php
+$transaction = TransactionModel::create([
+    // ...existing keys unchanged...
+    'source_type' => \App\Models\StockMovement::SOURCE_KITCHEN,
+    'menu_id'     => $food->id,
+    'item_name'   => $food->name,
+    'unit_price'  => (int) $food->price,
+    'quantity'    => $this->food_quantity,
+]);
+```
+
+- [ ] **Step 2: Update Pub `PubTransaction.php`**
+
+Find the equivalent `$drink` (or whatever the menu-row variable is named — confirm in the file). Add to `TransactionModel::create([...])`:
+
+```php
+'source_type' => \App\Models\StockMovement::SOURCE_PUB,
+'menu_id'     => $drink->id,
+'item_name'   => $drink->name,
+'unit_price'  => (int) $drink->price,
+'quantity'    => $this->drink_quantity,
+```
+
+- [ ] **Step 3: Update existing tests to assert snapshots**
+
+In `tests/Feature/Pos/KitchenTransactionUsesStockServiceTest.php`, after the `Livewire::test(...)->call('submit')` line, add:
+
+```php
+$tx = \App\Models\Transaction::latest('id')->first();
+$this->assertSame('kitchen', $tx->source_type);
+$this->assertEquals($menu->id, $tx->menu_id);
+$this->assertSame('Test Burger', $tx->item_name);
+$this->assertEquals(100, $tx->unit_price);
+$this->assertEquals(2, $tx->quantity);
+```
+
+Same shape in the Pub test (use the Pub fixture values).
+
+- [ ] **Step 4: Run tests**
+
+```bash
+php artisan test --filter=KitchenTransactionUsesStockServiceTest
+php artisan test --filter=PubTransactionUsesStockServiceTest
+```
+
+Both pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/Http/Livewire/Kitchen/Transaction.php app/Http/Livewire/Pub/PubTransaction.php tests/Feature/Pos/KitchenTransactionUsesStockServiceTest.php tests/Feature/Pos/PubTransactionUsesStockServiceTest.php
+git commit -m "kitchen/pub: populate transaction snapshot columns (item_name, unit_price, quantity)"
+```
+
+---
+
+## Task 12: `menu_price_changes` audit table + observers
+
+**Why:** Owner needs to see "this Coke sold for ₱60 last month, ₱65 this month — when did it change and who?" Today this is silent.
+
+**Files:**
+- Create: `database/migrations/2026_04_25_120005_create_menu_price_changes_table.php`
+- Create: `app/Models/MenuPriceChange.php`
+- Create: `app/Observers/MenuPriceObserver.php`
+- Modify: `app/Models/FrontdeskMenu.php`, `app/Models/Menu.php`, `app/Models/PubMenu.php`
+- Test: `tests/Feature/Pos/MenuPriceChangeAuditTest.php`
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Pos;
+
+use App\Models\FrontdeskMenu;
+use App\Models\Menu as KitchenMenu;
+use App\Models\MenuPriceChange;
+use App\Models\PubMenu;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class MenuPriceChangeAuditTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_frontdesk_menu_price_change_writes_audit_row(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $menu = FrontdeskMenu::create([
+            'branch_id' => 1, 'frontdesk_category_id' => 1,
+            'name' => 'Coke', 'price' => '60',
+        ]);
+
+        $menu->update(['price' => '65']);
+
+        $change = MenuPriceChange::where('source_type', 'frontdesk')
+            ->where('menu_id', $menu->id)
+            ->where('field', 'price')
+            ->first();
+
+        $this->assertNotNull($change);
+        $this->assertSame('60', (string) $change->old_value);
+        $this->assertSame('65', (string) $change->new_value);
+        $this->assertSame($user->id, $change->changed_by_user_id);
+    }
+
+    public function test_kitchen_menu_price_change_writes_audit_row(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $menu = KitchenMenu::create([
+            'branch_id' => 1, 'name' => 'Burger', 'price' => 100,
+        ]);
+
+        $menu->update(['price' => 110]);
+
+        $this->assertSame(1, MenuPriceChange::where('source_type', 'kitchen')->count());
+    }
+
+    public function test_pub_menu_price_change_writes_audit_row(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $menu = PubMenu::create([
+            'branch_id' => 1, 'name' => 'Beer', 'price' => 75,
+        ]);
+
+        $menu->update(['price' => 80]);
+
+        $this->assertSame(1, MenuPriceChange::where('source_type', 'pub')->count());
+    }
+
+    public function test_no_audit_row_when_price_unchanged(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $menu = FrontdeskMenu::create([
+            'branch_id' => 1, 'frontdesk_category_id' => 1, 'name' => 'X', 'price' => '50',
+        ]);
+
+        $menu->update(['name' => 'Y']);  // change name, NOT price
+
+        $this->assertSame(
+            0,
+            MenuPriceChange::where('field', 'price')->count(),
+            'no price change → no price audit row'
+        );
+
+        $this->assertSame(1, MenuPriceChange::where('field', 'name')->count(), 'name change is also audited');
+    }
+}
+```
+
+- [ ] **Step 2: Run — verify FAIL**
+
+```bash
+php artisan test --filter=MenuPriceChangeAuditTest
+```
+
+- [ ] **Step 3: Create the migration**
+
+`database/migrations/2026_04_25_120005_create_menu_price_changes_table.php`:
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::create('menu_price_changes', function (Blueprint $table) {
+            $table->id();
+            $table->string('source_type', 20);
+            $table->unsignedBigInteger('menu_id');
+            $table->string('field', 50);
+            $table->string('old_value', 255)->nullable();
+            $table->string('new_value', 255)->nullable();
+            $table->unsignedBigInteger('changed_by_user_id')->nullable();
+            $table->string('reason', 255)->nullable();
+            $table->timestamps();
+
+            $table->index(['source_type', 'menu_id', 'created_at']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('menu_price_changes');
+    }
+};
+```
+
+- [ ] **Step 4: Create the model**
+
+`app/Models/MenuPriceChange.php`:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class MenuPriceChange extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'source_type', 'menu_id', 'field',
+        'old_value', 'new_value',
+        'changed_by_user_id', 'reason',
+    ];
+}
+```
+
+- [ ] **Step 5: Create the observer**
+
+`app/Observers/MenuPriceObserver.php`:
+
+```php
+<?php
+
+namespace App\Observers;
+
+use App\Models\FrontdeskMenu;
+use App\Models\Menu;
+use App\Models\MenuPriceChange;
+use App\Models\PubMenu;
+use Illuminate\Database\Eloquent\Model;
+
+class MenuPriceObserver
+{
+    public function updating(Model $menu): void
+    {
+        $sourceType = $this->sourceTypeFor($menu);
+        if ($sourceType === null) {
+            return;
+        }
+
+        foreach (['price', 'name'] as $field) {
+            if ($menu->isDirty($field)) {
+                MenuPriceChange::create([
+                    'source_type'        => $sourceType,
+                    'menu_id'            => $menu->id,
+                    'field'              => $field,
+                    'old_value'          => (string) $menu->getOriginal($field),
+                    'new_value'          => (string) $menu->{$field},
+                    'changed_by_user_id' => auth()->id(),
+                    'reason'             => null,
+                ]);
+            }
+        }
+    }
+
+    private function sourceTypeFor(Model $menu): ?string
+    {
+        return match (get_class($menu)) {
+            FrontdeskMenu::class => 'frontdesk',
+            Menu::class          => 'kitchen',
+            PubMenu::class       => 'pub',
+            default              => null,
+        };
+    }
+}
+```
+
+- [ ] **Step 6: Wire the observer in each model**
+
+In `app/Models/FrontdeskMenu.php`, add to the model class:
+
+```php
+protected static function booted(): void
+{
+    static::observe(\App\Observers\MenuPriceObserver::class);
+}
+```
+
+Repeat the exact same `booted()` method in `app/Models/Menu.php` and `app/Models/PubMenu.php`.
+
+> Why per-model `booted()` instead of `EventServiceProvider`: less wiring, easier to discover, and matches Laravel 9 idioms.
+
+- [ ] **Step 7: Run — verify PASS**
+
+```bash
+php artisan test --filter=MenuPriceChangeAuditTest
+```
+
+Expected: PASS (4 tests).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add database/migrations/2026_04_25_120005_create_menu_price_changes_table.php app/Models/MenuPriceChange.php app/Observers/MenuPriceObserver.php app/Models/FrontdeskMenu.php app/Models/Menu.php app/Models/PubMenu.php tests/Feature/Pos/MenuPriceChangeAuditTest.php
+git commit -m "audit menu price/name changes via observer + menu_price_changes table"
+```
+
+---
+
+## Task 13: `pos_orders` table + `transactions.order_id` (POS cart header)
+
+**Why:** Real POS systems group cart line items under one order/receipt. Today this codebase has no such grouping (timestamp-based grouping is brittle). Plan 2 will use this table; Plan 1 just creates it so the migration ships ahead of Plan 2.
+
+**Files:**
+- Create: `database/migrations/2026_04_25_120006_create_pos_orders_table.php`
+- Create: `database/migrations/2026_04_25_120007_add_order_id_to_transactions_table.php`
+- Create: `app/Models/PosOrder.php`
+- Test: `tests/Feature/Pos/PosOrdersSchemaTest.php`
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+namespace Tests\Feature\Pos;
+
+use App\Models\PosOrder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+class PosOrdersSchemaTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_pos_orders_table_has_expected_columns(): void
+    {
+        $this->assertTrue(Schema::hasTable('pos_orders'));
+
+        foreach ([
+            'id', 'branch_id', 'user_id', 'shift_log_id',
+            'guest_id', 'room_id',
+            'payment_method', 'subtotal',
+            'discount_amount', 'discount_reason',
+            'total', 'paid_amount', 'change_amount',
+            'voided_at', 'voided_by_user_id',
+            'created_at', 'updated_at',
+        ] as $col) {
+            $this->assertTrue(Schema::hasColumn('pos_orders', $col), "pos_orders missing {$col}");
+        }
+    }
+
+    public function test_transactions_has_order_id_column(): void
+    {
+        $this->assertTrue(Schema::hasColumn('transactions', 'order_id'));
+    }
+
+    public function test_pos_order_can_be_created_and_read_back(): void
+    {
+        $order = PosOrder::create([
+            'branch_id'      => 1, 'user_id' => 1, 'shift_log_id' => null,
+            'guest_id'       => null, 'room_id' => null,
+            'payment_method' => 'cash', 'subtotal' => 200,
+            'discount_amount'=> 0, 'discount_reason' => null,
+            'total'          => 200, 'paid_amount' => 200, 'change_amount' => 0,
+        ]);
+
+        $this->assertNotNull($order->id);
+        $this->assertSame('cash', $order->fresh()->payment_method);
+        $this->assertEquals(200, $order->fresh()->total);
+    }
+}
+```
+
+- [ ] **Step 2: Run — verify FAIL**
+
+```bash
+php artisan test --filter=PosOrdersSchemaTest
+```
+
+- [ ] **Step 3: Create `pos_orders` migration**
+
+`database/migrations/2026_04_25_120006_create_pos_orders_table.php`:
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::create('pos_orders', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('branch_id');
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('shift_log_id')->nullable();
+            $table->unsignedBigInteger('guest_id')->nullable();
+            $table->unsignedBigInteger('room_id')->nullable();
+
+            $table->string('payment_method', 20)->nullable();
+            $table->integer('subtotal')->default(0);
+            $table->integer('discount_amount')->default(0);
+            $table->string('discount_reason', 255)->nullable();
+            $table->integer('total')->default(0);
+            $table->integer('paid_amount')->default(0);
+            $table->integer('change_amount')->default(0);
+
+            $table->timestamp('voided_at')->nullable();
+            $table->unsignedBigInteger('voided_by_user_id')->nullable();
+
+            $table->timestamps();
+
+            $table->index(['branch_id', 'created_at']);
+            $table->index('shift_log_id');
+            $table->index('guest_id');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('pos_orders');
+    }
+};
+```
+
+- [ ] **Step 4: Create `order_id` migration**
+
+`database/migrations/2026_04_25_120007_add_order_id_to_transactions_table.php`:
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::table('transactions', function (Blueprint $table) {
+            $table->unsignedBigInteger('order_id')->nullable()->after('id');
+            $table->index('order_id');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('transactions', function (Blueprint $table) {
+            $table->dropIndex(['order_id']);
+            $table->dropColumn('order_id');
+        });
+    }
+};
+```
+
+- [ ] **Step 5: Create the model**
+
+`app/Models/PosOrder.php`:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class PosOrder extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'branch_id', 'user_id', 'shift_log_id',
+        'guest_id', 'room_id',
+        'payment_method', 'subtotal',
+        'discount_amount', 'discount_reason',
+        'total', 'paid_amount', 'change_amount',
+        'voided_at', 'voided_by_user_id',
+    ];
+
+    protected $casts = [
+        'voided_at' => 'datetime',
+    ];
+
+    public function lineItems(): HasMany
+    {
+        return $this->hasMany(Transaction::class, 'order_id');
+    }
+}
+```
+
+- [ ] **Step 6: Run — verify PASS**
+
+```bash
+php artisan test --filter=PosOrdersSchemaTest
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add database/migrations/2026_04_25_120006_create_pos_orders_table.php database/migrations/2026_04_25_120007_add_order_id_to_transactions_table.php app/Models/PosOrder.php tests/Feature/Pos/PosOrdersSchemaTest.php
+git commit -m "add pos_orders table and transactions.order_id for POS cart grouping"
+```
+
+---
+
 ## Plan 1 acceptance criteria
 
-After all tasks ship (1, 2, 3, 4, 5, 6, 6.5, 7, 7.5, 8, 9):
+After all tasks ship (1, 2, 3, 4, 5, 6, 6.5, 7, 7.5, 8, 9, 10, 11, 12, 13):
 
 - [ ] `php artisan test --filter=Pos` is green.
 - [ ] `stock_movements` exists with one `OPENING` row per non-zero inventory row across all three inventory tables.
@@ -1950,15 +2579,13 @@ After all tasks ship (1, 2, 3, 4, 5, 6, 6.5, 7, 7.5, 8, 9):
 - [ ] Frontdesk users have a "Stock In" page that creates `IN` movements.
 - [ ] No POS UI changes; Plan 2 picks up there.
 
-## Known audit gaps (NOT in Plan 1)
+## Known audit gaps (remaining after Plan 1)
 
-Plan 1 makes **stock** and **sales** transparent, but the following remain unaudited and should be addressed in a separate plan if the owner wants full traceability:
+Plan 1 covers stock IN/OUT, sales (line-item snapshotted), and menu price/name edits. The remaining gaps:
 
-- **Menu price edits** — `frontdesk_menus.price`, kitchen menu price, pub menu price. Today: silent overwrite. Recommended: a `menu_price_history` table that snapshots old/new price + user + reason on every update. Out of scope for Plan 1.
-- **Direct DB / tinker edits** — anything that bypasses StockService or Eloquent observers won't appear in `stock_movements`. Operational discipline only.
-- **Transaction voids in non-POS flows** — Plan 1 does not add void support to Kitchen/Pub flows (only POS in Plan 2).
-
-These are logged here so they don't get forgotten.
+- **Direct DB / tinker edits** — anything that bypasses Eloquent (raw SQL, manual UPDATE in tinker without using the model) won't trigger observers and won't appear in audit tables. Mitigation is operational discipline only; could be tightened by enabling MySQL binary logging.
+- **Transaction voids in Kitchen/Pub flows** — Plan 1 does not add a void UI to Kitchen/Pub. Only POS gets void in Plan 2. Kitchen/Pub edits would still need a manual reversal transaction.
+- **Menu CRUD beyond price/name** — observer audits `price` and `name` only. Other field changes (image, category, item_code) are not audited. Cheap to extend if needed.
 
 ## Plan 1 self-review (notes for the implementer)
 

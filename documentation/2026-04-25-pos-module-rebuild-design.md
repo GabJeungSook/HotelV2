@@ -53,6 +53,9 @@ These are not three independent features. They are one cohesive ask: **make the 
 | 9 | No tax on top — keep prices tax-inclusive | Owner did not ask; changing display prices is risky. |
 | 10 | Receipt: server-rendered HTML, still printed via `window.print()` | Keeps current UX, opens path to PDF later. |
 | 11 | Promote behind feature flag `pos_v2_enabled` per branch | POS rewrite touches money flow — flag lets us pilot one branch first. |
+| 12 | **Snapshot line item on every transaction** (`menu_id`, `item_name`, `unit_price`, `quantity`) — never updated after creation | Menu prices/names will change. Historical transactions must reflect the value at sale time, not the current menu value. |
+| 13 | **`menu_price_changes` audit table** logs every price edit on any of the three menu tables | Owner needs to see "this Coke sold for ₱60 last month, ₱65 this month — when did it change and who changed it?" |
+| 14 | **`pos_orders` header table** + nullable `order_id` on `transactions` for proper multi-item cart grouping | Replaces brittle "items created in same second = same order" timestamp grouping. Kitchen/Pub flows leave `order_id = NULL` and remain unchanged. |
 
 ## 5. Architecture
 
@@ -199,13 +202,78 @@ created_at, updated_at
 
 ### 9.2 Columns added to `transactions`
 
+Two groups: payment/void/discount metadata, and the **line-item snapshot** that freezes what was sold at the price/name in effect at sale time.
+
 ```
+-- payment + discount + void metadata
 payment_method      varchar(20) null      -- 'cash' | 'gcash' | 'card'
-discount_amount     decimal(15,2) default 0
+discount_amount     integer default 0
 discount_reason     varchar(255) null
 voided_at           timestamp null
 voided_by_user_id   bigint null, fk → users
+
+-- LINE-ITEM SNAPSHOT (frozen at sale; never updated)
+source_type         varchar(20) null      -- 'frontdesk' | 'kitchen' | 'pub'
+menu_id             bigint null           -- reference only; do not join for amount
+item_name           varchar(255) null     -- snapshot of menu name at sale time
+unit_price          integer null          -- snapshot of menu price at sale time
+quantity            decimal(10,2) null
 ```
+
+**Why both `unit_price` and `payable_amount`:** `payable_amount` is the line total (already exists). `unit_price` is the per-unit price snapshot. Storing both lets us prove `payable_amount = unit_price × quantity − discount_amount` and lets the BigBoss report show per-unit pricing without joining the (mutable) menu table.
+
+### 9.4 New table — `menu_price_changes`
+
+Every UPDATE to a menu's `price` (or `name`) writes one row.
+
+```
+id                bigint pk
+source_type       varchar(20)            -- 'frontdesk' | 'kitchen' | 'pub'
+menu_id           bigint
+field             varchar(50)            -- 'price' | 'name'
+old_value         varchar(255) null
+new_value         varchar(255) null
+changed_by_user_id bigint nullable, fk → users
+reason            varchar(255) null
+created_at, updated_at
+
+-- index (source_type, menu_id, created_at)
+```
+
+Wired via Eloquent `updating` observer on each of: `FrontdeskMenu`, `Menu` (kitchen), `PubMenu`. If the model is dirty on `price` or `name`, write a row before save.
+
+### 9.5 New table — `pos_orders` (POS cart header)
+
+One row per POS checkout. Used only by the new POS (Plan 2). Kitchen/Pub leave `transactions.order_id = NULL`.
+
+```
+id                 bigint pk
+branch_id          bigint
+user_id            bigint                 -- frontdesk who rang the sale
+shift_log_id       bigint nullable
+guest_id           bigint nullable        -- room-charge sale
+room_id            bigint nullable        -- room-charge sale
+payment_method     varchar(20) null       -- 'cash' | 'gcash' | 'card' | NULL for room-charge
+subtotal           integer                -- sum of line item totals before discount
+discount_amount    integer default 0
+discount_reason    varchar(255) null
+total              integer                -- subtotal - discount
+paid_amount        integer default 0
+change_amount      integer default 0
+voided_at          timestamp null
+voided_by_user_id  bigint null, fk → users
+created_at, updated_at
+
+-- index (branch_id, created_at), (shift_log_id), (guest_id)
+```
+
+### 9.6 Add `order_id` column to `transactions`
+
+```
+order_id  bigint nullable, fk → pos_orders.id
+```
+
+Nullable because Kitchen/Pub flows continue creating transactions without an order header.
 
 ### 9.3 Backfill migration (idempotent)
 
