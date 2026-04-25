@@ -30,6 +30,7 @@ use App\Models\FrontdeskInventory;
 use App\Models\CheckOutGuestReport;
 use App\Models\ExtendedGuestReport;
 use App\Models\TransferReason;
+use App\Models\TransferedGuestReport;
 use Filament\Forms\Components\Actions\Modal\Actions\Action;
 
 class GuestTransaction extends Component
@@ -1695,16 +1696,37 @@ class GuestTransaction extends Component
 
 
         $new_room = Room::where('id',  $this->room_id)->first();
+
+        // Snapshot the original (source) room id and amount BEFORE the
+        // CheckinDetail row is mutated below, so the audit row reflects
+        // the actual previous-room data.
+        $previous_room_id = $check_in_detail->room_id;
+        $previous_amount = $check_in_detail->static_room_amount;
+        $original_check_in_at = $check_in_detail->check_in_at ?? $check_in_detail->created_at;
+
         CheckinDetail::where('guest_id', $this->guest_id)->update([
             'type_id' => $this->type_id,
             'room_id' => $this->room_id,
+        ]);
+
+        // Match TransferRoom::saveTransfer's audit write so the roomboy
+        // "Transferred to RM X" badge appears for transfers triggered from
+        // this modal too.
+        TransferedGuestReport::create([
+            'checkin_detail_id'      => $check_in_detail->id,
+            'previous_room_id'       => $previous_room_id,
+            'new_room_id'            => $new_room->id,
+            'rate_id'                => $this->guest->rate_id,
+            'previous_amount'        => $previous_amount,
+            'new_amount'             => $previous_amount + $this->total,
+            'original_check_in_time' => $original_check_in_at,
         ]);
 
         ActivityLog::create([
             'branch_id' => auth()->user()->branch_id,
             'user_id' => auth()->user()->id,
             'activity' => 'Room Transfer',
-            'description' => 'Guest ' . $check_in_detail->guest->name . ' transferred from Room #' . Room::where('id', $check_in_detail->room_id)->first()->number . ' to Room #' . $new_room->number,
+            'description' => 'Guest ' . $check_in_detail->guest->name . ' transferred from Room #' . Room::where('id', $previous_room_id)->first()->number . ' to Room #' . $new_room->number,
         ]);
 
         DB::commit();

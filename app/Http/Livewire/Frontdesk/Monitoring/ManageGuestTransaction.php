@@ -19,6 +19,8 @@ use App\Models\Menu;
 use App\Models\Inventory;
 use App\Models\AssignedFrontdesk;
 use App\Models\StayExtension;
+use App\Models\TransferedGuestReport;
+use App\Models\CheckOutGuestReport;
 use Carbon\Carbon;
 use DB;
 
@@ -887,6 +889,12 @@ class ManageGuestTransaction extends Component
             'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
         ]);
 
+        // Snapshot the source room id/amount BEFORE the room status flip
+        // so the audit row reflects the previous-room data accurately.
+        $previous_room_id = $check_in_detail->room_id;
+        $previous_amount = $check_in_detail->static_room_amount;
+        $original_check_in_at = $check_in_detail->check_in_at ?? $check_in_detail->created_at;
+
         // Stamp source room's check_out_time on transfer so the roomboy queue
         // (sorted ASC by check_out_time) ranks it as recently vacated rather
         // than inheriting the prior guest's stale checkout. Mirrors the fix
@@ -898,6 +906,19 @@ class ManageGuestTransaction extends Component
 
         Room::where('id',  $this->room_id)->update([
             'status' => 'Occupied',
+        ]);
+
+        // Match TransferRoom::saveTransfer's audit write so the roomboy
+        // "Transferred to RM X" badge appears for transfers triggered from
+        // this modal too.
+        TransferedGuestReport::create([
+            'checkin_detail_id'      => $check_in_detail->id,
+            'previous_room_id'       => $previous_room_id,
+            'new_room_id'            => $this->room_id,
+            'rate_id'                => $this->guest->rate_id,
+            'previous_amount'        => $previous_amount,
+            'new_amount'             => $previous_amount + $this->total,
+            'original_check_in_time' => $original_check_in_at,
         ]);
 
         $this->dialog()->success(
