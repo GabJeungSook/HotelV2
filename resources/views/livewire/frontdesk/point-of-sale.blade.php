@@ -353,43 +353,45 @@
         </div>
     @endif
 
-    <x-modal-card title="Confirm Checkout" wire:model.defer="showCheckoutConfirm" max-width="md">
-        <div class="space-y-3">
-            <p class="text-sm text-gray-500">Review the order before submitting.</p>
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-xs uppercase text-gray-500 border-b">
-                        <th class="py-2">Item</th>
-                        <th class="py-2 text-center">Qty</th>
-                        <th class="py-2 text-right">Price</th>
-                        <th class="py-2 text-right">Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($cart as $item)
-                        <tr class="border-b last:border-b-0">
-                            <td class="py-2">{{ $item['name'] }}</td>
-                            <td class="py-2 text-center">{{ $item['quantity'] }}</td>
-                            <td class="py-2 text-right">&#8369;{{ number_format($item['price'], 2) }}</td>
-                            <td class="py-2 text-right">&#8369;{{ number_format($item['subtotal'], 2) }}</td>
+    <x-modal wire:model.defer="showCheckoutConfirm" max-width="md">
+        <x-card title="Confirm Checkout">
+            <div class="space-y-3">
+                <p class="text-sm text-gray-500">Review the order before submitting.</p>
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs uppercase text-gray-500 border-b">
+                            <th class="py-2">Item</th>
+                            <th class="py-2 text-center">Qty</th>
+                            <th class="py-2 text-right">Price</th>
+                            <th class="py-2 text-right">Subtotal</th>
                         </tr>
-                    @endforeach
-                </tbody>
-                <tfoot>
-                    <tr class="font-bold text-base">
-                        <td class="pt-3" colspan="3">Total</td>
-                        <td class="pt-3 text-right text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-
-        <x-slot name="footer">
-            <div class="flex justify-end gap-2">
-                <x-button flat label="Cancel" wire:click="cancelCheckout" />
-                <x-button primary label="Confirm & Submit" wire:click="checkout" spinner="checkout" />
+                    </thead>
+                    <tbody>
+                        @foreach($cart as $item)
+                            <tr class="border-b last:border-b-0">
+                                <td class="py-2">{{ $item['name'] }}</td>
+                                <td class="py-2 text-center">{{ $item['quantity'] }}</td>
+                                <td class="py-2 text-right">&#8369;{{ number_format($item['price'], 2) }}</td>
+                                <td class="py-2 text-right">&#8369;{{ number_format($item['subtotal'], 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                    <tfoot>
+                        <tr class="font-bold text-base">
+                            <td class="pt-3" colspan="3">Total</td>
+                            <td class="pt-3 text-right text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
-        </x-slot>
-    </x-modal-card>
+
+            <x-slot name="footer">
+                <div class="flex justify-end gap-2">
+                    <x-button flat label="Cancel" wire:click="cancelCheckout" />
+                    <x-button primary label="Confirm & Submit" wire:click="checkout" spinner="checkout" />
+                </div>
+            </x-slot>
+        </x-card>
+    </x-modal>
 
 </div>
