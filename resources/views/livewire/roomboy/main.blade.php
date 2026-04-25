@@ -36,7 +36,15 @@
                             @endphp
                             <tr wire:key="uncleaned-{{ $room->id }}" class="{{ $rowBg }}">
                                 <td class="px-2 py-2 text-center text-gray-600">{{ $index + 1 }}.</td>
-                                <td class="px-2 py-2 text-center font-bold text-gray-900">{{ $room->number }}</td>
+                                <td class="px-2 py-2 text-center font-bold text-gray-900">
+                                    {{ $room->number }}
+                                    @if (!empty($room->transferred_to_room_number))
+                                        <div class="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#E6F5FE] text-[#0080cc] text-[10px] font-medium border border-[#009EF5]/30">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                            Transferred to RM {{ $room->transferred_to_room_number }}
+                                        </div>
+                                    @endif
+                                </td>
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $room->floor->number ?? $room->floor_id }}</td>
                                 <td class="px-2 py-2 text-center text-gray-800 hidden md:table-cell">{{ $checkoutTime->format('g:i A') }}</td>
 

@@ -10,6 +10,7 @@ use WireUi\Traits\Actions;
 use App\Models\CheckinDetail;
 use App\Models\RoomBoyReport;
 use App\Models\CleaningHistory;
+use App\Models\TransferedGuestReport;
 use Illuminate\Support\Facades\DB;
 
 class Main extends Component
@@ -359,6 +360,34 @@ class Main extends Component
                 ->get();
         } else {
             $this->rooms = collect();
+        }
+
+        // Mark rooms that became Uncleaned via a transfer (not a real checkout)
+        // by matching the latest TransferedGuestReport.previous_room_id to each
+        // room. We attach the destination room number so the view can render a
+        // "Transferred to RM X" hint, helping the roomboy distinguish a transfer
+        // vacancy from a true checkout.
+        if ($this->rooms->isNotEmpty()) {
+            $roomIds = $this->rooms->pluck('id')->all();
+            $latestTransfers = TransferedGuestReport::whereIn('previous_room_id', $roomIds)
+                ->with('new_room:id,number')
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->groupBy('previous_room_id')
+                ->map(fn ($group) => $group->first());
+
+            $this->rooms->each(function ($room) use ($latestTransfers) {
+                $room->transferred_to_room_number = null;
+                $report = $latestTransfers->get($room->id);
+                if (! $report || ! $room->check_out_time) {
+                    return;
+                }
+                $reportAt = \Carbon\Carbon::parse($report->created_at);
+                $checkoutAt = \Carbon\Carbon::parse($room->check_out_time);
+                if ($reportAt->gte($checkoutAt->copy()->subMinute())) {
+                    $room->transferred_to_room_number = $report->new_room->number ?? null;
+                }
+            });
         }
 
         $floorCounts = (clone $baseQuery)
