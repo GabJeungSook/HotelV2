@@ -6,10 +6,13 @@ use App\Models\PubMenu;
 use App\Models\Guest;
 use Livewire\Component;
 use App\Models\PubInventory;
+use App\Models\StockMovement;
 use App\Models\Transaction as TransactionModel;
 use App\Models\CheckinDetail;
+use App\Services\Pos\StockService;
 use WireUi\Traits\Actions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PubTransaction extends Component
 {
@@ -102,7 +105,7 @@ class PubTransaction extends Component
             ->first();
         if($inventory != null)
         {
-            TransactionModel::create([
+            $transaction = TransactionModel::create([
                 'branch_id' => $check_in_detail->guest->branch_id,
                 'room_id' => $check_in_detail->room_id,
                 'guest_id' => $check_in_detail->guest_id,
@@ -118,13 +121,42 @@ class PubTransaction extends Component
                 'override_at' => null,
                 'remarks' =>
                 'Guest Added Food and Beverages: (The Pub) (' .$this->food_quantity .')' .' '.$food->name,
+                // line-item snapshot — frozen at sale time
+                'source_type' => StockMovement::SOURCE_PUB,
+                'menu_id'     => $food->id,
+                'item_name'   => $food->name,
+                'unit_price'  => (int) $food->price,
+                'quantity'    => $this->food_quantity,
             ]);
-            //update stock
+            //update stock (legacy path — kept during shadow-write phase)
             $new_stock =
                 $inventory->number_of_serving - $this->food_quantity;
             $inventory->update([
                 'number_of_serving' => $new_stock,
             ]);
+
+            // SHADOW-WRITE: log to stock_movements without re-decrementing inventory.
+            // Wrapped in try/catch so any failure here can never block the live flow.
+            try {
+                app(StockService::class)->out(
+                    StockMovement::SOURCE_PUB,
+                    (int) $this->food_id,
+                    (float) $this->food_quantity,
+                    [
+                        'branch_id' => auth()->user()->branch_id,
+                        'ref_type'  => 'transaction',
+                        'ref_id'    => $transaction->id,
+                        'user_id'   => auth()->id(),
+                        'shadow'    => true,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('StockService shadow-write failed (pub)', [
+                    'menu_id' => $this->food_id,
+                    'qty'     => $this->food_quantity,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
 
             $this->food_beverages_modal = false;
             $this->dialog()->success(
