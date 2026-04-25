@@ -3,8 +3,11 @@
 namespace App\Services;
 
 use App\Models\Floor;
+use App\Models\Guest;
 use App\Models\KioskCurrentBatch;
 use App\Models\Room;
+use App\Models\TemporaryCheckInKiosk;
+use App\Models\TemporaryReserved;
 
 /**
  * Manages the kiosk "batch rotation" system. The kiosk shows a fixed set of
@@ -37,26 +40,26 @@ class KioskBatchService
 
         $floors = Floor::where('branch_id', $branchId)->get();
 
+        // Same exclusion list the kiosk's render() applies — without it the
+        // throw can re-pick rooms that already have an active kiosk hold,
+        // which leaves the kiosk stuck (slot says 'active' but render filters
+        // it out, showing SORRY).
+        $blockedRoomIds = self::roomIdsBlockedFromBatch($branchId);
+
         foreach ($floors as $floor) {
             $candidates = Room::where('branch_id', $branchId)
                 ->where('type_id', $typeId)
                 ->where('floor_id', $floor->id)
                 ->whereIn('status', ['Available', 'Cleaned'])
                 ->where('is_priority', 1)
+                ->whereNotIn('id', $blockedRoomIds ?: [0])
                 ->get();
 
             if ($candidates->isEmpty()) {
                 continue;
             }
 
-            // Client spec requires "ascending numerical" order. rooms.number
-            // is varchar (must hold alphanumeric like "5A", "5C"), so a SQL
-            // orderBy gives string sort: ["3","21"] becomes ["21","3"]. Use
-            // PHP natsort so "3" < "5A" < "21" naturally.
-            $numbers = $candidates->pluck('number')->toArray();
-            natsort($numbers);
-            $lowest = reset($numbers);
-            $room = $candidates->firstWhere('number', $lowest);
+            $room = self::pickPreferredRoom($candidates);
 
             KioskCurrentBatch::create([
                 'branch_id' => $branchId,
@@ -66,6 +69,71 @@ class KioskBatchService
                 'slot_status' => KioskCurrentBatch::STATUS_ACTIVE,
             ]);
         }
+    }
+
+    /**
+     * Rooms that should be excluded from any new batch pick because the
+     * kiosk's own render() filters them out — picking them would put the
+     * kiosk in a "slot active but invisible" stuck state.
+     *
+     * Mirrors `Kiosk\CheckIn::render()`'s filters:
+     *  - Has a TemporaryCheckInKiosk hold (kiosk reservation in flight)
+     *  - Has a TemporaryReserved hold (frontdesk reservation)
+     *  - Has an orphan Guest in the last 2 hours (guest record without
+     *    checkin_detail — same scope as the master kiosk hotfix)
+     */
+    private static function roomIdsBlockedFromBatch(int $branchId): array
+    {
+        $temp = TemporaryCheckInKiosk::where('branch_id', $branchId)
+            ->pluck('room_id')
+            ->toArray();
+
+        $reserved = TemporaryReserved::where('branch_id', $branchId)
+            ->pluck('room_id')
+            ->toArray();
+
+        $pending = Guest::where('branch_id', $branchId)
+            ->whereDoesntHave('checkInDetail')
+            ->where('created_at', '>=', now()->subHours(2))
+            ->pluck('room_id')
+            ->toArray();
+
+        return array_values(array_unique(array_merge($temp, $reserved, $pending)));
+    }
+
+    /**
+     * Select the next room to release from a candidate set on one floor.
+     *
+     * Spec balances two goals:
+     *   1. "Use unused rooms" — distribute usage so the same low-numbered
+     *      room is not picked over and over while other rooms sit idle.
+     *   2. "Ascending numerical queue" — within a tier, prefer the lowest
+     *      natsort-ordered room number ("3" < "5A" < "21").
+     *
+     * Tiered priority:
+     *   1. Never-used rooms (last_checkin_at IS NULL) — natsort tiebreak
+     *   2. Then least-recently-used — natsort tiebreak among same-timestamp
+     *
+     * @param  \Illuminate\Support\Collection<int, Room>  $candidates
+     */
+    private static function pickPreferredRoom($candidates): Room
+    {
+        $unused = $candidates->whereNull('last_checkin_at');
+
+        if ($unused->isNotEmpty()) {
+            $pool = $unused;
+        } else {
+            // All have been used at some point — pick the oldest, with natsort
+            // as a tiebreak so behavior is deterministic when timestamps tie.
+            $oldestTimestamp = $candidates->min('last_checkin_at');
+            $pool = $candidates->filter(fn ($r) => $r->last_checkin_at == $oldestTimestamp);
+        }
+
+        $numbers = $pool->pluck('number')->toArray();
+        natsort($numbers);
+        $lowest = reset($numbers);
+
+        return $pool->firstWhere('number', $lowest);
     }
 
     /**
@@ -95,33 +163,66 @@ class KioskBatchService
     }
 
     /**
-     * Mark a room as 'picked' after the user confirms check-in.
-     * If this drains the last active slot for the (branch, type), auto-throws
-     * the next batch for that type.
+     * Mark a room as 'picked' after the guest confirms on the kiosk.
+     *
+     * NOTE: this does NOT auto-throw the next batch. We use a "wait for
+     * frontdesk confirmation" model — the batch only refreshes when every
+     * pick has been processed by the frontdesk (saveCheckIn) AND no
+     * temporary reservations remain. That throw is triggered from
+     * `maybeThrowNextBatch()`, called by the frontdesk's saveCheckIn.
+     *
+     * Why: a cancelled / timed-out kiosk pick must be able to come back to
+     * the SAME batch (return slot from picked → active). If we auto-threw
+     * on the last pick, the cancelled room's slot would already be deleted
+     * by the time the cancel arrived, dropping it into the waiting stack
+     * instead of restoring it as visible.
      */
     public static function markPicked(int $branchId, int $roomId): void
     {
-        $row = KioskCurrentBatch::where('branch_id', $branchId)
+        KioskCurrentBatch::where('branch_id', $branchId)
             ->where('room_id', $roomId)
             ->where('slot_status', KioskCurrentBatch::STATUS_ACTIVE)
-            ->first();
+            ->update(['slot_status' => KioskCurrentBatch::STATUS_PICKED]);
+    }
 
-        if (!$row) {
-            return;
+    /**
+     * Throw the next batch for (branch, type) IF every batch slot is now
+     * fully resolved by the frontdesk:
+     *
+     *  - All slots are 'picked' (no active rooms remain on display)
+     *  - None of those rooms still have a temporary_check_in_kiosks hold
+     *    (every pick has been confirmed by saveCheckIn — Room.status now
+     *    Occupied — or the hold was cleaned up)
+     *
+     * Returns true if a throw was performed.
+     */
+    public static function maybeThrowNextBatch(int $branchId, int $typeId): bool
+    {
+        $slots = KioskCurrentBatch::where('branch_id', $branchId)
+            ->where('type_id', $typeId)
+            ->get();
+
+        if ($slots->isEmpty()) {
+            return false;
         }
 
-        $typeId = $row->type_id;
+        $hasActive = $slots->contains(fn ($s) => $s->slot_status === KioskCurrentBatch::STATUS_ACTIVE);
+        if ($hasActive) {
+            return false;
+        }
 
-        $row->update(['slot_status' => KioskCurrentBatch::STATUS_PICKED]);
-
-        $hasActive = KioskCurrentBatch::where('branch_id', $branchId)
-            ->where('type_id', $typeId)
-            ->where('slot_status', KioskCurrentBatch::STATUS_ACTIVE)
+        // All slots are 'picked'. If any of these rooms still has an active
+        // kiosk hold, frontdesk hasn't finished processing yet — wait.
+        $hasOutstandingHold = TemporaryCheckInKiosk::where('branch_id', $branchId)
+            ->whereIn('room_id', $slots->pluck('room_id'))
             ->exists();
 
-        if (!$hasActive) {
-            self::throwNextBatch($branchId, $typeId);
+        if ($hasOutstandingHold) {
+            return false;
         }
+
+        self::throwNextBatch($branchId, $typeId);
+        return true;
     }
 
     /**
@@ -187,17 +288,25 @@ class KioskBatchService
      */
     public static function previewBatches(int $branchId, int $typeId, int $batchCount = 1): array
     {
-        $excludedRoomIds = KioskCurrentBatch::where('branch_id', $branchId)
-            ->where('type_id', $typeId)
-            ->pluck('room_id')
-            ->toArray();
+        // Same combined exclusion that throwNextBatch uses, so the preview
+        // matches what the system will actually pick (not what could be
+        // picked in the absence of holds).
+        $excludedRoomIds = array_values(array_unique(array_merge(
+            KioskCurrentBatch::where('branch_id', $branchId)
+                ->where('type_id', $typeId)
+                ->pluck('room_id')
+                ->toArray(),
+            self::roomIdsBlockedFromBatch($branchId),
+        )));
 
         $floors = Floor::where('branch_id', $branchId)
             ->orderBy('number')
             ->get();
 
-        // Pre-fetch and natsort all candidates per floor so we can carve off
-        // the lowest N for each successive batch in a single pass.
+        // Pre-fetch all candidates per floor and order them with the same
+        // tiered priority used by throwNextBatch (never-used first, then
+        // least-recently-used, natsort as final tiebreak). This way the
+        // preview matches what an actual sequence of throws would produce.
         $perFloor = [];
         foreach ($floors as $floor) {
             $rooms = Room::where('branch_id', $branchId)
@@ -206,13 +315,19 @@ class KioskBatchService
                 ->whereIn('status', ['Available', 'Cleaned'])
                 ->where('is_priority', 1)
                 ->whereNotIn('id', $excludedRoomIds ?: [0])
-                ->get(['id', 'number']);
+                ->get(['id', 'number', 'last_checkin_at']);
 
-            $numbered = $rooms->pluck('number')->toArray();
-            natsort($numbered);
+            $queue = [];
+            $remaining = $rooms;
+            while ($remaining->isNotEmpty()) {
+                $next = self::pickPreferredRoom($remaining);
+                $queue[] = $next->number;
+                $remaining = $remaining->reject(fn ($r) => $r->id === $next->id);
+            }
+
             $perFloor[$floor->id] = [
                 'floor_number' => $floor->number,
-                'queue' => array_values($numbered),
+                'queue' => $queue,
             ];
         }
 
@@ -297,10 +412,15 @@ class KioskBatchService
         // Otherwise repair just the bad slots in place. We need to know which
         // rooms are already booked in the batch so a replacement does not
         // collide with another active or picked slot on a different floor.
-        $excludedRoomIds = KioskCurrentBatch::where('branch_id', $branchId)
-            ->where('type_id', $typeId)
-            ->pluck('room_id')
-            ->all();
+        // Also skip rooms held by kiosk/frontdesk reservations or recent
+        // orphan guests — same exclusion the kiosk's render() uses.
+        $excludedRoomIds = array_values(array_unique(array_merge(
+            KioskCurrentBatch::where('branch_id', $branchId)
+                ->where('type_id', $typeId)
+                ->pluck('room_id')
+                ->all(),
+            self::roomIdsBlockedFromBatch($branchId),
+        )));
 
         foreach ($staleSlots as $slot) {
             $candidates = Room::where('branch_id', $branchId)
@@ -309,7 +429,7 @@ class KioskBatchService
                 ->whereIn('status', ['Available', 'Cleaned'])
                 ->where('is_priority', 1)
                 ->whereNotIn('id', $excludedRoomIds ?: [0])
-                ->get(['id', 'number']);
+                ->get(['id', 'number', 'last_checkin_at']);
 
             if ($candidates->isEmpty()) {
                 // No replacement on this floor — delete the slot so the floor
@@ -318,10 +438,7 @@ class KioskBatchService
                 continue;
             }
 
-            $numbers = $candidates->pluck('number')->toArray();
-            natsort($numbers);
-            $lowest = reset($numbers);
-            $replacement = $candidates->firstWhere('number', $lowest);
+            $replacement = self::pickPreferredRoom($candidates);
 
             $slot->update(['room_id' => $replacement->id]);
             $excludedRoomIds[] = $replacement->id;

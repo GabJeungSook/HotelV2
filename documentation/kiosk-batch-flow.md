@@ -59,8 +59,45 @@ kiosk_current_batch  (per branch + per type)
   ...
 ```
 
-The waiting stack is sorted by **natural numeric order** (`natsort`), so
-"3" comes before "21" and "5A" comes before "256".
+### Within a floor, which room is picked first?
+
+The picker uses a **tiered priority** so the same low-numbered room is not
+hammered while higher-numbered rooms sit idle (the "use unused rooms"
+goal from the original meeting):
+
+1. **Never-used rooms** first (rooms with `last_checkin_at IS NULL`).
+2. Then **least-recently-used** rooms (oldest `last_checkin_at`).
+3. Within each tier, **natural numeric order** (`natsort`) breaks ties —
+   so "3" < "5A" < "21" < "256" as the client spec requires.
+
+Example: Floor 1 has rooms `[3, 5, 10]` — Room 3 was used yesterday,
+Room 5 was never used, Room 10 was used last week. The next throw picks
+**Room 5** (Tier 1, never used) even though Room 3 is the lowest number.
+Once Room 5 has been used, the next throw with no never-used rooms left
+picks **Room 10** (Tier 2, oldest). This balances the client's literal
+"ascending numerical queue" rule with the underlying goal of even room
+distribution.
+
+Code: `KioskBatchService::pickPreferredRoom()` is shared by
+`throwNextBatch`, `refreshIfStale` per-slot repair, and the
+`previewBatches` upcoming-batches preview, so they all use the same
+selection logic.
+
+### Rooms blocked from being picked
+
+A room is filtered out of any new batch pick when ANY of these are true:
+
+- It has an active row in `temporary_check_in_kiosks` (kiosk reservation in flight)
+- It has an active row in `temporary_reserveds` (frontdesk reservation in flight)
+- It has an orphan `Guest` (no `checkin_detail`, created within the last 2 hours)
+
+This mirrors the kiosk's `render()` filter exactly. Without these
+exclusions, `throwNextBatch` would re-pick rooms whose status is still
+`Available` but which are already held — leaving the batch slot `active`
+while the kiosk's render filter hides it (showing SORRY).
+
+Code: `KioskBatchService::roomIdsBlockedFromBatch()` is the central
+helper, used by all three pickers.
 
 ---
 
@@ -149,7 +186,7 @@ Contact: 09 [_________]        (optional, 9 digits)
 | Creates `Guest` record | guest's basic info, room/rate/type IDs, discount info |
 | Creates `TemporaryCheckInKiosk` row | `terminated_at = now() + 20 min` |
 | `KioskBatchService::markPicked(branch, room)` | slot: `active → picked` |
-| If now 0 active slots for this type | Auto-throws next batch |
+| Auto-throw next batch? | **No — wait for frontdesk confirmation** (see §5) |
 
 After Step 5:
 
@@ -269,7 +306,34 @@ both call `KioskBatchService::maybeFillBlankFloor`.
 
 ---
 
-## 5. Stage D — Batch refresh ("the throw")
+## 5. Stage D — Batch refresh ("the throw") — wait-for-confirm rule
+
+The throw is **NOT** instantaneous when a guest taps confirm on the
+kiosk. The system waits for the frontdesk to fully process every pick
+in the batch (via `saveCheckIn`). Only when all batch slots are `picked`
+AND no `temporary_check_in_kiosks` holds remain does the throw fire.
+
+This ensures: if frontdesk **cancels (trash 🗑️)** or the **10-min
+timeout** clears a kiosk pick, the cancelled room reappears in the
+SAME batch as `active` — instead of being lost to the next batch's
+waiting stack.
+
+Code: `KioskBatchService::maybeThrowNextBatch()` is the gatekeeper,
+called from `Frontdesk\Monitoring\CheckInFromKiosk::saveCheckIn()`
+after every successful frontdesk confirm.
+
+Example timeline:
+
+1. Initial batch: `[3A active, 203 active, 257 active]`
+2. Guest picks 3A on kiosk → slot 'picked'. Batch `[3A picked, 203 active, 257 active]`. No throw.
+3. Guest picks 203 → `[3A picked, 203 picked, 257 active]`. No throw.
+4. Guest picks 257 → `[3A picked, 203 picked, 257 picked]`. **Still no throw — temp holds exist.**
+5. Frontdesk cancels 257 (trash) → `[3A picked, 203 picked, 257 active]`. Cancelled room is back on kiosk.
+6. Another guest picks 257 → `[3A picked, 203 picked, 257 picked]` (all picked again).
+7. Frontdesk confirms 3A → temp 3A cleared. Still 2 holds → no throw.
+8. Frontdesk confirms 203 → temp 203 cleared. 1 hold → no throw.
+9. Frontdesk confirms 257 → temp 257 cleared. 0 holds left → **throw fires**.
+10. New batch: `[3C active, 4A active, 293 active]` (next preferred per floor).
 
 After picks accumulate:
 
@@ -304,8 +368,9 @@ Floor 2: 78, 85, 90, 96, 98       ← 69 was promoted
 ```
 
 `throwNextBatch()` deletes ALL rows for `(branch, type)` and re-inserts
-one row per floor — the **numerically lowest** Available/Cleaned room with
-`is_priority = 1` per floor (using PHP `natsort`).
+one row per floor — the preferred Available/Cleaned room with
+`is_priority = 1` per floor, selected by the tiered priority described
+in §0 (never-used > least-recently-used > natsort).
 
 If a floor has no available rooms → no row inserted → that floor stays
 blank for the new batch (until a roomboy cleans something).
@@ -371,11 +436,11 @@ The "Refresh" button in the modal footer re-fetches state via the same
 
 | Event | Slot before | Slot after | Notes |
 |---|---|---|---|
-| Guest picks on kiosk | active | picked | floor blanks on kiosk |
-| Frontdesk **confirms** payment | picked | picked (no change) | slot was already drained |
-| Frontdesk **cancels** | picked | active | room re-enters kiosk |
-| Auto-timeout (10 min, no frontdesk action) | picked | active | guest never showed |
-| All slots for type picked | (n picked, 0 active) | new batch thrown | next-lowest natsort per floor |
+| Guest picks on kiosk | active | picked | floor blanks on kiosk; NO auto-throw |
+| Frontdesk **confirms** payment | picked | picked (no change) | calls `maybeThrowNextBatch` — fires if all picked AND no holds left |
+| Frontdesk **cancels** | picked | active | room re-enters SAME batch (kiosk shows it again) |
+| Auto-timeout (10 min, no frontdesk action) | picked | active | guest never showed; same effect as cancel |
+| All slots picked AND all holds confirmed | (all picked, 0 holds) | new batch thrown | tiered priority per floor |
 | Roomboy cleans on **blank** floor | (no row) | new active row | mid-batch floor fill |
 | Roomboy cleans on **active/picked** floor | unchanged | unchanged | room waits for next batch |
 | Frontdesk **direct** check-in (bypasses kiosk) | active (stale) | active (still stale) | caught by `refreshIfStale` next render |
@@ -396,7 +461,7 @@ The "Refresh" button in the modal footer re-fetches state via the same
 | `app/Http/Livewire/Roomboy/Main.php` | Roomboy view B → `maybeFillBlankFloor` |
 | `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php` | Kiosk Batch viewer modal — `showKioskBatch()` / `closeKioskBatchModal()` |
 | `resources/views/livewire/frontdesk/monitoring/room-monitoring.blade.php` | "Kiosk Batch" button + modal HTML |
-| `tests/Feature/KioskBatch/KioskBatchTest.php` | 15 feature tests covering all paths |
+| `tests/Feature/KioskBatch/KioskBatchTest.php` | 21 feature tests covering all paths |
 
 ---
 

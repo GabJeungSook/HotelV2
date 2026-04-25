@@ -4,10 +4,12 @@ namespace Tests\Feature\KioskBatch;
 
 use App\Models\Branch;
 use App\Models\Floor;
+use App\Models\Guest;
 use App\Models\KioskCurrentBatch;
 use App\Models\Rate;
 use App\Models\Room;
 use App\Models\StayingHour;
+use App\Models\TemporaryCheckInKiosk;
 use App\Models\Type;
 use App\Services\KioskBatchService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -95,8 +97,11 @@ class KioskBatchTest extends TestCase
     }
 
     /** @test */
-    public function next_batch_is_thrown_when_all_floors_are_picked()
+    public function mark_picked_does_not_auto_throw_on_last_pick()
     {
+        // Wait-for-confirm rule: markPicked alone never throws the next
+        // batch. The throw waits until frontdesk processes the picks via
+        // saveCheckIn (which calls maybeThrowNextBatch).
         [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
             floors: 2,
             roomsPerFloor: 2,
@@ -111,21 +116,140 @@ class KioskBatchTest extends TestCase
             ->values()
             ->toArray();
 
+        // Simulate guest reservations: temp records exist, slots flip to picked.
         foreach ($initialRoomIds as $roomId) {
-            Room::where('id', $roomId)->update(['status' => 'Occupied']);
+            TemporaryCheckInKiosk::create([
+                'guest_id' => Guest::create([
+                    'branch_id' => $branch->id, 'name' => 'G' . $roomId, 'contact' => 'N/A',
+                    'qr_code' => 'Q' . uniqid(), 'room_id' => $roomId,
+                    'rate_id' => Rate::first()->id, 'type_id' => $type->id, 'static_amount' => 300,
+                ])->id,
+                'room_id' => $roomId,
+                'branch_id' => $branch->id,
+                'terminated_at' => now()->addMinutes(20),
+            ]);
             KioskBatchService::markPicked($branch->id, $roomId);
         }
 
-        $newActive = KioskCurrentBatch::where('branch_id', $branch->id)
+        // Despite all picks, batch should NOT have been thrown — same rooms
+        // still in batch (now all 'picked').
+        $stillSameSlots = KioskCurrentBatch::where('branch_id', $branch->id)
             ->where('type_id', $type->id)
-            ->where('slot_status', 'active')
+            ->pluck('room_id')
+            ->sort()
+            ->values()
+            ->toArray();
+        $this->assertEquals($initialRoomIds, $stillSameSlots, 'markPicked must not auto-throw — same slots remain.');
+
+        // Batch has one slot per floor (2 floors → 2 slots), not one per room.
+        $allPicked = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('slot_status', 'picked')
+            ->count();
+        $this->assertEquals(2, $allPicked);
+    }
+
+    /** @test */
+    public function maybe_throw_next_batch_fires_only_when_all_holds_are_cleared()
+    {
+        [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
+            floors: 2,
+            roomsPerFloor: 2,
+        );
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+        $initialRoomIds = KioskCurrentBatch::where('branch_id', $branch->id)
             ->pluck('room_id')
             ->sort()
             ->values()
             ->toArray();
 
-        $this->assertCount(2, $newActive);
-        $this->assertNotEquals($initialRoomIds, $newActive);
+        // Reserve every batch room and mark them picked.
+        foreach ($initialRoomIds as $roomId) {
+            $guest = Guest::create([
+                'branch_id' => $branch->id, 'name' => 'G' . $roomId, 'contact' => 'N/A',
+                'qr_code' => 'Q' . uniqid(), 'room_id' => $roomId,
+                'rate_id' => Rate::first()->id, 'type_id' => $type->id, 'static_amount' => 300,
+            ]);
+            TemporaryCheckInKiosk::create([
+                'guest_id' => $guest->id, 'room_id' => $roomId,
+                'branch_id' => $branch->id, 'terminated_at' => now()->addMinutes(20),
+            ]);
+            KioskBatchService::markPicked($branch->id, $roomId);
+        }
+
+        // While any temp hold exists, the throw should NOT fire.
+        $this->assertFalse(KioskBatchService::maybeThrowNextBatch($branch->id, $type->id));
+
+        // Clear all but one hold — still a wait.
+        TemporaryCheckInKiosk::where('branch_id', $branch->id)
+            ->where('room_id', '!=', $initialRoomIds[0])
+            ->delete();
+        $this->assertFalse(KioskBatchService::maybeThrowNextBatch($branch->id, $type->id));
+
+        // Clear the last hold — now it should fire.
+        TemporaryCheckInKiosk::where('branch_id', $branch->id)->delete();
+
+        // Mark the rooms Occupied so they don't get re-picked by the new batch.
+        Room::whereIn('id', $initialRoomIds)->update(['status' => 'Occupied']);
+
+        $threw = KioskBatchService::maybeThrowNextBatch($branch->id, $type->id);
+        $this->assertTrue($threw);
+
+        $newRoomIds = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->pluck('room_id')
+            ->sort()
+            ->values()
+            ->toArray();
+        $this->assertNotEquals($initialRoomIds, $newRoomIds, 'New batch must contain different rooms.');
+    }
+
+    /** @test */
+    public function cancel_mid_batch_keeps_old_slots_visible()
+    {
+        // Spec: when frontdesk cancels (returnToBatch), the cancelled room
+        // should reappear as 'active' in the SAME batch — not be lost to
+        // the next batch's waiting stack.
+        [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
+            floors: 2,
+            roomsPerFloor: 2,
+        );
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+        $initialRoomIds = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->pluck('room_id')
+            ->sort()
+            ->values()
+            ->toArray();
+
+        foreach ($initialRoomIds as $roomId) {
+            $guest = Guest::create([
+                'branch_id' => $branch->id, 'name' => 'G' . $roomId, 'contact' => 'N/A',
+                'qr_code' => 'Q' . uniqid(), 'room_id' => $roomId,
+                'rate_id' => Rate::first()->id, 'type_id' => $type->id, 'static_amount' => 300,
+            ]);
+            TemporaryCheckInKiosk::create([
+                'guest_id' => $guest->id, 'room_id' => $roomId,
+                'branch_id' => $branch->id, 'terminated_at' => now()->addMinutes(20),
+            ]);
+            KioskBatchService::markPicked($branch->id, $roomId);
+        }
+
+        // Frontdesk cancels the LAST one — should restore its slot to active.
+        $lastRoom = end($initialRoomIds);
+        KioskBatchService::returnToBatch($branch->id, $lastRoom);
+
+        // Same batch — same slot rooms — last one is active again.
+        $sameSlots = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->pluck('room_id')
+            ->sort()
+            ->values()
+            ->toArray();
+        $this->assertEquals($initialRoomIds, $sameSlots);
+
+        $lastSlotStatus = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('room_id', $lastRoom)
+            ->value('slot_status');
+        $this->assertEquals('active', $lastSlotStatus, 'Cancelled room must reappear as active in the same batch.');
     }
 
     /** @test */
@@ -457,6 +581,86 @@ class KioskBatchTest extends TestCase
 
         $this->assertEquals('8', $upcoming[0][0]['room_number'], 'Batch +1 should pick the remaining Room 8.');
         $this->assertNull($upcoming[1][0]['room_number'], 'Batch +2 should be blank — nothing left.');
+    }
+
+    /** @test */
+    public function throw_skips_rooms_with_active_kiosk_holds()
+    {
+        // The kiosk's render() filters out rooms in temporary_check_in_kiosks,
+        // temporary_reserveds, and recent orphan-Guest holds. throwNextBatch
+        // must apply the same exclusion or it can re-pick rooms whose status
+        // is still "Available" but are already reserved — leaving the slot
+        // "active" while the kiosk shows SORRY.
+        $branch = Branch::create(['name' => 'Skip held ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        $heldRoom = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '1', 'status' => 'Available', 'is_priority' => true]);
+        $freeRoom = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '5', 'status' => 'Available', 'is_priority' => true]);
+
+        // Simulate an active kiosk hold on Room "1" (would be lowest natsort).
+        $heldGuest = Guest::create([
+            'branch_id' => $branch->id,
+            'name' => 'Held Guest',
+            'contact' => 'N/A',
+            'qr_code' => 'TEST' . uniqid(),
+            'room_id' => $heldRoom->id,
+            'rate_id' => Rate::first()->id,
+            'type_id' => $type->id,
+            'static_amount' => 300,
+        ]);
+        TemporaryCheckInKiosk::create([
+            'guest_id' => $heldGuest->id,
+            'room_id' => $heldRoom->id,
+            'branch_id' => $branch->id,
+            'terminated_at' => now()->addMinutes(20),
+        ]);
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $picked = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f1->id)->value('room_id'))->number;
+        $this->assertEquals('5', $picked, 'Should skip Room "1" (held in temporary_check_in_kiosks) and pick "5" instead.');
+    }
+
+    /** @test */
+    public function throw_prefers_never_used_rooms_then_least_recently_used()
+    {
+        // Goal of the round-robin spec: don't keep picking the same low-
+        // numbered room while higher-numbered ones sit idle. Tier 1 is
+        // never-used (last_checkin_at IS NULL); Tier 2 is least-recently-used.
+        // Within each tier, natsort lowest still wins.
+        $branch = Branch::create(['name' => 'RR ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        // Room "3" was used yesterday. Room "5" was never used. Room "10"
+        // was used last week. Strict natsort would pick "3" first; the
+        // round-robin rule should pick "5" (never used) instead.
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '3', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => now()->subDay()]);
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '5', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => null]);
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '10', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => now()->subWeek()]);
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $picked = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f1->id)->value('room_id'))->number;
+        $this->assertEquals('5', $picked, 'Should pick the never-used room "5" before previously-used ones.');
+
+        // Now mark "5" as recently used and remove it from candidates by
+        // checking it's no longer the lowest-tier pick. With "5" gone (or
+        // newly used), the next throw should pick "10" (used last week,
+        // older than "3" used yesterday).
+        Room::where('floor_id', $f1->id)->where('number', '5')->update(['last_checkin_at' => now()]);
+        KioskCurrentBatch::where('branch_id', $branch->id)->delete();
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $picked2 = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f1->id)->value('room_id'))->number;
+        $this->assertEquals('10', $picked2, 'No never-used left; should pick least-recently-used "10" (older than "3" or "5").');
     }
 
     /** @test */

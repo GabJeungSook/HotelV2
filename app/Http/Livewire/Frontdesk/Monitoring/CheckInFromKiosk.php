@@ -86,6 +86,7 @@ class CheckInFromKiosk extends Component
                 ->first();
             $this->has_discount = $this->guest->has_discount;
             $this->discount_amount = auth()->user()->branch->discount_amount;
+            $this->is_longStay = (bool) $this->guest->is_long_stay;
 
             if ($this->has_discount) {
                 $this->total = ($this->guest->static_amount + $this->additional_charges) - $this->discount_amount;
@@ -239,7 +240,7 @@ class CheckInFromKiosk extends Component
             'check_out_at' => $this->guest->is_long_stay
                 ? now()->addDays($this->guest->number_of_days)
                 : now()->addHours($this->stayingHour->number),
-            'is_long_stay' => $this->is_longStay != null ? true : false,
+            'is_long_stay' => (bool) $this->is_longStay,
             'number_of_hours' => $number_of_hours,
             'next_extension_is_original' => $next_extension_is_original ? 1 : 0,
         ]);
@@ -448,6 +449,17 @@ class CheckInFromKiosk extends Component
         ]);
 
         DB::commit();
+
+        // Wait-for-confirm batch refresh: the kiosk slot was already flipped
+        // to 'picked' when the guest reserved on the kiosk, but we delay the
+        // throw until every pick has been confirmed here. This way a guest
+        // who cancels (cancelCheckIn / trash / 10-min timeout) restores their
+        // floor's slot to active in the SAME batch instead of being lost.
+        KioskBatchService::maybeThrowNextBatch(
+            $this->guest->branch_id,
+            $this->guest->type_id,
+        );
+
         $this->dialog()->success(
             $title = 'Success',
             $description = 'Guest Has been Check-in'
