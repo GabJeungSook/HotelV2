@@ -164,39 +164,169 @@ class KioskBatchService
     }
 
     /**
-     * Self-heal stale batches.
+     * Read-only preview of upcoming batches. Used by the frontdesk
+     * "View Kiosk Batch" modal so staff can see what is coming next
+     * without walking to the kiosk.
+     *
+     * Returns an array of $batchCount batches; each batch is an array
+     * of one entry per floor in branch order:
+     *   [
+     *     [  // Batch +1 (next throw)
+     *        ['floor_id'=>X, 'floor_number'=>1, 'room_number'=>'7'],
+     *        ['floor_id'=>Y, 'floor_number'=>2, 'room_number'=>'69'],
+     *        ...
+     *     ],
+     *     [  // Batch +2 (after next)
+     *        ['floor_id'=>X, 'floor_number'=>1, 'room_number'=>'9'],
+     *        ...
+     *     ],
+     *     ...
+     *   ]
+     *
+     * Floors with no candidate at that depth get room_number=null.
+     */
+    public static function previewBatches(int $branchId, int $typeId, int $batchCount = 1): array
+    {
+        $excludedRoomIds = KioskCurrentBatch::where('branch_id', $branchId)
+            ->where('type_id', $typeId)
+            ->pluck('room_id')
+            ->toArray();
+
+        $floors = Floor::where('branch_id', $branchId)
+            ->orderBy('number')
+            ->get();
+
+        // Pre-fetch and natsort all candidates per floor so we can carve off
+        // the lowest N for each successive batch in a single pass.
+        $perFloor = [];
+        foreach ($floors as $floor) {
+            $rooms = Room::where('branch_id', $branchId)
+                ->where('type_id', $typeId)
+                ->where('floor_id', $floor->id)
+                ->whereIn('status', ['Available', 'Cleaned'])
+                ->where('is_priority', 1)
+                ->whereNotIn('id', $excludedRoomIds ?: [0])
+                ->get(['id', 'number']);
+
+            $numbered = $rooms->pluck('number')->toArray();
+            natsort($numbered);
+            $perFloor[$floor->id] = [
+                'floor_number' => $floor->number,
+                'queue' => array_values($numbered),
+            ];
+        }
+
+        $batches = [];
+        for ($i = 0; $i < $batchCount; $i++) {
+            $batch = [];
+            foreach ($perFloor as $floorId => &$info) {
+                $room = $info['queue'][$i] ?? null;
+                $batch[] = [
+                    'floor_id' => $floorId,
+                    'floor_number' => $info['floor_number'],
+                    'room_number' => $room,
+                ];
+            }
+            unset($info);
+            $batches[] = $batch;
+        }
+
+        return $batches;
+    }
+
+    /**
+     * Backward-compatible single-batch preview (returns the next batch only).
+     */
+    public static function previewNextBatch(int $branchId, int $typeId): array
+    {
+        $batches = self::previewBatches($branchId, $typeId, 1);
+        return $batches[0] ?? [];
+    }
+
+    /**
+     * Self-heal stale batches at the per-slot level.
      *
      * The batch is meant to advance via markPicked() on kiosk check-in. But if
      * a batch-slot room becomes Occupied/Uncleaned/Maintenance through any
      * non-kiosk path (frontdesk direct check-in, manual status edit, etc.),
-     * the slot stays 'active' forever and the kiosk shows SORRY even though
-     * other rooms of that type are actually available.
+     * the slot stays 'active' but points to an unusable room. Without help the
+     * kiosk shows blank for that floor (or SORRY if every slot is stale) even
+     * though other rooms are available.
      *
-     * This guard runs at the top of render()/selectType(): if there are active
-     * slots but NONE of them refer to a still-usable room (Available|Cleaned +
-     * is_priority), throw the next batch so the waiting stack gets promoted.
+     * Strategy:
+     *  1. If EVERY active slot is stale → throwNextBatch() (full refresh).
+     *  2. Otherwise refresh stale slots individually — replace each bad slot's
+     *     room_id with the next-available natsort-lowest room on the same
+     *     floor (excluding rooms already in this batch). If no replacement
+     *     exists for that floor, delete the slot row so `maybeFillBlankFloor`
+     *     can fill it later when a roomboy cleans.
      *
-     * Returns true if a refresh was performed.
+     * Returns true if any change was made.
      */
     public static function refreshIfStale(int $branchId, int $typeId): bool
     {
-        $activeRoomIds = self::activeRoomIds($branchId, $typeId);
+        $activeSlots = KioskCurrentBatch::where('branch_id', $branchId)
+            ->where('type_id', $typeId)
+            ->where('slot_status', KioskCurrentBatch::STATUS_ACTIVE)
+            ->get();
 
-        if (empty($activeRoomIds)) {
+        if ($activeSlots->isEmpty()) {
             return false;
         }
 
-        $usableActive = Room::where('branch_id', $branchId)
-            ->whereIn('id', $activeRoomIds)
+        // Identify which active slots are stale (room no longer usable).
+        $usableRoomIds = Room::where('branch_id', $branchId)
+            ->whereIn('id', $activeSlots->pluck('room_id'))
             ->whereIn('status', ['Available', 'Cleaned'])
             ->where('is_priority', 1)
-            ->exists();
+            ->pluck('id')
+            ->all();
 
-        if ($usableActive) {
+        $staleSlots = $activeSlots->reject(fn ($s) => in_array($s->room_id, $usableRoomIds, true));
+
+        if ($staleSlots->isEmpty()) {
             return false;
         }
 
-        self::throwNextBatch($branchId, $typeId);
+        // If EVERY slot is stale, fall back to a clean full throw.
+        if ($staleSlots->count() === $activeSlots->count()) {
+            self::throwNextBatch($branchId, $typeId);
+            return true;
+        }
+
+        // Otherwise repair just the bad slots in place. We need to know which
+        // rooms are already booked in the batch so a replacement does not
+        // collide with another active or picked slot on a different floor.
+        $excludedRoomIds = KioskCurrentBatch::where('branch_id', $branchId)
+            ->where('type_id', $typeId)
+            ->pluck('room_id')
+            ->all();
+
+        foreach ($staleSlots as $slot) {
+            $candidates = Room::where('branch_id', $branchId)
+                ->where('type_id', $typeId)
+                ->where('floor_id', $slot->floor_id)
+                ->whereIn('status', ['Available', 'Cleaned'])
+                ->where('is_priority', 1)
+                ->whereNotIn('id', $excludedRoomIds ?: [0])
+                ->get(['id', 'number']);
+
+            if ($candidates->isEmpty()) {
+                // No replacement on this floor — delete the slot so the floor
+                // can be filled by maybeFillBlankFloor when a roomboy cleans.
+                $slot->delete();
+                continue;
+            }
+
+            $numbers = $candidates->pluck('number')->toArray();
+            natsort($numbers);
+            $lowest = reset($numbers);
+            $replacement = $candidates->firstWhere('number', $lowest);
+
+            $slot->update(['room_id' => $replacement->id]);
+            $excludedRoomIds[] = $replacement->id;
+        }
+
         return true;
     }
 }

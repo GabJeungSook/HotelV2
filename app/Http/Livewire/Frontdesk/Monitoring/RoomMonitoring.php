@@ -21,6 +21,8 @@ use App\Models\NewGuestReport;
 use App\Models\AssignedFrontdesk;
 use App\Models\TemporaryReserved;
 use App\Models\TemporaryCheckInKiosk;
+use App\Models\KioskCurrentBatch;
+use App\Services\KioskBatchService;
 
 class RoomMonitoring extends Component
 {
@@ -73,6 +75,12 @@ class RoomMonitoring extends Component
     public $checkInDetails = [];
 
     public $temporary_checkInKiosk;
+
+    // Kiosk batch viewer (modal triggered from this page).
+    public $kioskBatchModal = false;
+    public $kioskBatchData = [];
+    public $kioskBatchTotals = [];
+
     public function getListeners()
     {
         return [
@@ -95,6 +103,88 @@ class RoomMonitoring extends Component
     public function redirectToScanning()
     {
       return redirect()->route('frontdesk.scan-qr-code');
+    }
+
+    /**
+     * Open the "View Kiosk Batch" modal so frontdesk can see what's
+     * displayed on the kiosk right now, plus what's coming next, without
+     * walking over to the kiosk station.
+     */
+    public function showKioskBatch()
+    {
+        $branchId = auth()->user()->branch_id;
+        $types = Type::where('branch_id', $branchId)->orderBy('id')->get();
+
+        $data = [];
+        foreach ($types as $type) {
+            $current = KioskCurrentBatch::where('branch_id', $branchId)
+                ->where('type_id', $type->id)
+                ->with(['room:id,number,status', 'floor:id,number'])
+                ->get()
+                ->sortBy(fn ($b) => $b->floor->number ?? 0)
+                ->values()
+                ->map(function ($b) {
+                    return [
+                        'floor_number' => $b->floor->number ?? '?',
+                        'room_number' => $b->room->number ?? '?',
+                        'slot_status' => $b->slot_status,
+                        'room_status' => $b->room->status ?? '?',
+                    ];
+                })
+                ->toArray();
+
+            // Show 2 upcoming batches (Batch +1 and Batch +2) on top of current.
+            $upcoming = KioskBatchService::previewBatches($branchId, $type->id, 2);
+
+            // Total available rooms of this type across the whole branch
+            // (not just inside the current batch). This is the figure
+            // frontdesk usually wants to know — "how many Singles do we
+            // actually have ready right now?".
+            $totalAvailable = Room::where('branch_id', $branchId)
+                ->where('type_id', $type->id)
+                ->whereIn('status', ['Available', 'Cleaned'])
+                ->where('is_priority', 1)
+                ->count();
+
+            $batchRoomIds = collect($current)->pluck('floor_number'); // not used, kept for clarity
+            $waitingCount = max(0, $totalAvailable - collect($current)
+                ->where('slot_status', 'active')
+                ->count());
+
+            $data[] = [
+                'type_id' => $type->id,
+                'type_name' => $type->name,
+                'current' => $current,
+                'upcoming' => $upcoming,
+                'total_available' => $totalAvailable,
+                'waiting_count' => $waitingCount,
+            ];
+        }
+
+        // Branch-wide grand totals.
+        $grandAvailable = Room::where('branch_id', $branchId)
+            ->whereIn('status', ['Available', 'Cleaned'])
+            ->where('is_priority', 1)
+            ->count();
+        $grandOccupied = Room::where('branch_id', $branchId)
+            ->where('status', 'Occupied')
+            ->count();
+        $grandTotal = Room::where('branch_id', $branchId)->count();
+
+        $this->kioskBatchTotals = [
+            'available' => $grandAvailable,
+            'occupied' => $grandOccupied,
+            'total' => $grandTotal,
+        ];
+
+        $this->kioskBatchData = $data;
+        $this->kioskBatchModal = true;
+    }
+
+    public function closeKioskBatchModal()
+    {
+        $this->kioskBatchModal = false;
+        $this->kioskBatchData = [];
     }
 
     public function redirectToCheckinFromKiosk($id)
@@ -372,26 +462,42 @@ class RoomMonitoring extends Component
 
     public function deleteTempKiosk($id)
     {
-        DB::beginTransaction();
-        $temp = TemporaryCheckInKiosk::where('id', $id)
-            ->first();
-        //delete process
-        if (!$temp) {
+        $temp = TemporaryCheckInKiosk::where('id', $id)->first();
+
+        if (! $temp) {
             $this->dialog()->error(
                 $title = 'Error',
                 $description = 'Temporary Check In Not Found'
             );
             return;
-        }else{
-            $temp->delete();
-            $temp->guest->delete();
         }
+
+        $branchId = $temp->branch_id;
+        $roomId = $temp->room_id;
+        $guestId = $temp->guest_id;
+
+        DB::transaction(function () use ($temp, $guestId) {
+            // Mirror the safety rule used by cancelCheckIn / kiosk:cleanup —
+            // never delete a Guest that has real transactions or an existing
+            // checkin_detail (would orphan accounting records).
+            if ($guestId) {
+                Guest::where('id', $guestId)
+                    ->whereDoesntHave('checkInDetail')
+                    ->whereDoesntHave('transactions')
+                    ->delete();
+            }
+            $temp->delete();
+        });
+
+        // Return the batch slot to 'active' so the room reappears on the kiosk.
+        // Without this the slot stays 'picked' (cross-mark in batch viewer)
+        // until the next batch throw, which is wrong UX after a manual cancel.
+        KioskBatchService::returnToBatch($branchId, $roomId);
 
         $this->dialog()->success(
             $title = 'Success',
             $description = 'Temporary Check In Deleted Successfully'
         );
-        DB::commit();
         return redirect()->route('frontdesk.room-monitoring');
     }
 
@@ -571,9 +677,21 @@ class RoomMonitoring extends Component
             )
                 ->where('id', $id)
                 ->first();
+
+            if (! $this->temporary_checkIn) {
+                $this->dialog()->error('Not found', 'This kiosk record no longer exists. It may have already been processed or expired.');
+                return;
+            }
+
             $this->guest = Guest::where('branch_id', auth()->user()->branch_id)
                 ->where('id', $this->temporary_checkIn->guest_id)
                 ->first();
+
+            if (! $this->guest) {
+                $this->dialog()->error('Guest record missing', 'The guest associated with this kiosk record could not be found. Please ask the guest to use the kiosk again or contact support.');
+                $this->temporary_checkIn = null;
+                return;
+            }
             $this->room = Room::where('branch_id', auth()->user()->branch_id)
                 ->where('id', $this->temporary_checkIn->room_id)
                 ->first();
@@ -608,12 +726,24 @@ class RoomMonitoring extends Component
         )
             ->where('room_id', $id)
             ->first();
+
+        if (! $this->temporary_reserve) {
+            $this->dialog()->error('Not found', 'This reservation record no longer exists.');
+            return;
+        }
+
         $this->guest_reserve = Guest::where(
             'branch_id',
             auth()->user()->branch_id
         )
             ->where('id', $this->temporary_reserve->guest_id)
             ->first();
+
+        if (! $this->guest_reserve) {
+            $this->dialog()->error('Guest record missing', 'The guest associated with this reservation could not be found.');
+            $this->temporary_reserve = null;
+            return;
+        }
         $this->room_reserve = Room::where(
             'branch_id',
             auth()->user()->branch_id

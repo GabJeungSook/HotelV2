@@ -33,6 +33,8 @@
         <x-button wire:click="redirectToScanning" label="Scan QR Code" dark icon="qrcode"/>
         <x-button label="Check-In C/O" icon="check" emerald wire:click="redirectToCheckInCO"
         spinner="redirectToCheckInCO" />
+        <x-button label="Kiosk Batch" icon="eye" primary wire:click="showKioskBatch"
+        spinner="showKioskBatch" />
     </div>
     <div class="mt-5 flex space-x-2 items-center justify-between">
       <div class="flex space-x-2">
@@ -94,7 +96,7 @@
         <tbody class="divide-y divide-gray-200">
           @forelse ($rooms as $room)
             @php
-            $has_check_out = $room->latestCheckInDetail?->guest->has_kiosk_check_out;
+            $has_check_out = $room->latestCheckInDetail?->guest?->has_kiosk_check_out;
             // if($room->checkInDetails->first() != null)
             if($room->latestCheckInDetail != null)
             {
@@ -131,12 +133,11 @@
              </td> --}}
              <td class="whitespace-nowrap px-3 py-3 text-sm text-gray-500">
                 {{ $room->type->name }}
-                <p class="text-sm text-gray-500 font-normal">  ₱ {{ $room->status ===  'Occupied' ? number_format($room->latestCheckInDetail?->guest->static_amount, 2) ?? 0.00 : number_format($room->type->rates->first()->amount, 2) }}</p>
+                <p class="text-sm text-gray-500 font-normal">  ₱ {{ $room->status ===  'Occupied' ? number_format($room->latestCheckInDetail?->guest?->static_amount ?? 0, 2) : number_format($room->type->rates->first()->amount, 2) }}</p>
              </td>
              <td class="whitespace-nowrap px-3 py-3 text-sm text-gray-500">
                 {{-- @if ($room->status == 'Occupied' && $room->checkInDetails->first() != null) --}}
-                @if ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
-                    {{-- {{ $room->guest->first()->name }} --}}
+                @if ($room->status == 'Occupied' && $room->latestCheckInDetail && $room->latestCheckInDetail->guest)
                     {{ $room->latestCheckInDetail->guest->name }}
                     <p class="text-sm text-gray-500 font-normal">
                         {{ $room->latestCheckInDetail->guest->qr_code }}
@@ -293,7 +294,10 @@
       <div class="overflow-auto h-64 bg-white shadow sm:rounded-md mt-4">
         <ul role="list" class="divide-y divide-gray-200 " x-animate>
           @forelse($kiosks as $kiosk)
-            {{-- @if ($loop->first) --}}
+            {{-- Skip orphan kiosk holds whose Guest was deleted (defensive — should not happen with current cleanup safeguards, but legacy data may exist). --}}
+            @if (! $kiosk->guest)
+              @continue
+            @endif
             <li x-animate class="transition duration-300 ease-in-out" >
                 <a href="#" class="block hover:bg-red-50" >
                   <div class="flex items-center px-4 py-4 sm:px-6 bg-gray-50">
@@ -302,7 +306,7 @@
                       <div class="min-w-0 flex-1 px-4 md:grid md:grid-cols-2 md:gap-4">
                         <div class="flex items-center">
                           <p class="truncate text-sm font-medium text-green-500 uppercase">{{ $kiosk->guest->name }}
-                            (ROOM #{{ $kiosk->guest->room->number }})
+                            (ROOM #{{ $kiosk->guest?->room?->number }})
                           </p>
                         </div>
                         <div class="hidden md:block">
@@ -395,7 +399,7 @@
     </x-modal>
 
     <x-modal.card title="Check In Information" blur wire:model.defer="checkInModal">
-      @if ($temporary_checkIn != null)
+      @if ($temporary_checkIn != null && $temporary_checkIn->guest)
         <div class="col-span-1 sm:col-span-2">
           <x-input class="text-gray-900" readonly label="QR Code" value="{{ $temporary_checkIn->guest->qr_code }}" />
         </div>
@@ -483,7 +487,7 @@
     </x-modal.card>
 
     <x-modal.card title="Check In Information" blur wire:model.defer="checkInReserveModal">
-      @if ($temporary_reserve != null)
+      @if ($temporary_reserve != null && $temporary_reserve->guest)
         <div class="col-span-1 sm:col-span-2">
           <x-input disabled label="QR Code" value="{{ $temporary_reserve->guest->qr_code }}" />
         </div>
@@ -666,5 +670,161 @@
           </x-slot>
         </x-card>
       </x-modal>
+
+      {{-- Kiosk Batch viewer modal --}}
+      <x-modal.card title="Kiosk Batch Status" blur wire:model.defer="kioskBatchModal" max-width="6xl">
+        <div class="space-y-6">
+          @if (empty($kioskBatchData))
+            <p class="text-sm text-gray-500">No kiosk batch data.</p>
+          @else
+            {{-- Branch capacity — single bar with stacked progress indicator --}}
+            @if (! empty($kioskBatchTotals))
+              @php
+                $tot = max(1, (int) $kioskBatchTotals['total']);
+                $avail = (int) $kioskBatchTotals['available'];
+                $occ = (int) $kioskBatchTotals['occupied'];
+                $other = max(0, $tot - $avail - $occ);
+                $availPct = round($avail / $tot * 100);
+                $occPct = round($occ / $tot * 100);
+                $otherPct = max(0, 100 - $availPct - $occPct);
+              @endphp
+              <div class="flex items-center gap-x-4">
+                <div class="text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap">Branch capacity</div>
+                <div class="flex-1 flex h-2 overflow-hidden rounded-full bg-gray-100">
+                  <div class="bg-emerald-500" style="width: {{ $availPct }}%" title="Available: {{ $avail }}"></div>
+                  <div class="bg-rose-500" style="width: {{ $occPct }}%" title="Occupied: {{ $occ }}"></div>
+                  <div class="bg-gray-300" style="width: {{ $otherPct }}%" title="Other (cleaning/maintenance/reserved): {{ $other }}"></div>
+                </div>
+                <div class="flex items-baseline gap-x-3 text-sm whitespace-nowrap">
+                  <span><span class="inline-block w-2 h-2 rounded-full bg-emerald-500 align-middle mr-1"></span><span class="font-semibold text-gray-900">{{ $avail }}</span> <span class="text-gray-500">ready</span></span>
+                  <span><span class="inline-block w-2 h-2 rounded-full bg-rose-500 align-middle mr-1"></span><span class="font-semibold text-gray-900">{{ $occ }}</span> <span class="text-gray-500">occupied</span></span>
+                  @if ($other > 0)
+                    <span><span class="inline-block w-2 h-2 rounded-full bg-gray-300 align-middle mr-1"></span><span class="font-semibold text-gray-900">{{ $other }}</span> <span class="text-gray-500">other</span></span>
+                  @endif
+                  <span class="text-gray-400">·</span>
+                  <span class="text-gray-500">{{ $tot }} total</span>
+                </div>
+              </div>
+            @endif
+
+            <div class="rounded-md bg-gray-50 border border-gray-200 p-3 text-xs text-gray-700 space-y-1">
+              <p><span class="font-semibold text-gray-900">How to read:</span> each row is one batch (set of rooms displayed together). Top row "NOW" is live on the kiosk. "NEXT" / "AFTER" preview what comes when guests pick all the current rooms.</p>
+              <p class="flex flex-wrap gap-x-4 gap-y-1">
+                <span><span class="inline-block rounded bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 align-middle">99</span> = guest can pick now</span>
+                <span><span class="inline-block rounded bg-amber-500 text-white text-[10px] font-semibold px-1.5 py-0.5 align-middle line-through">99</span> = picked, waiting frontdesk</span>
+                <span><span class="text-gray-400">—</span> = no room available on that floor</span>
+              </p>
+            </div>
+
+            @foreach ($kioskBatchData as $typeBlock)
+              @php
+                $activeCount = collect($typeBlock['current'])->where('slot_status', 'active')->count();
+                $pickedCount = collect($typeBlock['current'])->where('slot_status', 'picked')->count();
+                $totalAvailable = $typeBlock['total_available'] ?? 0;
+                $waitingCount = $typeBlock['waiting_count'] ?? 0;
+              @endphp
+              <div class="border rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="font-semibold text-base text-gray-800">
+                    {{ strtoupper($typeBlock['type_name']) }}
+                  </h3>
+                  <div class="text-xs text-gray-600 space-x-3">
+                    <span><span class="font-semibold text-emerald-700">{{ $totalAvailable }}</span> total available</span>
+                    <span class="text-gray-400">·</span>
+                    <span><span class="font-semibold">{{ $activeCount }}</span> on kiosk</span>
+                    <span class="text-gray-400">·</span>
+                    <span><span class="font-semibold">{{ $waitingCount }}</span> in stack</span>
+                    @if ($pickedCount > 0)
+                      <span class="text-gray-400">·</span>
+                      <span><span class="font-semibold text-amber-700">{{ $pickedCount }}</span> waiting frontdesk</span>
+                    @endif
+                  </div>
+                </div>
+
+                @php
+                  // Build a sorted list of all floor numbers that appear in
+                  // any of the three batches so columns line up consistently.
+                  $allFloors = collect();
+                  foreach ($typeBlock['current'] as $s) $allFloors->push(['id' => null, 'number' => $s['floor_number']]);
+                  foreach ($typeBlock['upcoming'] as $batch) {
+                      foreach ($batch as $s) $allFloors->push(['id' => $s['floor_id'], 'number' => $s['floor_number']]);
+                  }
+                  $floorNumbers = $allFloors->pluck('number')->unique()->sort()->values();
+
+                  // Index the current batch by floor number for quick lookup.
+                  $currentByFloor = collect($typeBlock['current'])->keyBy('floor_number');
+                @endphp
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs border-collapse">
+                    <thead>
+                      <tr class="border-b border-gray-200">
+                        <th class="text-left uppercase tracking-wide text-gray-400 py-1 pr-2 w-16 font-medium">Batch</th>
+                        @foreach ($floorNumbers as $fn)
+                          <th class="text-center uppercase tracking-wide text-gray-400 py-1 px-1 font-medium">F{{ $fn }}</th>
+                        @endforeach
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {{-- Current batch row — highlighted so frontdesk sees what's live at a glance --}}
+                      <tr class="bg-emerald-50/60 border-b-2 border-emerald-300">
+                        <td class="py-1.5 pr-2">
+                          <span class="inline-flex items-center rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">NOW</span>
+                        </td>
+                        @foreach ($floorNumbers as $fn)
+                          @php $slot = $currentByFloor[$fn] ?? null; @endphp
+                          <td class="py-1 px-1 text-center">
+                            @if (! $slot)
+                              <span class="text-gray-300" title="No room available on this floor for this batch">—</span>
+                            @elseif ($slot['slot_status'] === 'active')
+                              <span class="inline-block rounded bg-emerald-600 text-white font-semibold px-2 py-0.5">
+                                {{ $slot['room_number'] }}
+                              </span>
+                            @else
+                              <span class="inline-block rounded bg-amber-500 text-white font-semibold px-2 py-0.5 line-through" title="picked — waiting frontdesk confirmation">
+                                {{ $slot['room_number'] }}
+                              </span>
+                            @endif
+                          </td>
+                        @endforeach
+                      </tr>
+
+                      {{-- Upcoming batches --}}
+                      @foreach ($typeBlock['upcoming'] as $i => $batch)
+                        @php
+                          $byFloor = collect($batch)->keyBy('floor_number');
+                          $label = $i === 0 ? 'NEXT' : 'AFTER';
+                        @endphp
+                        <tr class="@if (! $loop->last) border-b border-gray-100 @endif">
+                          <td class="py-1 pr-2">
+                            <span class="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{{ $label }}</span>
+                          </td>
+                          @foreach ($floorNumbers as $fn)
+                            @php $slot = $byFloor[$fn] ?? null; @endphp
+                            <td class="py-1 px-1 text-center">
+                              @if ($slot && $slot['room_number'])
+                                <span class="inline-block text-slate-700 px-2 py-0.5">{{ $slot['room_number'] }}</span>
+                              @else
+                                <span class="text-gray-300" title="No room available on this floor for this batch">—</span>
+                              @endif
+                            </td>
+                          @endforeach
+                        </tr>
+                      @endforeach
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            @endforeach
+          @endif
+        </div>
+
+        <x-slot name="footer">
+          <div class="flex justify-end gap-x-2">
+            <x-button flat label="Close" wire:click="closeKioskBatchModal" />
+            <x-button primary icon="refresh" label="Refresh" wire:click="showKioskBatch" spinner="showKioskBatch" />
+          </div>
+        </x-slot>
+      </x-modal.card>
 
   </div>

@@ -402,6 +402,138 @@ class KioskBatchTest extends TestCase
     }
 
     /** @test */
+    public function preview_batches_returns_upcoming_rooms_in_natural_order()
+    {
+        // Floor 1 has 6 available Doubles — current batch will take 1, then
+        // Batch +1 takes next lowest, Batch +2 the one after that.
+        $branch = Branch::create(['name' => 'Preview Test ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $floor1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        foreach (['3', '21', '7', '9', '34', '52'] as $num) {
+            Room::create([
+                'branch_id' => $branch->id,
+                'floor_id' => $floor1->id,
+                'type_id' => $type->id,
+                'number' => $num,
+                'status' => 'Available',
+                'is_priority' => true,
+            ]);
+        }
+
+        // Throw the current batch — should pick "3".
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        // Preview the next 2 batches (excluding current).
+        $upcoming = KioskBatchService::previewBatches($branch->id, $type->id, 2);
+
+        $this->assertCount(2, $upcoming, 'Should return 2 batches.');
+        // Batch +1: next-lowest after 3 is 7.
+        $this->assertEquals('7', $upcoming[0][0]['room_number']);
+        // Batch +2: after 3, 7 is 9.
+        $this->assertEquals('9', $upcoming[1][0]['room_number']);
+    }
+
+    /** @test */
+    public function preview_batches_returns_blank_when_floor_runs_out()
+    {
+        $branch = Branch::create(['name' => 'Blank Preview ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $floor1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        // Only 2 Available rooms on this floor. Current batch takes 1 → only
+        // 1 left for Batch +1 → Batch +2 has nothing.
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $floor1->id, 'type_id' => $type->id, 'number' => '5', 'status' => 'Available', 'is_priority' => true]);
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $floor1->id, 'type_id' => $type->id, 'number' => '8', 'status' => 'Available', 'is_priority' => true]);
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+        $upcoming = KioskBatchService::previewBatches($branch->id, $type->id, 2);
+
+        $this->assertEquals('8', $upcoming[0][0]['room_number'], 'Batch +1 should pick the remaining Room 8.');
+        $this->assertNull($upcoming[1][0]['room_number'], 'Batch +2 should be blank — nothing left.');
+    }
+
+    /** @test */
+    public function refresh_if_stale_repairs_individual_stale_slots_in_place()
+    {
+        // Floor 1 has 1 active room + 2 spares, Floor 2 has 1 active room + 1 spare.
+        // Mark Floor 1's active room Occupied. The other slot (F2) is still usable, so the
+        // OLD logic returned false (only refreshes when ALL stale). New logic must replace
+        // F1's slot with the next available room without touching F2.
+        $branch = Branch::create(['name' => 'In-place repair ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+        $f2 = Floor::create(['branch_id' => $branch->id, 'number' => 2]);
+
+        // F1: rooms "1", "2", "3" (current batch will pick "1"; spares "2","3")
+        foreach (['1', '2', '3'] as $n) {
+            Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => $n, 'status' => 'Available', 'is_priority' => true]);
+        }
+        // F2: rooms "10", "11" (current batch picks "10"; spare "11")
+        foreach (['10', '11'] as $n) {
+            Room::create(['branch_id' => $branch->id, 'floor_id' => $f2->id, 'type_id' => $type->id, 'number' => $n, 'status' => 'Available', 'is_priority' => true]);
+        }
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        // Sanity: F1 picked "1", F2 picked "10".
+        $f1Active = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f1->id)->value('room_id'))->number;
+        $f2Active = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f2->id)->value('room_id'))->number;
+        $this->assertEquals('1', $f1Active);
+        $this->assertEquals('10', $f2Active);
+
+        // Make F1's batch room Occupied (non-kiosk path).
+        Room::where('floor_id', $f1->id)->where('number', '1')->update(['status' => 'Occupied']);
+
+        // Refresh — should fix F1 only, leave F2 alone.
+        $changed = KioskBatchService::refreshIfStale($branch->id, $type->id);
+        $this->assertTrue($changed);
+
+        $f1NewActive = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f1->id)->value('room_id'))->number;
+        $f2NewActive = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f2->id)->value('room_id'))->number;
+        $this->assertEquals('2', $f1NewActive, 'F1 should swap to the next available room "2".');
+        $this->assertEquals('10', $f2NewActive, 'F2 must stay untouched (was not stale).');
+    }
+
+    /** @test */
+    public function refresh_if_stale_deletes_slot_when_no_replacement_on_that_floor()
+    {
+        // Floor 1 has only 1 room. Mark it Occupied — no replacement possible.
+        // F2 is still good. Result: F1 slot deleted (floor blank), F2 unchanged.
+        $branch = Branch::create(['name' => 'No spare ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+        $f2 = Floor::create(['branch_id' => $branch->id, 'number' => 2]);
+
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '1', 'status' => 'Available', 'is_priority' => true]);
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $f2->id, 'type_id' => $type->id, 'number' => '10', 'status' => 'Available', 'is_priority' => true]);
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+        Room::where('floor_id', $f1->id)->update(['status' => 'Occupied']);
+
+        $changed = KioskBatchService::refreshIfStale($branch->id, $type->id);
+        $this->assertTrue($changed);
+
+        $f1Slot = KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f1->id)->first();
+        $f2Slot = KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f2->id)->first();
+
+        $this->assertNull($f1Slot, 'F1 slot should be deleted (no replacement room).');
+        $this->assertNotNull($f2Slot, 'F2 slot should still exist.');
+    }
+
+    /** @test */
     public function refresh_if_stale_is_noop_when_active_slots_are_still_usable()
     {
         [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
