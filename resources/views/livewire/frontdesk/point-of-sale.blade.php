@@ -3,14 +3,13 @@
     <!-- LEFT SIDE -->
     <div class="flex-1 flex flex-col bg-gray-100 overflow-hidden">
 
-        <!-- HEADER -->
-        <div class="bg-white px-6 py-4 border-b flex justify-between items-center">
-            <input
-                type="text"
-                wire:model.debounce.300ms="search"
-                placeholder="Search menu..."
-                class="w-96 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
-            />
+        <!-- HEADER (compact: action buttons + user) -->
+        <div class="bg-white px-6 py-3 border-b flex justify-between items-center">
+            <div class="flex items-center gap-2 text-sm text-gray-500">
+                <span class="font-semibold text-gray-700">POS</span>
+                <span>&middot;</span>
+                <span>{{ auth()->user()->cash_drawer->name ?? '' }}</span>
+            </div>
             <div class="flex items-center gap-3">
                 <button
                     wire:click="openStockInModal"
@@ -28,29 +27,40 @@
                     </svg>
                     View Purchase History
                 </button>
-                <div>
+                <div class="text-right">
                     <p class="text-sm font-semibold">{{ auth()->user()->name }}</p>
-                    <p class="text-xs text-gray-400">POS - {{ auth()->user()->cash_drawer->name ?? '' }}</p>
+                    <p class="text-xs text-gray-400">{{ auth()->user()->cash_drawer->name ?? '' }}</p>
                 </div>
             </div>
         </div>
 
-        <!-- CATEGORY -->
-        <div class="bg-white px-6 py-4 border-b">
-            <h2 class="font-semibold text-gray-700 mb-3">Choose Category</h2>
-            <div class="flex gap-3 flex-wrap">
+        <!-- CATEGORY CHIPS + SEARCH -->
+        <div class="bg-white px-6 py-3 border-b">
+            <div class="flex items-center gap-3 flex-wrap">
                 <button
                     wire:click="selectCategory(null)"
-                    class="px-4 py-2 rounded-lg text-sm {{ !$selectedCategory ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700' }}">
+                    class="px-3 py-1.5 rounded-full text-sm transition {{ !$selectedCategory ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
                     All
                 </button>
                 @foreach ($categories as $category)
                     <button
                         wire:click="selectCategory({{ $category->id }})"
-                        class="px-4 py-2 rounded-lg text-sm {{ $selectedCategory == $category->id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700' }}">
+                        class="px-3 py-1.5 rounded-full text-sm transition {{ $selectedCategory == $category->id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
                         {{ $category->name }}
                     </button>
                 @endforeach
+                <div class="flex-1 min-w-[200px] flex justify-end">
+                    <div class="relative w-full max-w-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                        </svg>
+                        <input
+                            type="text"
+                            wire:model.debounce.300ms="search"
+                            placeholder="Search menu..."
+                            class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" />
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -155,11 +165,20 @@
             $shiftType = ($shiftHour !== null && $shiftHour >= 6 && $shiftHour < 20) ? 'AM Shift' : 'PM Shift';
             $shiftDateLabel = optional($current_shift?->time_in)->format('F j, Y') ?? '-';
             $shiftStartLabel = optional($current_shift?->time_in)->format('g:i A') ?? '-';
+            $orderCount = $orders->count();
+            $itemsTotalQty = $orders->sum('item_count');
+            $filteredAmount = $orders->sum('amount');
+            $hasSearch = trim($historySearch) !== '';
         @endphp
         <div class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+
+                <!-- HEADER -->
                 <div class="px-6 py-4 border-b flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-gray-800">Purchase History</h2>
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800">Purchase History</h2>
+                        <p class="text-xs text-gray-500 mt-0.5">{{ $shiftType }} &middot; {{ $shiftDateLabel }} &middot; Started {{ $shiftStartLabel }}</p>
+                    </div>
                     <div class="flex gap-2">
                         <button onclick="printPurchaseHistory()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -170,9 +189,44 @@
                         <button wire:click="closeHistoryModal" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm rounded">Close</button>
                     </div>
                 </div>
+
+                <!-- SUMMARY STATS + SEARCH -->
+                <div class="px-6 py-4 border-b bg-gray-50 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                    <div class="bg-white rounded-lg border p-3">
+                        <p class="text-xs uppercase text-gray-500">Orders {{ $hasSearch ? '(matched)' : '' }}</p>
+                        <p class="text-2xl font-bold text-gray-800">{{ $orderCount }}</p>
+                    </div>
+                    <div class="bg-white rounded-lg border p-3">
+                        <p class="text-xs uppercase text-gray-500">Items sold</p>
+                        <p class="text-2xl font-bold text-gray-800">{{ number_format($itemsTotalQty, 0) }}</p>
+                    </div>
+                    <div class="bg-white rounded-lg border p-3">
+                        <p class="text-xs uppercase text-gray-500">{{ $hasSearch ? 'Filtered total' : 'Shift total' }}</p>
+                        <p class="text-2xl font-bold text-emerald-600">&#8369;{{ number_format($hasSearch ? $filteredAmount : $total_pos, 2) }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase text-gray-500 mb-1">Search item</label>
+                        <div class="relative">
+                            <input
+                                type="text"
+                                wire:model.debounce.250ms="historySearch"
+                                placeholder="Type item name..."
+                                class="w-full pl-3 pr-9 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 outline-none text-sm" />
+                            @if($hasSearch)
+                                <button type="button" wire:click="clearHistorySearch" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ORDERS TABLE -->
                 <div class="flex-1 overflow-y-auto px-6 py-4">
                     <div id="purchase-history-printable">
-                        <div class="mb-4 pb-3 border-b">
+                        <div class="mb-4 pb-3 border-b print-only">
                             <h3 class="text-lg font-bold">Purchase History</h3>
                             <div class="grid grid-cols-2 gap-2 text-sm text-gray-700 mt-2">
                                 <div><span class="font-semibold">Shift:</span> {{ $shiftType }}</div>
@@ -185,36 +239,51 @@
                         </div>
                         <table class="w-full border-collapse text-sm">
                             <thead>
-                                <tr class="bg-gray-100">
-                                    <th class="border border-gray-400 px-3 py-2 text-left">DATE/TIME</th>
-                                    <th class="border border-gray-400 px-3 py-2 text-left">ORDER ID</th>
-                                    <th class="border border-gray-400 px-3 py-2 text-left">ITEMS</th>
-                                    <th class="border border-gray-400 px-3 py-2 text-right">AMOUNT</th>
+                                <tr class="bg-gray-100 text-xs uppercase text-gray-600">
+                                    <th class="border border-gray-300 px-3 py-2 text-left w-40">Time</th>
+                                    <th class="border border-gray-300 px-3 py-2 text-left w-24">Order #</th>
+                                    <th class="border border-gray-300 px-3 py-2 text-left">Items</th>
+                                    <th class="border border-gray-300 px-3 py-2 text-right w-32">Amount</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse($orders as $order)
-                                    <tr>
-                                        <td class="border border-gray-400 px-3 py-2 align-top">{{ $order['date_time']->format('F j, Y g:i A') }}</td>
-                                        <td class="border border-gray-400 px-3 py-2 align-top">{{ $order['order_id'] }}</td>
-                                        <td class="border border-gray-400 px-3 py-2 align-top">
-                                            @foreach($order['items'] as $item)
-                                                <div>{{ $item->item_name }} &ndash; {{ $item->quantity }}{{ $item->quantity > 1 ? 'pcs' : 'pc' }}</div>
-                                            @endforeach
+                                    <tr class="hover:bg-gray-50 even:bg-gray-50/40">
+                                        <td class="border border-gray-300 px-3 py-2 align-top">
+                                            <div class="font-medium">{{ $order['date_time']->format('g:i A') }}</div>
+                                            <div class="text-xs text-gray-500">{{ $order['date_time']->format('M j') }}</div>
                                         </td>
-                                        <td class="border border-gray-400 px-3 py-2 align-top text-right">&#8369;{{ number_format($order['amount'], 2) }}</td>
+                                        <td class="border border-gray-300 px-3 py-2 align-top font-mono text-xs">#{{ $order['order_id'] }}</td>
+                                        <td class="border border-gray-300 px-3 py-2 align-top">
+                                            <ul class="space-y-0.5">
+                                                @foreach($order['items'] as $item)
+                                                    <li class="flex justify-between gap-3 text-sm">
+                                                        <span class="text-gray-800">{{ $item->item_name }} <span class="text-gray-500">&times; {{ $item->quantity }}</span></span>
+                                                        <span class="text-gray-500 tabular-nums">&#8369;{{ number_format($item->total, 2) }}</span>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        </td>
+                                        <td class="border border-gray-300 px-3 py-2 align-top text-right font-semibold tabular-nums">&#8369;{{ number_format($order['amount'], 2) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="4" class="border border-gray-400 px-3 py-6 text-center text-gray-400">No purchases recorded for this shift.</td>
+                                        <td colspan="4" class="border border-gray-300 px-3 py-10 text-center text-gray-400">
+                                            @if($hasSearch)
+                                                No orders match "<span class="font-medium">{{ $historySearch }}</span>".
+                                                <button type="button" wire:click="clearHistorySearch" class="ml-2 text-blue-600 hover:underline">Clear search</button>
+                                            @else
+                                                No purchases recorded for this shift.
+                                            @endif
+                                        </td>
                                     </tr>
                                 @endforelse
                             </tbody>
                             @if($orders->isNotEmpty())
                                 <tfoot>
-                                    <tr class="bg-gray-50 font-bold">
-                                        <td class="border border-gray-400 px-3 py-2" colspan="3">TOTAL</td>
-                                        <td class="border border-gray-400 px-3 py-2 text-right">&#8369;{{ number_format($total_pos, 2) }}</td>
+                                    <tr class="bg-gray-100 font-bold">
+                                        <td class="border border-gray-300 px-3 py-2" colspan="3">TOTAL{{ $hasSearch ? ' (filtered)' : '' }}</td>
+                                        <td class="border border-gray-300 px-3 py-2 text-right tabular-nums">&#8369;{{ number_format($hasSearch ? $filteredAmount : $total_pos, 2) }}</td>
                                     </tr>
                                 </tfoot>
                             @endif

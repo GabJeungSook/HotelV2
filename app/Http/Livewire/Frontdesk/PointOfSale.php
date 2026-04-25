@@ -23,6 +23,7 @@ class PointOfSale extends Component
     public $current_shift;
     public $total_pos = 0;
     public $showHistoryModal = false;
+    public $historySearch = '';
     public $showCheckoutConfirm = false;
     public $showStockInModal = false;
     public $stockIn_menu_id = null;
@@ -31,12 +32,18 @@ class PointOfSale extends Component
 
     public function openHistoryModal()
     {
+        $this->historySearch = '';
         $this->showHistoryModal = true;
     }
 
     public function closeHistoryModal()
     {
         $this->showHistoryModal = false;
+    }
+
+    public function clearHistorySearch()
+    {
+        $this->historySearch = '';
     }
 
     public function reviewCheckout()
@@ -261,9 +268,23 @@ class PointOfSale extends Component
                     'date_time' => $items->first()->created_at,
                     'items' => $items->values(),
                     'amount' => $items->sum('total'),
+                    'item_count' => $items->sum('quantity'),
                 ])
                 ->sortByDesc('date_time')
                 ->values();
+
+            // Apply history search filter (case-insensitive match on any item name)
+            if (trim($this->historySearch) !== '') {
+                $needle = mb_strtolower(trim($this->historySearch));
+                $orders = $orders->filter(function ($order) use ($needle) {
+                    foreach ($order['items'] as $item) {
+                        if (str_contains(mb_strtolower((string) $item->item_name), $needle)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                })->values();
+            }
         } else {
             $this->total_pos = 0;
         }
