@@ -174,6 +174,25 @@ class PointOfSale extends Component
         }
     }
 
+    public function confirmRemoveFromCart($index)
+    {
+        $name = $this->cart[$index]['name'] ?? 'this item';
+
+        $this->dialog()->confirm([
+            'title'       => 'Remove from cart?',
+            'description' => "Remove {$name} from the cart?",
+            'icon'        => 'question',
+            'accept'      => [
+                'label'  => 'Yes, remove',
+                'method' => 'removeFromCart',
+                'params' => $index,
+            ],
+            'reject' => [
+                'label' => 'Keep',
+            ],
+        ]);
+    }
+
     public function removeFromCart($index)
     {
         unset($this->cart[$index]);
