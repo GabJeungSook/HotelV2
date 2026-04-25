@@ -225,9 +225,9 @@
                 </div>
                 <div class="flex-1 overflow-y-auto px-6 py-4">
                     <div id="purchase-history-printable">
+                        <h3 class="text-lg font-bold print-only-title" style="display:none;">Purchase History</h3>
                         <div class="mb-4 pb-3 border-b">
-                            <h3 class="text-lg font-bold">Purchase History</h3>
-                            <div class="grid grid-cols-2 gap-2 text-sm text-gray-700 mt-2">
+                            <div class="grid grid-cols-2 gap-2 text-sm text-gray-700">
                                 <div><span class="font-semibold">Shift:</span> {{ $shiftType }}</div>
                                 <div><span class="font-semibold">Date:</span> {{ $shiftDateLabel }}</div>
                                 <div><span class="font-semibold">Frontdesk:</span> {{ auth()->user()->name }}</div>

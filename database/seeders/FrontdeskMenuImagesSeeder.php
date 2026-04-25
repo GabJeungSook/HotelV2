@@ -43,10 +43,12 @@ class FrontdeskMenuImagesSeeder extends Seeder
             $slug = Str::slug($menu->name) ?: 'item-' . $menu->id;
             $relativePath = "{$dir}/{$slug}.jpg";
 
-            $url = "https://picsum.photos/seed/{$slug}/400/400";
+            $keyword = $this->keywordFor($menu->name);
+            // LoremFlickr — Flickr-tagged photo by keyword. Free, no API key.
+            $url = "https://loremflickr.com/400/400/" . urlencode($keyword);
 
             try {
-                $response = Http::timeout(20)
+                $response = Http::timeout(25)
                     ->withOptions(['allow_redirects' => true])
                     ->get($url);
 
@@ -67,5 +69,64 @@ class FrontdeskMenuImagesSeeder extends Seeder
         }
 
         $this->command?->info("Done. Saved: {$ok}, skipped (already had image): {$skipped}, failed: {$failed}");
+    }
+
+    /**
+     * Map menu item name to a search keyword that matches the product type.
+     * Falls back to a generic "drink" keyword if nothing matches.
+     */
+    private function keywordFor(string $name): string
+    {
+        $n = strtolower($name);
+
+        // direct brand matches first
+        $directHits = [
+            'coke'         => 'coca-cola',
+            'pepsi'        => 'pepsi',
+            'sprite'       => 'sprite-soda',
+            '7-up'         => '7up-soda',
+            '7up'          => '7up-soda',
+            'mountain dew' => 'mountain-dew',
+            'royal'        => 'orange-soda',
+            'pineapple'    => 'pineapple-juice',
+            'pineorange'   => 'pineapple-juice',
+            'mango'        => 'mango-juice',
+            'four season'  => 'fruit-juice',
+            'fit n right'  => 'fruit-juice',
+            'minute maid'  => 'orange-juice',
+            'cobra'        => 'energy-drink',
+            'cali'         => 'calamansi-juice',
+            'c2'           => 'iced-tea',
+            'mineral'      => 'bottled-water',
+            'water'        => 'bottled-water',
+            'junkfood'     => 'snack-chips',
+            'chips'        => 'snack-chips',
+            'soap'         => 'soap-bar',
+            'shampoo'      => 'shampoo-bottle',
+            'conditioner'  => 'shampoo-bottle',
+            'toothbrush'   => 'toothbrush',
+            'toothpaste'   => 'toothpaste',
+            'shaver'       => 'razor',
+            'modess'       => 'sanitary-napkin',
+        ];
+
+        foreach ($directHits as $needle => $keyword) {
+            if (str_contains($n, $needle)) {
+                return $keyword;
+            }
+        }
+
+        // category fallback
+        if (preg_match('/(juice|nectar|orange|apple|mango|pineapple|fruit)/', $n)) {
+            return 'fruit-juice';
+        }
+        if (preg_match('/(soda|cola|drink|cobra|royal|sprite)/', $n)) {
+            return 'soft-drink';
+        }
+        if (preg_match('/(soap|shampoo|condition|tooth|shaver|razor|napkin|toilet)/', $n)) {
+            return 'toiletries';
+        }
+
+        return 'beverage';
     }
 }
