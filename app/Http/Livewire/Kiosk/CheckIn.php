@@ -57,6 +57,11 @@ class CheckIn extends Component
                 KioskBatchService::throwNextBatch($branchId, $this->type_id);
             }
 
+            // Self-heal: if active slots all point to rooms that became
+            // unusable (Occupied/Maintenance/etc) via non-kiosk paths,
+            // throw the next batch so the waiting stack is promoted.
+            KioskBatchService::refreshIfStale($branchId, $this->type_id);
+
             $activeRoomIds = KioskBatchService::activeRoomIds($branchId, $this->type_id);
 
             $temporaryCheckInKiosk = TemporaryCheckInKiosk::where('branch_id', $branchId)
@@ -126,6 +131,9 @@ class CheckIn extends Component
         if (KioskBatchService::isEmpty($branchId, $type_id)) {
             KioskBatchService::throwNextBatch($branchId, $type_id);
         }
+
+        // Self-heal stale batch (see KioskBatchService::refreshIfStale).
+        KioskBatchService::refreshIfStale($branchId, $type_id);
 
         $activeRoomIds = KioskBatchService::activeRoomIds($branchId, $type_id);
 

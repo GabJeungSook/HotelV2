@@ -291,6 +291,137 @@ class KioskBatchTest extends TestCase
         $this->assertEqualsCanonicalizing([$singleFloor1->id, $singleFloor2->id], $singleActiveIdsAfter);
     }
 
+    /** @test */
+    public function next_batch_picks_numerically_lowest_room_per_floor()
+    {
+        // Floor 1 with mixed-length numeric room numbers. SQL string sort
+        // would pick "21" first (because "2" < "3" lexicographically). The
+        // service must use natural sort and pick "3".
+        $branch = Branch::create(['name' => 'Numeric Sort ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $floor1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        foreach (['3', '21', '52', '9', '7'] as $num) {
+            Room::create([
+                'branch_id' => $branch->id,
+                'floor_id' => $floor1->id,
+                'type_id' => $type->id,
+                'number' => $num,
+                'status' => 'Available',
+                'is_priority' => true,
+            ]);
+        }
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $pickedRoomId = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->where('floor_id', $floor1->id)
+            ->value('room_id');
+        $pickedNumber = Room::where('id', $pickedRoomId)->value('number');
+
+        $this->assertEquals('3', $pickedNumber, 'Expected room "3" (numerically lowest), not "21" (lexicographically lowest).');
+    }
+
+    /** @test */
+    public function alphanumeric_room_numbers_sort_naturally()
+    {
+        // Mixed alphanumeric: "5A", "5C", "256", "293". Natural sort order is
+        // 5A < 5C < 256 < 293 (the "5x" series has a smaller numeric prefix
+        // than 256/293). Plain string sort would give 256 first.
+        $branch = Branch::create(['name' => 'Alphanum Sort ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $floor5 = Floor::create(['branch_id' => $branch->id, 'number' => 5]);
+
+        foreach (['293', '5C', '5A', '256'] as $num) {
+            Room::create([
+                'branch_id' => $branch->id,
+                'floor_id' => $floor5->id,
+                'type_id' => $type->id,
+                'number' => $num,
+                'status' => 'Available',
+                'is_priority' => true,
+            ]);
+        }
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $pickedRoomId = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->where('floor_id', $floor5->id)
+            ->value('room_id');
+        $pickedNumber = Room::where('id', $pickedRoomId)->value('number');
+
+        $this->assertEquals('5A', $pickedNumber, 'Natural sort should pick "5A" before "256" (5 < 256 numerically).');
+    }
+
+    /** @test */
+    public function refresh_if_stale_throws_new_batch_when_active_slots_are_unusable()
+    {
+        // Simulate the production bug: batch slot points to a room that
+        // became Occupied via a non-kiosk path (frontdesk direct check-in).
+        // refreshIfStale must detect this and throw a fresh batch from the
+        // remaining available rooms.
+        [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
+            floors: 2,
+            roomsPerFloor: 2,
+        );
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        // Sanity: every active slot points to an Available room.
+        $beforeIds = KioskBatchService::activeRoomIds($branch->id, $type->id);
+        $this->assertCount(2, $beforeIds);
+
+        // Simulate non-kiosk occupation of EVERY active slot's room.
+        foreach ($beforeIds as $roomId) {
+            Room::where('id', $roomId)->update(['status' => 'Occupied']);
+        }
+
+        // Slots are now stale (still 'active' but rooms are Occupied).
+        $refreshed = KioskBatchService::refreshIfStale($branch->id, $type->id);
+
+        $this->assertTrue($refreshed, 'refreshIfStale should signal it threw a new batch.');
+
+        // The new batch should point to different (still-available) rooms.
+        $afterIds = KioskBatchService::activeRoomIds($branch->id, $type->id);
+        $this->assertCount(2, $afterIds, 'Expected new batch with one room per floor.');
+        $this->assertEmpty(array_intersect($beforeIds, $afterIds), 'New batch must not reuse the now-Occupied rooms.');
+
+        // Each new slot must point to a still-available room.
+        foreach ($afterIds as $roomId) {
+            $status = Room::where('id', $roomId)->value('status');
+            $this->assertContains($status, ['Available', 'Cleaned']);
+        }
+    }
+
+    /** @test */
+    public function refresh_if_stale_is_noop_when_active_slots_are_still_usable()
+    {
+        [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
+            floors: 2,
+            roomsPerFloor: 2,
+        );
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $beforeIds = KioskBatchService::activeRoomIds($branch->id, $type->id);
+
+        // No status changes — slots still valid.
+        $refreshed = KioskBatchService::refreshIfStale($branch->id, $type->id);
+
+        $this->assertFalse($refreshed, 'refreshIfStale should be a no-op when slots are still usable.');
+
+        $afterIds = KioskBatchService::activeRoomIds($branch->id, $type->id);
+        $this->assertEqualsCanonicalizing($beforeIds, $afterIds);
+    }
+
     /**
      * Seed a branch with the given number of floors, each having the given
      * number of rooms, all of a single test type. Returns [branch, type, floors, rooms].

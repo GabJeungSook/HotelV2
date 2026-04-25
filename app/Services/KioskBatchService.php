@@ -38,23 +38,33 @@ class KioskBatchService
         $floors = Floor::where('branch_id', $branchId)->get();
 
         foreach ($floors as $floor) {
-            $room = Room::where('branch_id', $branchId)
+            $candidates = Room::where('branch_id', $branchId)
                 ->where('type_id', $typeId)
                 ->where('floor_id', $floor->id)
                 ->whereIn('status', ['Available', 'Cleaned'])
                 ->where('is_priority', 1)
-                ->orderBy('number', 'asc')
-                ->first();
+                ->get();
 
-            if ($room) {
-                KioskCurrentBatch::create([
-                    'branch_id' => $branchId,
-                    'type_id' => $typeId,
-                    'room_id' => $room->id,
-                    'floor_id' => $floor->id,
-                    'slot_status' => KioskCurrentBatch::STATUS_ACTIVE,
-                ]);
+            if ($candidates->isEmpty()) {
+                continue;
             }
+
+            // Client spec requires "ascending numerical" order. rooms.number
+            // is varchar (must hold alphanumeric like "5A", "5C"), so a SQL
+            // orderBy gives string sort: ["3","21"] becomes ["21","3"]. Use
+            // PHP natsort so "3" < "5A" < "21" naturally.
+            $numbers = $candidates->pluck('number')->toArray();
+            natsort($numbers);
+            $lowest = reset($numbers);
+            $room = $candidates->firstWhere('number', $lowest);
+
+            KioskCurrentBatch::create([
+                'branch_id' => $branchId,
+                'type_id' => $typeId,
+                'room_id' => $room->id,
+                'floor_id' => $floor->id,
+                'slot_status' => KioskCurrentBatch::STATUS_ACTIVE,
+            ]);
         }
     }
 
@@ -151,5 +161,42 @@ class KioskBatchService
         return !KioskCurrentBatch::where('branch_id', $branchId)
             ->where('type_id', $typeId)
             ->exists();
+    }
+
+    /**
+     * Self-heal stale batches.
+     *
+     * The batch is meant to advance via markPicked() on kiosk check-in. But if
+     * a batch-slot room becomes Occupied/Uncleaned/Maintenance through any
+     * non-kiosk path (frontdesk direct check-in, manual status edit, etc.),
+     * the slot stays 'active' forever and the kiosk shows SORRY even though
+     * other rooms of that type are actually available.
+     *
+     * This guard runs at the top of render()/selectType(): if there are active
+     * slots but NONE of them refer to a still-usable room (Available|Cleaned +
+     * is_priority), throw the next batch so the waiting stack gets promoted.
+     *
+     * Returns true if a refresh was performed.
+     */
+    public static function refreshIfStale(int $branchId, int $typeId): bool
+    {
+        $activeRoomIds = self::activeRoomIds($branchId, $typeId);
+
+        if (empty($activeRoomIds)) {
+            return false;
+        }
+
+        $usableActive = Room::where('branch_id', $branchId)
+            ->whereIn('id', $activeRoomIds)
+            ->whereIn('status', ['Available', 'Cleaned'])
+            ->where('is_priority', 1)
+            ->exists();
+
+        if ($usableActive) {
+            return false;
+        }
+
+        self::throwNextBatch($branchId, $typeId);
+        return true;
     }
 }
