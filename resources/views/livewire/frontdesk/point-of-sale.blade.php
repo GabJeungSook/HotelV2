@@ -64,33 +64,66 @@
             </div>
         </div>
 
-        <!-- PRODUCTS (SCROLLABLE) -->
-        <div class="flex-1 overflow-y-auto p-6">
-            <div class="grid grid-cols-3 gap-6">
+        <!-- PRODUCTS (SCROLLABLE TILE GRID) -->
+        <div class="flex-1 overflow-y-auto p-4">
+            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                @php
+                    $stockLevels = \App\Models\FrontdeskInventory::where('branch_id', auth()->user()->branch_id)
+                        ->pluck('number_of_serving', 'frontdesk_menu_id');
+                @endphp
                 @forelse ($menus as $menu)
-                    <div class="bg-white rounded-xl shadow hover:shadow-lg transition p-4">
+                    @php
+                        $stock = (float) ($stockLevels[$menu->id] ?? 0);
+                        $outOfStock = $stock <= 0;
+                        $lowStock   = $stock > 0 && $stock < 5;
+                    @endphp
+                    <button
+                        type="button"
+                        wire:click="addToCart({{ $menu->id }})"
+                        @if($outOfStock) disabled @endif
+                        class="group relative bg-white rounded-xl shadow-sm hover:shadow-md hover:ring-2 hover:ring-blue-400 active:scale-[0.98] transition text-left flex flex-col overflow-hidden border border-gray-100
+                               {{ $outOfStock ? 'opacity-50 cursor-not-allowed' : '' }}">
+
                         @if ($menu->image)
-                            <img src="{{ asset('storage/' . $menu->image) }}" alt="{{ $menu->name }}" class="h-40 w-full object-cover rounded-lg mb-3">
+                            <img src="{{ asset('storage/' . $menu->image) }}" alt="{{ $menu->name }}"
+                                 class="aspect-square w-full object-cover bg-gray-100">
                         @else
-                            <div class="h-40 bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-gray-400">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
-                                </svg>
+                            <div class="aspect-square w-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                                <span class="text-3xl font-bold text-blue-300/70">
+                                    {{ strtoupper(mb_substr($menu->name, 0, 1)) }}
+                                </span>
                             </div>
                         @endif
 
-                        <h3 class="font-semibold text-gray-700">{{ $menu->name }}</h3>
-                        <p class="text-blue-600 font-bold mb-3">&#8369;{{ number_format($menu->price, 2) }}</p>
+                        <!-- stock badge -->
+                        @if($outOfStock)
+                            <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold uppercase">Out</span>
+                        @elseif($lowStock)
+                            <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">Low: {{ (int) $stock }}</span>
+                        @endif
 
-                        <button
-                            wire:click="addToCart({{ $menu->id }})"
-                            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm">
-                            Add to Cart
-                        </button>
-                    </div>
+                        <div class="p-2.5">
+                            <p class="font-semibold text-sm text-gray-800 truncate" title="{{ $menu->name }}">{{ $menu->name }}</p>
+                            <div class="flex justify-between items-baseline mt-0.5">
+                                <p class="text-blue-600 font-bold text-sm">&#8369;{{ number_format($menu->price, 2) }}</p>
+                                <p class="text-xs tabular-nums
+                                    {{ $outOfStock ? 'text-red-600 font-semibold' : ($lowStock ? 'text-amber-700 font-semibold' : 'text-gray-500') }}">
+                                    @if($outOfStock)
+                                        0 left
+                                    @else
+                                        {{ rtrim(rtrim(number_format((float)$stock, 2, '.', ''), '0'), '.') }} left
+                                    @endif
+                                </p>
+                            </div>
+                        </div>
+                    </button>
                 @empty
-                    <div class="col-span-3 text-center py-10 text-gray-400">
-                        No menu items found.
+                    <div class="col-span-full text-center py-16 text-gray-400">
+                        @if($search)
+                            No items match "{{ $search }}".
+                        @else
+                            No menu items in this category.
+                        @endif
                     </div>
                 @endforelse
             </div>
