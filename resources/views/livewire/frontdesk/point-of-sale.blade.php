@@ -96,19 +96,19 @@
 
                         <!-- stock badge -->
                         @if($outOfStock)
-                            <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold uppercase">Out</span>
+                            <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold uppercase tracking-wide">Unavailable</span>
                         @elseif($lowStock)
                             <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">Low: {{ (int) $stock }}</span>
                         @endif
 
-                        <div class="p-2.5">
-                            <p class="font-semibold text-sm text-gray-800 truncate" title="{{ $menu->name }}">{{ $menu->name }}</p>
+                        <div class="p-2.5 {{ $outOfStock ? 'grayscale' : '' }}">
+                            <p class="font-semibold text-sm truncate {{ $outOfStock ? 'text-gray-500' : 'text-gray-800' }}" title="{{ $menu->name }}">{{ $menu->name }}</p>
                             <div class="flex justify-between items-baseline mt-0.5">
-                                <p class="text-blue-600 font-bold text-sm">&#8369;{{ number_format($menu->price, 2) }}</p>
+                                <p class="font-bold text-sm {{ $outOfStock ? 'text-gray-400' : 'text-blue-600' }}">&#8369;{{ number_format($menu->price, 2) }}</p>
                                 <p class="text-xs tabular-nums
-                                    {{ $outOfStock ? 'text-red-600 font-semibold' : ($lowStock ? 'text-amber-700 font-semibold' : 'text-gray-500') }}">
+                                    {{ $outOfStock ? 'text-gray-400' : ($lowStock ? 'text-amber-700 font-semibold' : 'text-gray-500') }}">
                                     @if($outOfStock)
-                                        0 left
+                                        out
                                     @else
                                         {{ rtrim(rtrim(number_format((float)$stock, 2, '.', ''), '0'), '.') }} left
                                     @endif
