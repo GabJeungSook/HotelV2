@@ -1,5 +1,29 @@
 <div class="h-[calc(100vh-9rem)] w-full flex bg-gray-100 overflow-hidden">
 
+    {{-- Print stylesheet: when the user prints, hide everything except the
+         #purchase-history-printable region. Uses the browser's native
+         window.print() — no popup, no extra script registration. --}}
+    <style>
+        @media print {
+            body * { visibility: hidden !important; }
+            #purchase-history-printable,
+            #purchase-history-printable * { visibility: visible !important; }
+            #purchase-history-printable {
+                position: absolute !important;
+                left: 0; top: 0;
+                width: 100%;
+                padding: 16px;
+                color: #000;
+            }
+            #purchase-history-printable .print-only-title { display: block !important; }
+            #purchase-history-printable table { border-collapse: collapse; width: 100%; font-size: 12px; }
+            #purchase-history-printable th,
+            #purchase-history-printable td { border: 1px solid #000 !important; padding: 6px; }
+            #purchase-history-printable thead { background: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
+            @page { margin: 12mm; }
+        }
+    </style>
+
     <!-- LEFT SIDE -->
     <div class="flex-1 flex flex-col bg-gray-100 overflow-hidden">
 
@@ -214,7 +238,7 @@
                 <div class="px-6 py-4 border-b flex justify-between items-center">
                     <h2 class="text-xl font-bold text-gray-800">Purchase History</h2>
                     <div class="flex gap-2">
-                        <button onclick="printPurchaseHistory()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center gap-2">
+                        <button onclick="window.print()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
                             </svg>
@@ -277,28 +301,6 @@
             </div>
         </div>
 
-        <script>
-            function printPurchaseHistory() {
-                var content = document.getElementById('purchase-history-printable').innerHTML;
-                var win = window.open('', '_blank', 'width=960,height=720');
-                win.document.write(
-                    '<!DOCTYPE html><html><head><title>Purchase History</title>' +
-                    '<style>' +
-                    'body { font-family: Arial, sans-serif; padding: 24px; color: #000; }' +
-                    'table { width: 100%; border-collapse: collapse; margin-top: 8px; }' +
-                    'th, td { border: 1px solid #000; padding: 8px; font-size: 12px; text-align: left; vertical-align: top; }' +
-                    'th { background: #f3f4f6; }' +
-                    '.text-right, td.text-right, th.text-right { text-align: right; }' +
-                    '.font-bold { font-weight: bold; } .font-semibold { font-weight: 600; }' +
-                    '.border-b { border-bottom: 1px solid #000; padding-bottom: 10px; margin-bottom: 14px; }' +
-                    '.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; font-size: 12px; margin-top: 8px; }' +
-                    'h3 { margin: 0; font-size: 16px; } tfoot td { background: #f9fafb; font-weight: bold; }' +
-                    '</style></head><body>' + content + '</body></html>'
-                );
-                win.document.close();
-                setTimeout(function () { win.focus(); win.print(); }, 400);
-            }
-        </script>
     @endif
 
     @if($showStockInModal)
