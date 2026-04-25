@@ -88,10 +88,9 @@
                             <img src="{{ asset('storage/' . $menu->image) }}" alt="{{ $menu->name }}"
                                  class="aspect-square w-full object-cover bg-gray-100">
                         @else
-                            <div class="aspect-square w-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-                                <span class="text-3xl font-bold text-blue-300/70">
-                                    {{ strtoupper(mb_substr($menu->name, 0, 1)) }}
-                                </span>
+                            <div class="aspect-square w-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-6">
+                                <img src="{{ asset('images/homiLogo.png') }}" alt="HOMI"
+                                     class="w-3/4 h-3/4 object-contain opacity-30 group-hover:opacity-50 transition" />
                             </div>
                         @endif
 
