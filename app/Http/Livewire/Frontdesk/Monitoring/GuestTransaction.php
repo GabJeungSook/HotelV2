@@ -1674,8 +1674,13 @@ class GuestTransaction extends Component
 
         }
 
+        // Stamp source room's check_out_time on transfer so the roomboy queue
+        // (sorted ASC by check_out_time) ranks it as recently vacated rather
+        // than inheriting the prior guest's stale checkout. Mirrors the fix
+        // already applied to TransferRoom::saveTransfer.
          Room::where('id', $check_in_detail->room_id)->update([
-            'status' => $this->old_status,
+            'status'         => $this->old_status,
+            'check_out_time' => now()->toDateTimeString(),
         ]);
 
         Room::where('id',  $this->room_id)->update([
