@@ -70,18 +70,22 @@
                 @php
                     $stockLevels = \App\Models\FrontdeskInventory::where('branch_id', auth()->user()->branch_id)
                         ->pluck('number_of_serving', 'frontdesk_menu_id');
+                    $cartQuantities = collect($cart)->keyBy('menu_id')->map(fn($r) => $r['quantity']);
                 @endphp
                 @forelse ($menus as $menu)
                     @php
                         $stock = (float) ($stockLevels[$menu->id] ?? 0);
                         $outOfStock = $stock <= 0;
                         $lowStock   = $stock > 0 && $stock < 5;
+                        $inCartQty  = (int) ($cartQuantities[$menu->id] ?? 0);
+                        $inCart     = $inCartQty > 0;
                     @endphp
                     <button
                         type="button"
                         wire:click="addToCart({{ $menu->id }})"
                         @if($outOfStock) disabled @endif
-                        class="group relative bg-white rounded-xl shadow-sm hover:shadow-md hover:ring-2 hover:ring-blue-400 active:scale-[0.98] transition text-left flex flex-col overflow-hidden border border-gray-100
+                        class="group relative bg-white rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] transition text-left flex flex-col overflow-hidden
+                               {{ $inCart ? 'ring-2 ring-blue-500 border-blue-500' : 'border border-gray-100 hover:ring-2 hover:ring-blue-400' }}
                                {{ $outOfStock ? 'opacity-50 cursor-not-allowed' : '' }}">
 
                         @if ($menu->image)
@@ -94,7 +98,14 @@
                             </div>
                         @endif
 
-                        <!-- stock badge -->
+                        <!-- in-cart quantity badge (top-left) -->
+                        @if($inCart)
+                            <span class="absolute top-2 left-2 min-w-[24px] h-6 px-1.5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow ring-2 ring-white">
+                                ×{{ $inCartQty }}
+                            </span>
+                        @endif
+
+                        <!-- stock badge (top-right) -->
                         @if($outOfStock)
                             <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold uppercase tracking-wide">Unavailable</span>
                         @elseif($lowStock)
