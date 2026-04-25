@@ -21,6 +21,7 @@ class PointOfSale extends Component
     public $current_shift;
     public $total_pos = 0;
     public $showHistoryModal = false;
+    public $showCheckoutConfirm = false;
 
     public function openHistoryModal()
     {
@@ -30,6 +31,32 @@ class PointOfSale extends Component
     public function closeHistoryModal()
     {
         $this->showHistoryModal = false;
+    }
+
+    public function reviewCheckout()
+    {
+        if (!$this->current_shift) {
+            $this->notification()->error(
+                $title = 'No Active Shift',
+                $description = 'Please start a shift before making transactions.'
+            );
+            return;
+        }
+
+        if (empty($this->cart)) {
+            $this->notification()->error(
+                $title = 'Empty Cart',
+                $description = 'Please add items before checking out.'
+            );
+            return;
+        }
+
+        $this->showCheckoutConfirm = true;
+    }
+
+    public function cancelCheckout()
+    {
+        $this->showCheckoutConfirm = false;
     }
 
     public function mount()
@@ -140,6 +167,7 @@ class PointOfSale extends Component
         DB::commit();
 
         $this->cart = [];
+        $this->showCheckoutConfirm = false;
 
         $this->notification()->success(
             $title = 'Transaction Complete',

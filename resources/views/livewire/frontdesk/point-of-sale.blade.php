@@ -125,11 +125,18 @@
             </div>
 
             <button
-                wire:click="checkout"
+                wire:click="reviewCheckout"
                 wire:loading.attr="disabled"
-                class="w-full mt-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-3 rounded-lg font-semibold">
-                <span wire:loading.remove wire:target="checkout">Checkout</span>
-                <span wire:loading wire:target="checkout">Processing...</span>
+                @if(empty($cart)) disabled @endif
+                class="w-full mt-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold">
+                <span wire:loading.remove wire:target="reviewCheckout">
+                    @if(empty($cart))
+                        Add items to checkout
+                    @else
+                        Review &amp; Checkout
+                    @endif
+                </span>
+                <span wire:loading wire:target="reviewCheckout">Loading...</span>
             </button>
         </div>
     </div>
@@ -231,6 +238,62 @@
                 setTimeout(function () { win.focus(); win.print(); }, 400);
             }
         </script>
+    @endif
+
+    @if($showCheckoutConfirm)
+        <div class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[90vh]">
+                <div class="px-6 py-4 border-b">
+                    <h2 class="text-xl font-bold text-gray-800">Confirm Checkout</h2>
+                    <p class="text-sm text-gray-500 mt-1">Review the order before submitting.</p>
+                </div>
+
+                <div class="px-6 py-4 overflow-y-auto flex-1">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-xs uppercase text-gray-500 border-b">
+                                <th class="py-2">Item</th>
+                                <th class="py-2 text-center">Qty</th>
+                                <th class="py-2 text-right">Price</th>
+                                <th class="py-2 text-right">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($cart as $item)
+                                <tr class="border-b last:border-b-0">
+                                    <td class="py-2">{{ $item['name'] }}</td>
+                                    <td class="py-2 text-center">{{ $item['quantity'] }}</td>
+                                    <td class="py-2 text-right">&#8369;{{ number_format($item['price'], 2) }}</td>
+                                    <td class="py-2 text-right">&#8369;{{ number_format($item['subtotal'], 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-bold text-base">
+                                <td class="pt-3" colspan="3">Total</td>
+                                <td class="pt-3 text-right text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="px-6 py-4 border-t flex justify-end gap-3">
+                    <button
+                        wire:click="cancelCheckout"
+                        wire:loading.attr="disabled"
+                        class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium">
+                        Cancel
+                    </button>
+                    <button
+                        wire:click="checkout"
+                        wire:loading.attr="disabled"
+                        class="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg font-semibold">
+                        <span wire:loading.remove wire:target="checkout">Confirm &amp; Submit</span>
+                        <span wire:loading wire:target="checkout">Processing...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     @endif
 
 </div>
