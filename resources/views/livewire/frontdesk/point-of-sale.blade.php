@@ -1,7 +1,7 @@
-<div class="h-full w-full flex bg-gray-100 overflow-hidden">
+<div class="h-[calc(100vh-9rem)] w-full flex bg-gray-100 overflow-hidden">
 
     <!-- LEFT SIDE -->
-    <div class="flex-1 flex flex-col bg-gray-100">
+    <div class="flex-1 flex flex-col bg-gray-100 overflow-hidden">
 
         <!-- HEADER -->
         <div class="bg-white px-6 py-4 border-b flex justify-between items-center">
@@ -12,6 +12,14 @@
                 class="w-96 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
             />
             <div class="flex items-center gap-3">
+                <button
+                    wire:click="openStockInModal"
+                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                    </svg>
+                    Stock In
+                </button>
                 <button
                     wire:click="openHistoryModal"
                     class="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-sm rounded-lg flex items-center gap-2">
@@ -80,7 +88,7 @@
     </div>
 
     <!-- BILLING PANEL -->
-    <div class="w-96 bg-white border-l flex flex-col h-full">
+    <div class="w-96 bg-white border-l flex flex-col self-stretch">
 
         <!-- BILL HEADER -->
         <div class="px-6 py-5 border-b shrink-0 flex justify-between items-center">
@@ -238,6 +246,58 @@
                 setTimeout(function () { win.focus(); win.print(); }, 400);
             }
         </script>
+    @endif
+
+    @if($showStockInModal)
+        <div class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col">
+                <div class="px-6 py-4 border-b">
+                    <h2 class="text-xl font-bold text-gray-800">Record Stock In</h2>
+                    <p class="text-sm text-gray-500 mt-1">Log incoming inventory (delivery, restock).</p>
+                </div>
+
+                <form wire:submit.prevent="submitStockIn" class="px-6 py-4 space-y-4">
+                    <div>
+                        <x-select
+                            label="Item"
+                            placeholder="Type to search items..."
+                            :options="$menus"
+                            option-label="name"
+                            option-value="id"
+                            wire:model="stockIn_menu_id" />
+                        @error('stockIn_menu_id') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Quantity received</label>
+                        <input type="number" step="0.01" min="0.01"
+                            wire:model.defer="stockIn_quantity"
+                            class="mt-1 block w-full rounded border-gray-300 focus:border-emerald-500 focus:ring-emerald-500" />
+                        @error('stockIn_quantity') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Reason / Note <span class="text-gray-400">(supplier, PO #, etc.)</span></label>
+                        <input type="text" wire:model.defer="stockIn_reason"
+                            placeholder="e.g. Supplier ABC PO #4521"
+                            class="mt-1 block w-full rounded border-gray-300 focus:border-emerald-500 focus:ring-emerald-500" />
+                    </div>
+
+                    <div class="pt-2 flex justify-end gap-3">
+                        <button type="button" wire:click="closeStockInModal"
+                            class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            wire:loading.attr="disabled"
+                            class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white rounded-lg font-semibold">
+                            <span wire:loading.remove wire:target="submitStockIn">Record Stock In</span>
+                            <span wire:loading wire:target="submitStockIn">Saving...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     @endif
 
     @if($showCheckoutConfirm)

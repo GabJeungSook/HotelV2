@@ -7,6 +7,8 @@ use App\Models\FrontdeskInventory;
 use App\Models\FrontdeskMenu;
 use App\Models\PosTransaction;
 use App\Models\ShiftLog;
+use App\Models\StockMovement;
+use App\Services\Pos\StockService;
 use Livewire\Component;
 use WireUi\Traits\Actions;
 use DB;
@@ -22,6 +24,10 @@ class PointOfSale extends Component
     public $total_pos = 0;
     public $showHistoryModal = false;
     public $showCheckoutConfirm = false;
+    public $showStockInModal = false;
+    public $stockIn_menu_id = null;
+    public $stockIn_quantity = 0;
+    public $stockIn_reason = '';
 
     public function openHistoryModal()
     {
@@ -57,6 +63,47 @@ class PointOfSale extends Component
     public function cancelCheckout()
     {
         $this->showCheckoutConfirm = false;
+    }
+
+    public function openStockInModal()
+    {
+        $this->reset(['stockIn_menu_id', 'stockIn_quantity', 'stockIn_reason']);
+        $this->showStockInModal = true;
+    }
+
+    public function closeStockInModal()
+    {
+        $this->showStockInModal = false;
+    }
+
+    public function submitStockIn()
+    {
+        $this->validate([
+            'stockIn_menu_id' => 'required|integer',
+            'stockIn_quantity' => 'required|numeric|gt:0',
+            'stockIn_reason' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            app(StockService::class)->in(
+                StockMovement::SOURCE_FRONTDESK,
+                (int) $this->stockIn_menu_id,
+                (float) $this->stockIn_quantity,
+                [
+                    'branch_id' => auth()->user()->branch_id,
+                    'reason'    => $this->stockIn_reason !== '' ? $this->stockIn_reason : null,
+                    'ref_type'  => 'stock_in_form',
+                    'user_id'   => auth()->id(),
+                ]
+            );
+
+            $qty = $this->stockIn_quantity;
+            $this->reset(['stockIn_menu_id', 'stockIn_quantity', 'stockIn_reason']);
+            $this->showStockInModal = false;
+            $this->notification()->success('Stock recorded', "Recorded {$qty} units.");
+        } catch (\Throwable $e) {
+            $this->notification()->error('Stock-In failed', $e->getMessage());
+        }
     }
 
     public function mount()

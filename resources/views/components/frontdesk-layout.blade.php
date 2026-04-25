@@ -1,3 +1,4 @@
+@props(['bare' => false])
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
@@ -239,15 +240,6 @@
 
                 <span>POS</span>
               </a>
-              <a href="{{ $isBeginningCash ? '#' : route('frontdesk.stock-in') }}"
-                class="text-gray-500 fill-gray-500 group inline-flex items-center rounded-md bg-white text-base font-medium hover:text-gray-900 "
-                aria-expanded="false">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24" class="mr-2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-                </svg>
-
-                <span>Stock In</span>
-              </a>
 
               @php
                 $pendingOverrideCount = \App\Models\OverrideRequest::where('requester_id', auth()->user()->id)
@@ -371,15 +363,19 @@
     </div>
 
     <main class="-mt-32">
-      <div class="px-20 pb-12 ">
-        <!-- Replace with your content -->
-        <div class="rounded-lg bg-white px-5 py-6 shadow sm:px-6">
-          <div class="rounded-xl ">
-            {{ $slot }}
+      @if($bare)
+        {{ $slot }}
+      @else
+        <div class="px-20 pb-12 ">
+          <!-- Replace with your content -->
+          <div class="rounded-lg bg-white px-5 py-6 shadow sm:px-6">
+            <div class="rounded-xl ">
+              {{ $slot }}
+            </div>
           </div>
+          <!-- /End replace -->
         </div>
-        <!-- /End replace -->
-      </div>
+      @endif
     </main>
   </div>
 
