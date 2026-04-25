@@ -132,34 +132,64 @@ class PointOfSale extends Component
         $this->selectedCategory = $this->selectedCategory == $categoryId ? null : $categoryId;
     }
 
+    /**
+     * Available stock for a frontdesk menu in the current branch.
+     * Returns 0 if the inventory row doesn't exist.
+     */
+    private function stockFor(int $menuId): float
+    {
+        $row = FrontdeskInventory::where('branch_id', auth()->user()->branch_id)
+            ->where('frontdesk_menu_id', $menuId)
+            ->first();
+        return $row ? (float) $row->number_of_serving : 0.0;
+    }
+
     public function addToCart($menuId)
     {
         $menu = FrontdeskMenu::find($menuId);
         if (!$menu) return;
 
+        $stock = $this->stockFor((int) $menuId);
+        if ($stock <= 0) {
+            $this->notification()->error('Out of stock', "{$menu->name} is unavailable.");
+            return;
+        }
+
         foreach ($this->cart as $index => $item) {
             if ($item['menu_id'] == $menuId) {
+                if (($item['quantity'] + 1) > $stock) {
+                    $this->notification()->error('Stock limit', "Only {$stock} {$menu->name} in stock.");
+                    return;
+                }
                 $this->cart[$index]['quantity']++;
-                $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * $this->cart[$index]['price'];
+                $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * (float) $this->cart[$index]['price'];
                 return;
             }
         }
 
         $this->cart[] = [
-            'menu_id' => $menu->id,
-            'name' => $menu->name,
-            'price' => $menu->price,
+            'menu_id'  => $menu->id,
+            'name'     => $menu->name,
+            'price'    => (float) $menu->price,
             'quantity' => 1,
-            'subtotal' => $menu->price,
+            'subtotal' => (float) $menu->price,
         ];
     }
 
     public function incrementQuantity($index)
     {
-        if (isset($this->cart[$index])) {
-            $this->cart[$index]['quantity']++;
-            $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * $this->cart[$index]['price'];
+        if (!isset($this->cart[$index])) return;
+
+        $line = $this->cart[$index];
+        $stock = $this->stockFor((int) $line['menu_id']);
+
+        if (($line['quantity'] + 1) > $stock) {
+            $this->notification()->error('Stock limit', "Only {$stock} {$line['name']} in stock.");
+            return;
         }
+
+        $this->cart[$index]['quantity']++;
+        $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * (float) $this->cart[$index]['price'];
     }
 
     public function decrementQuantity($index)
@@ -169,9 +199,32 @@ class PointOfSale extends Component
             if ($this->cart[$index]['quantity'] <= 0) {
                 $this->removeFromCart($index);
             } else {
-                $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * $this->cart[$index]['price'];
+                $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * (float) $this->cart[$index]['price'];
             }
         }
+    }
+
+    public function confirmClearCart()
+    {
+        if (empty($this->cart)) return;
+
+        $this->dialog()->confirm([
+            'title'       => 'Clear cart?',
+            'description' => 'This will remove every item from the cart.',
+            'icon'        => 'question',
+            'accept'      => [
+                'label'  => 'Yes, clear',
+                'method' => 'clearCart',
+            ],
+            'reject' => [
+                'label' => 'Keep',
+            ],
+        ]);
+    }
+
+    public function clearCart()
+    {
+        $this->cart = [];
     }
 
     public function confirmRemoveFromCart($index)
@@ -217,27 +270,58 @@ class PointOfSale extends Component
             return;
         }
 
-        DB::beginTransaction();
-
+        // Pre-flight: validate every cart line against current stock BEFORE
+        // creating any transaction. Block the whole sale if any item is short.
+        $shortages = [];
         foreach ($this->cart as $item) {
-            PosTransaction::create([
-                'shift_log_id' => $this->current_shift->id,
-                'user_id' => auth()->user()->id,
-                'branch_id' => auth()->user()->branch_id,
-                'frontdesk_menu_id' => $item['menu_id'],
-                'item_name' => $item['name'],
-                'price' => $item['price'],
-                'quantity' => $item['quantity'],
-                'total' => $item['subtotal'],
-            ]);
-
-            $inventory = FrontdeskInventory::where('frontdesk_menu_id', $item['menu_id'])->first();
-            if ($inventory && $inventory->number_of_serving >= $item['quantity']) {
-                $inventory->decrement('number_of_serving', $item['quantity']);
+            $available = $this->stockFor((int) $item['menu_id']);
+            if ($available < (float) $item['quantity']) {
+                $shortages[] = "{$item['name']}: have " . rtrim(rtrim(number_format($available, 2), '0'), '.')
+                    . ', need ' . $item['quantity'];
             }
         }
+        if (!empty($shortages)) {
+            $this->showCheckoutConfirm = false;
+            $this->notification()->error(
+                'Insufficient stock',
+                "Sale blocked.\n" . implode("\n", $shortages)
+            );
+            return;
+        }
 
-        DB::commit();
+        DB::beginTransaction();
+        try {
+            foreach ($this->cart as $item) {
+                PosTransaction::create([
+                    'shift_log_id'      => $this->current_shift->id,
+                    'user_id'           => auth()->user()->id,
+                    'branch_id'         => auth()->user()->branch_id,
+                    'frontdesk_menu_id' => $item['menu_id'],
+                    'item_name'         => $item['name'],
+                    'price'             => $item['price'],
+                    'quantity'          => $item['quantity'],
+                    'total'             => $item['subtotal'],
+                ]);
+
+                $inventory = FrontdeskInventory::where('branch_id', auth()->user()->branch_id)
+                    ->where('frontdesk_menu_id', $item['menu_id'])
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$inventory || $inventory->number_of_serving < $item['quantity']) {
+                    // Concurrent change between pre-flight and now — abort everything.
+                    throw new \RuntimeException("Stock changed for {$item['name']} during checkout");
+                }
+
+                $inventory->decrement('number_of_serving', $item['quantity']);
+            }
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $this->showCheckoutConfirm = false;
+            $this->notification()->error('Checkout failed', $e->getMessage());
+            return;
+        }
 
         $this->cart = [];
         $this->showCheckoutConfirm = false;
@@ -250,7 +334,12 @@ class PointOfSale extends Component
 
     public function getCartTotalProperty()
     {
-        return collect($this->cart)->sum('subtotal');
+        return (float) collect($this->cart)->sum(fn ($l) => (float) $l['subtotal']);
+    }
+
+    public function getCartItemCountProperty()
+    {
+        return (int) collect($this->cart)->sum(fn ($l) => (int) $l['quantity']);
     }
 
     public function render()

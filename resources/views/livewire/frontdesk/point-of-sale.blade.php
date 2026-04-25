@@ -169,7 +169,18 @@
 
         <!-- BILL HEADER -->
         <div class="px-6 py-5 border-b shrink-0 flex justify-between items-center">
-            <h2 class="text-lg font-bold text-gray-700">Cart</h2>
+            <div class="flex items-center gap-2">
+                <h2 class="text-lg font-bold text-gray-700">Cart</h2>
+                @if($this->cartItemCount > 0)
+                    <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                        {{ $this->cartItemCount }} {{ $this->cartItemCount === 1 ? 'item' : 'items' }}
+                    </span>
+                    <button wire:click="confirmClearCart" type="button"
+                            class="ml-1 text-xs text-red-500 hover:text-red-700 hover:underline">
+                        Clear
+                    </button>
+                @endif
+            </div>
             <div class="text-right">
                 <p class="text-xs text-gray-400">Shift Total</p>
                 <p class="text-sm font-bold text-green-600">&#8369;{{ number_format($total_pos, 2) }}</p>
