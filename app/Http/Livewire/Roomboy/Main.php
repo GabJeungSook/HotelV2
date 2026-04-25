@@ -10,6 +10,7 @@ use WireUi\Traits\Actions;
 use App\Models\CheckinDetail;
 use App\Models\RoomBoyReport;
 use App\Models\CleaningHistory;
+use App\Services\KioskBatchService;
 use Illuminate\Support\Facades\DB;
 
 class Main extends Component
@@ -310,6 +311,12 @@ class Main extends Component
             'time_to_clean' => null,
             'cleaning_by_user_id' => null,
         ]);
+
+        // If the room's floor has no row in the current kiosk batch, this
+        // room fills the blank slot immediately. Otherwise it waits for next
+        // batch (strict batch rotation per client spec).
+        $room->refresh();
+        KioskBatchService::maybeFillBlankFloor($room);
 
         if ($getlastRecord) {
             $totalMinutes = ceil(

@@ -8,8 +8,15 @@
   <div class="mt-10">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       @foreach ($types as $type)
-      <button wire:key="{{ $type->id }}" wire:click="selectType({{ $type->id }})" type="button">
-        <div class="h-72 rounded-2xl overflow-hidden relative grid place-content-center bg-gray-50 border-2 border-blue-500 {{ $type_id == $type->id ? 'border-green-500' : 'border-blue-500' }}">
+      <button wire:key="{{ $type->id }}" wire:click="selectType({{ $type->id }})" type="button" class="transition-all duration-200 {{ $type_id == $type->id ? 'scale-105' : 'opacity-80 hover:opacity-100' }}">
+        <div class="h-72 rounded-2xl overflow-hidden relative grid place-content-center border-4 transition-all duration-200 {{ $type_id == $type->id ? 'border-green-500 bg-green-50 shadow-2xl shadow-green-200 ring-4 ring-green-200' : 'border-gray-200 bg-gray-50' }}">
+          @if ($type_id == $type->id)
+            <div class="absolute top-3 right-3 bg-green-500 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          @endif
            @switch($type->id)
                @case($type->id == 1)
                <svg class="mx-auto mb-10" width="96" height="96" viewBox="0 0 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -93,7 +100,7 @@
 
            @endswitch
 
-                <h1 class="text-[2rem] font-extrabold uppercase relative text-gray-700">{{ $type->name }}</h1>
+                <h1 class="text-[2rem] font-extrabold uppercase relative {{ $type_id == $type->id ? 'text-green-700' : 'text-gray-700' }}">{{ $type->name }}</h1>
         </div>
         </button>
       @endforeach
@@ -102,9 +109,9 @@
   <div class="fixed bottom-20 right-0 left-0">
     <div class="flex justify-center">
       @if ($type_id)
-        <button 
+        <button
           wire:click="$set('steps', 2)"
-          class="font-medium px-8 py-3 text-white bg-green-600 rounded-2xl flex items-center gap-2">
+          class="font-medium px-8 py-3 text-white bg-green-600 rounded-2xl flex items-center gap-2 shadow-xl ring-4 ring-green-200 animate-pulse hover:animate-none hover:bg-green-700 transition-colors">
           
           NEXT
           

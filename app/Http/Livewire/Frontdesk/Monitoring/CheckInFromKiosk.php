@@ -14,6 +14,7 @@ use App\Models\Room;
 use App\Models\StayingHour;
 use App\Models\TemporaryCheckInKiosk;
 use App\Models\Transaction;
+use App\Services\KioskBatchService;
 use Carbon\Carbon;
 use DB;
 use Livewire\Component;
@@ -95,9 +96,28 @@ class CheckInFromKiosk extends Component
 
     public function cancelCheckIn()
     {
-        $this->temporary_checkIn->update([
-            'is_opened' => false,
-        ]);
+        $branchId = $this->temporary_checkIn->branch_id;
+        $roomId = $this->temporary_checkIn->room_id;
+        $guestId = $this->temporary_checkIn->guest_id;
+
+        DB::transaction(function () use ($guestId) {
+            // Only delete the guest if it has no CheckinDetail and no
+            // transactions — mirror the safety rules used by the timeout
+            // cleanup job so we never wipe out records that represent real
+            // money or completed check-ins.
+            if ($guestId) {
+                Guest::where('id', $guestId)
+                    ->whereDoesntHave('checkInDetail')
+                    ->whereDoesntHave('transactions')
+                    ->delete();
+            }
+            $this->temporary_checkIn->delete();
+        });
+
+        // Floor should reappear on the kiosk — the guest walked away, the
+        // room was never actually occupied.
+        KioskBatchService::returnToBatch($branchId, $roomId);
+
         return redirect()->route('frontdesk.room-monitoring');
     }
 
