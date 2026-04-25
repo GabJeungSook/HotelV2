@@ -19,4 +19,9 @@ class Menu extends Model
     {
         return $this->belongsTo(Inventory::class, 'id', 'menu_id');
     }
+
+    protected static function booted(): void
+    {
+        static::observe(\App\Observers\MenuPriceObserver::class);
+    }
 }
