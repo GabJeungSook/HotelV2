@@ -353,7 +353,7 @@
         </div>
     @endif
 
-    <x-modal wire:model.defer="showCheckoutConfirm" max-width="md">
+    <x-modal wire:model.defer="showCheckoutConfirm" align="center" max-width="md">
         <x-card title="Confirm Checkout">
             <div class="space-y-3">
                 <p class="text-sm text-gray-500">Review the order before submitting.</p>
