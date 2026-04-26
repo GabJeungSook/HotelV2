@@ -81,7 +81,7 @@
                             @foreach($posSales['orders'] as $order)
                                 <tr class="{{ $order['voided'] ? 'text-gray-400 line-through' : '' }}">
                                     <td class="border border-gray-300 px-2 py-1">{{ $order['time'] }}</td>
-                                    <td class="border border-gray-300 px-2 py-1">#{{ $order['id'] }}</td>
+                                    <td class="border border-gray-300 px-2 py-1 font-mono">{{ sprintf('OR-%05d', $order['id']) }}</td>
                                     <td class="border border-gray-300 px-2 py-1">{{ $order['cashier'] }}</td>
                                     <td class="border border-gray-300 px-2 py-1">
                                         @if($order['type'] === 'CASH')

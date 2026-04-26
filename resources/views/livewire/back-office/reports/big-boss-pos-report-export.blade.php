@@ -55,7 +55,7 @@
                 @foreach($posSales['orders'] as $order)
                     <tr class="{{ $order['voided'] ? 'voided' : '' }}">
                         <td>{{ $order['time'] }}</td>
-                        <td>#{{ $order['id'] }}</td>
+                        <td>{{ sprintf('OR-%05d', $order['id']) }}</td>
                         <td>{{ $order['cashier'] }}</td>
                         <td>
                             {{ $order['type'] }}

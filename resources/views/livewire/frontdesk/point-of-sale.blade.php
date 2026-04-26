@@ -366,7 +366,7 @@
             $shiftStartLabel = optional($current_shift?->time_in)->format('g:i A') ?? '-';
         @endphp
         <div class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col">
                 <div class="px-6 py-4 border-b flex justify-between items-center">
                     <h2 class="text-xl font-bold text-gray-800">Purchase History</h2>
                     <div class="flex gap-2">
@@ -395,9 +395,9 @@
                         <table class="w-full border-collapse text-sm">
                             <thead>
                                 <tr class="bg-gray-100">
-                                    <th class="border border-gray-400 px-3 py-2 text-left">DATE/TIME</th>
-                                    <th class="border border-gray-400 px-3 py-2 text-left">ORDER ID</th>
-                                    <th class="border border-gray-400 px-3 py-2 text-left">TYPE</th>
+                                    <th class="border border-gray-400 px-3 py-2 text-left">TIME</th>
+                                    <th class="border border-gray-400 px-3 py-2 text-left">ORDER</th>
+                                    <th class="border border-gray-400 px-3 py-2 text-left">PAYMENT</th>
                                     <th class="border border-gray-400 px-3 py-2 text-left">ITEMS</th>
                                     <th class="border border-gray-400 px-3 py-2 text-right">AMOUNT</th>
                                     <th class="border border-gray-400 px-3 py-2 text-center no-print">ACTION</th>
@@ -410,13 +410,16 @@
                                         $rowClass = $isVoided ? 'text-gray-400 line-through' : '';
                                     @endphp
                                     <tr class="{{ $rowClass }}">
-                                        <td class="border border-gray-400 px-3 py-2 align-top">{{ $order['date_time']->format('F j, Y g:i A') }}</td>
-                                        <td class="border border-gray-400 px-3 py-2 align-top">{{ $order['order_id'] }}</td>
+                                        <td class="border border-gray-400 px-3 py-2 align-top whitespace-nowrap">{{ $order['time_short'] ?? $order['date_time']->format('g:i A') }}</td>
+                                        <td class="border border-gray-400 px-3 py-2 align-top font-mono whitespace-nowrap">{{ $order['order_ref'] ?? sprintf('OR-%05d', $order['order_id']) }}</td>
                                         <td class="border border-gray-400 px-3 py-2 align-top">
                                             @if(($order['payment_method'] ?? null) === 'cash')
                                                 <span class="text-green-700 font-semibold">CASH</span>
                                             @elseif(empty($order['payment_method']) && !empty($order['guest_id']))
-                                                <span class="text-blue-700 font-semibold">ROOM</span>
+                                                <span class="font-semibold text-blue-700">RM {{ $order['room_number'] ?? '—' }}</span>
+                                                @if(!empty($order['guest_name']))
+                                                    <div class="text-[11px] text-gray-600">{{ $order['guest_name'] }}</div>
+                                                @endif
                                             @else
                                                 &mdash;
                                             @endif
@@ -429,12 +432,15 @@
                                                 <div>{{ $item->item_name }} &ndash; {{ $item->quantity }}{{ $item->quantity > 1 ? 'pcs' : 'pc' }}</div>
                                             @endforeach
                                         </td>
-                                        <td class="border border-gray-400 px-3 py-2 align-top text-right">&#8369;{{ number_format($order['amount'], 2) }}</td>
-                                        <td class="border border-gray-400 px-3 py-2 align-top text-center no-print">
+                                        <td class="border border-gray-400 px-3 py-2 align-top text-right whitespace-nowrap font-semibold">&#8369;{{ number_format($order['amount'], 2) }}</td>
+                                        <td class="border border-gray-400 px-3 py-2 align-top text-center no-print whitespace-nowrap">
                                             @if(!$isVoided)
                                                 <button type="button"
                                                     wire:click="confirmVoidOrder({{ $order['order_id'] }})"
-                                                    class="px-2 py-1 text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded border border-red-200">
+                                                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm transition">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                                    </svg>
                                                     Void
                                                 </button>
                                             @else

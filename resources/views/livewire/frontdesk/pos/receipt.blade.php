@@ -23,7 +23,7 @@
 
     <div class="r-row"><span>Date:</span><span>{{ $order->created_at->format('M j, Y g:i A') }}</span></div>
     <div class="r-row"><span>Cashier:</span><span>{{ $cashier_name }}</span></div>
-    <div class="r-row"><span>Order:</span><span>#{{ $order->id }}</span></div>
+    <div class="r-row"><span>Order:</span><span>{{ sprintf('OR-%05d', $order->id) }}</span></div>
 
     <div class="r-rule"></div>
 

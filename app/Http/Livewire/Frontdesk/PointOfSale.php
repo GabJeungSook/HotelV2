@@ -508,9 +508,10 @@ class PointOfSale extends Component
         $this->receiptOrderId = $order->id;
         $this->showReceiptModal = true;
 
+        $orderRef = sprintf('OR-%05d', $order->id);
         $msg = $order->payment_method === null
-            ? "Charged to RM {$this->resolveRoomNumberForOrder($order)} (Order #{$order->id})"
-            : "Cash sale recorded (Order #{$order->id})";
+            ? "Charged to RM {$this->resolveRoomNumberForOrder($order)} ({$orderRef})"
+            : "Cash sale recorded ({$orderRef})";
 
         $this->notification()->success('Transaction Complete', $msg);
     }
@@ -536,7 +537,7 @@ class PointOfSale extends Component
         if (!$order) return;
 
         $this->dialog()->confirm([
-            'title'       => "Void Order #{$order->id}?",
+            'title'       => sprintf('Void Order OR-%05d?', $order->id),
             'description' => 'This will reverse the sale and restore stock. Cannot be undone.',
             'icon'        => 'warning',
             'accept'      => [
@@ -562,7 +563,7 @@ class PointOfSale extends Component
 
         $this->notification()->success(
             'Order Voided',
-            "Order #{$order->id} reversed. Stock restored."
+            sprintf('Order OR-%05d reversed. Stock restored.', $order->id)
         );
     }
 
@@ -586,7 +587,7 @@ class PointOfSale extends Component
             return null;
         }
         if ($order->voided_at !== null) {
-            $this->notification()->error('Already voided', "Order #{$order->id} was already voided.");
+            $this->notification()->error('Already voided', sprintf('Order OR-%05d was already voided.', $order->id));
             return null;
         }
         return $order;
@@ -632,9 +633,22 @@ class PointOfSale extends Component
                 ->orderByDesc('created_at')
                 ->get();
 
+            // Bulk-resolve guest names and room numbers for room-charge
+            // orders so the cashier sees WHO they charged, not just "ROOM".
+            $guestIds = $posOrders->pluck('guest_id')->filter()->unique();
+            $roomIds  = $posOrders->pluck('room_id')->filter()->unique();
+            $guestNames  = $guestIds->isNotEmpty()
+                ? \App\Models\Guest::whereIn('id', $guestIds)->pluck('name', 'id')
+                : collect();
+            $roomNumbers = $roomIds->isNotEmpty()
+                ? \App\Models\Room::whereIn('id', $roomIds)->pluck('number', 'id')
+                : collect();
+
             $orders = $posOrders->map(fn ($o) => [
                 'order_id'       => $o->id,
+                'order_ref'      => sprintf('OR-%05d', $o->id),
                 'date_time'      => $o->created_at,
+                'time_short'     => $o->created_at?->format('g:i A'),
                 'items'          => $o->lineItems,
                 'amount'         => (int) $o->total,
                 'item_count'     => (float) $o->lineItems->sum('quantity'),
@@ -642,6 +656,8 @@ class PointOfSale extends Component
                 'voided_at'      => $o->voided_at,
                 'discount'       => (int) $o->discount_amount,
                 'guest_id'       => $o->guest_id,
+                'guest_name'     => $o->guest_id ? ($guestNames[$o->guest_id] ?? null) : null,
+                'room_number'    => $o->room_id  ? ($roomNumbers[$o->room_id] ?? null) : null,
             ])->values();
 
             if (trim($this->historySearch) !== '') {
