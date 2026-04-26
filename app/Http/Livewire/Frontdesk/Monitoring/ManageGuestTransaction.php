@@ -1852,9 +1852,31 @@ class ManageGuestTransaction extends Component
                 'time_to_clean' => now()->addHours(4),
             ]);
 
+        // Also stamp check_out_at so the BackOffice CHECK-OUT GUEST REPORT
+        // (which selects checkinDetail.check_out_at) shows the real checkout
+        // time. The sibling path GuestTransaction::checkoutGuest already does
+        // this; mirroring here closes the divergence.
         CheckinDetail::where('guest_id', $this->guest->id)->update([
             'is_check_out' => true,
+            'check_out_at' => Carbon::now()->toDateTimeString(),
         ]);
+
+        // Close the audit gap: GuestTransaction::checkoutGuest writes a
+        // check_out_guest_reports row but this sibling path didn't, so
+        // checkouts done from this screen were silently missing from the
+        // BackOffice CHECK-OUT GUEST REPORT.
+        $checkin = CheckinDetail::where('guest_id', $this->guest->id)->first();
+        $assigned = json_decode(auth()->user()->assigned_frontdesks, true);
+        $shift_date = Carbon::parse(auth()->user()->time_in)->format('F j, Y');
+        CheckOutGuestReport::create([
+            'checkin_details_id' => $checkin->id,
+            'room_id'            => $checkin->room_id,
+            'shift_date'         => $shift_date,
+            'shift'              => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'frontdesk_id'       => $assigned[0] ?? null,
+            'partner_name'       => $assigned[1] ?? null,
+        ]);
+
         DB::commit();
         $this->dialog()->success(
             $title = 'Success',
