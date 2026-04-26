@@ -47,7 +47,13 @@
                                         <input type="number" name="quantity" wire:model="quantities.{{ $loop->index }}" class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                     </td> --}}
                                     <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
-                                        <button wire:click="addStock({{$item->id}})" class="text-indigo-600 hover:text-indigo-900">Add Stock<span class="sr-only">, Lindsay Walton</span></button>
+                                        <button wire:click="addStock({{$item->id}})"
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md shadow-sm transition">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                            </svg>
+                                            Add Stock
+                                        </button>
                                       </td>
                                     {{-- <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 lg:pr-8">
                                       <a href="#" class="text-red-600 hover:text-red-900">Remove<span class="sr-only">, Lindsay Walton</span></a>

@@ -39,7 +39,7 @@
         <div class="relative rounded-xl overflow-hidden shadow-xl group">
             <img src="{{ asset('images/category.jpg') }}" alt="Category" class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300">
             <!-- Discount badge -->
-            <div class="absolute top-0 right-2 bg-[#0c1f48] text-white text-xs font-normal px-2 pb-1 pt-3 rounded-b tracking-wider">
+            <div class="absolute top-0 right-2 bg-[#009ff4] text-white text-xs font-normal px-2 pb-1 pt-3 rounded-b tracking-wider">
                 ₱ {{ number_format($item->price, 2) }}
             </div>
 
@@ -89,7 +89,7 @@
                         <img src="{{ asset('images/default.jpeg') }}" alt="Default Image" class="w-full h-full object-cover rounded-t-md group-hover:scale-[101%] transition-transform duration-300">
                     @endif
                     <!-- Discount badge -->
-                    <div class="absolute top-0 right-2 bg-[#0c1f48] text-white text-xs font-normal px-2 pb-1 pt-3 rounded-b tracking-wider">
+                    <div class="absolute top-0 right-2 bg-[#009ff4] text-white text-xs font-normal px-2 pb-1 pt-3 rounded-b tracking-wider">
                         ₱ {{ number_format($item->price, 2) }}
                     </div>
                     <!-- Hover overlay -->

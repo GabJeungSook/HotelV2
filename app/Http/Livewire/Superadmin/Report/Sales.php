@@ -101,7 +101,10 @@ class Sales extends Component
             ->groupBy('room_id')
             ->get();
 
+        // Exclude voided POS room-charges so the per-room food total
+        // doesn't double-count cancelled sales.
         $this->foodTransactions = Transaction::where('transaction_type_id', 9)
+            ->whereNull('voided_at')
             ->when(!empty($this->branch_id), function ($query) {
             $query->where('branch_id', $this->branch_id);
             })

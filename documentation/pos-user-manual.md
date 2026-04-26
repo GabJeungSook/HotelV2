@@ -14,9 +14,10 @@ Frontdesk cashier, and Owner / Big Boss. For the technical reference
 2. [Administrator — Managing the catalog](#2-administrator--managing-the-catalog)
 3. [Frontdesk — Daily operations](#3-frontdesk--daily-operations)
 4. [Owner / Big Boss — Reading the reports](#4-owner--big-boss--reading-the-reports)
-5. [Common scenarios](#5-common-scenarios)
-6. [Frequently asked questions](#6-frequently-asked-questions)
-7. [Glossary](#7-glossary)
+5. [Audit trails — who changed what, when](#5-audit-trails--who-changed-what-when)
+6. [Common scenarios](#6-common-scenarios)
+7. [Frequently asked questions](#7-frequently-asked-questions)
+8. [Glossary](#8-glossary)
 
 ---
 
@@ -285,7 +286,83 @@ Two buttons at the top of the report:
 
 ---
 
-## 5. Common scenarios
+---
+
+## 5. Audit trails — who changed what, when
+
+Every change to inventory and every menu price edit is automatically
+recorded with the date, the actor, and the before/after values. There
+are two dedicated admin pages to browse these audit logs.
+
+### 5.1 Stock Movements page
+
+**Path:** Admin sidebar → **Stock Movements**
+URL: `/admin/stock-movements`
+
+This page lists every change to inventory across the entire system —
+deliveries received, items sold, items voided, manual adjustments,
+and the initial opening balances.
+
+**Filters at the top:**
+- **Source** — Frontdesk / Kitchen / Pub
+- **Type** — IN (received), OUT (sold), VOID (reversed), ADJUST (corrected),
+  OPENING (initial)
+- **Item search** — type a name like "Coke" to narrow down
+- **Date range** — From / To (defaults to the last 7 days)
+
+**Columns:**
+| Column | What it shows |
+|---|---|
+| When | Date and time of the movement |
+| Source | Frontdesk / Kitchen / Pub |
+| Item | Which menu item moved |
+| Type | IN / OUT / VOID / ADJUST / OPENING (color-coded) |
+| Quantity | The amount, with sign (+ for received, − for sold) |
+| Balance after | What the inventory level was right after this movement |
+| By | The user who triggered it |
+| Reason / Ref | Free-text reason and a back-reference (e.g. transaction id) |
+
+This is where you can see exactly when stock arrived, who received it,
+and who sold or voided each item.
+
+### 5.2 Price &amp; Name Changes page
+
+**Path:** Admin sidebar → **Price Changes**
+URL: `/admin/price-changes`
+
+Lists every menu item edit where the price or the name was changed.
+
+**Filters at the top:**
+- **Source** — Frontdesk / Kitchen / Pub
+- **What changed** — Price or Name
+- **Item search**, **Date range** — same as above (defaults to the last 30 days)
+
+**Columns:**
+| Column | What it shows |
+|---|---|
+| When | Date and time of the edit |
+| Source | Which menu the item lives in |
+| Item | Item name |
+| Field | PRICE (blue badge) or NAME (purple badge) |
+| Old value | What it was before (struck through, with ₱ for prices) |
+| New value | What it is now (bold) |
+| Changed by | The administrator who made the change |
+
+This answers questions like "Who changed the Coke price last month?"
+and "When did Pineapple Juice go from ₱45 to ₱55?"
+
+### 5.3 Why this matters
+
+- Stock differences between physical count and system count can be
+  traced back to a specific movement and a specific person
+- Price disputes ("the receipt said ₱60 but the menu now says ₱65")
+  are resolved instantly — historical receipts always show the price
+  at sale time, and the audit log shows when the price changed
+- Owner can sample-audit the system without having to ask anyone
+
+---
+
+## 6. Common scenarios
 
 ### 5.1 "I rang up the wrong item or wrong quantity"
 
@@ -335,7 +412,7 @@ ask the developer to enable the discount input.
 
 ---
 
-## 6. Frequently asked questions
+## 7. Frequently asked questions
 
 **Q: What happens to a sale if the printer fails?**
 A: The sale is already saved in the database before the receipt opens.
@@ -385,7 +462,7 @@ configuration needed.
 
 ---
 
-## 7. Glossary
+## 8. Glossary
 
 **Cart** — the list of items you've added but not yet confirmed. It's
 in-memory only; refreshing the page clears it.
@@ -399,8 +476,16 @@ type this in; the system computes the change.
 **Change Due** — the cash you give back to the customer (Cash Tendered
 minus Total).
 
+**Audit log** — a historical record that cannot be edited. The system
+keeps two: **Stock Movements** (every inventory change) and **Price
+Changes** (every menu price/name edit). Visible on the admin and
+back-office sidebars.
+
 **Folio** — a guest's running bill at the hotel. Room-charge POS sales
 go on the folio and are paid at hotel checkout.
+
+**Movement** — one row in the Stock Movements log. Every inventory
+change produces exactly one movement (IN, OUT, VOID, ADJUST, OPENING).
 
 **Order** — one customer interaction at the POS. One order can have
 many items.
@@ -414,11 +499,21 @@ cart). Same as "ring up" or "complete sale".
 **Print Receipt** — uses the browser's built-in print dialog. Works
 with any printer the computer has installed (A4, Letter, thermal).
 
+**Reason** — free-text note attached to a stock movement (delivery
+supplier name, void reason, etc.). Visible on the Stock Movements page.
+
 **Receipt** — the printed slip given to the customer. Always shows the
 items, total, payment type, and (for cash) the change.
 
+**Ref / Reference** — a back-link from a stock movement to whatever
+caused it. For sales: `transaction #1234`. For voids:
+`transaction_void #1234`. For deliveries: `stock_in_form`.
+
 **Room Charge** — a sale charged to a checked-in guest's room
 instead of paid in cash. Settled at guest checkout.
+
+**Source** — which menu the item belongs to: Frontdesk, Kitchen, or
+Pub. Used as a filter on the Stock Movements and Price Changes pages.
 
 **Shift** — your working session. Starts when you log in and assign
 a drawer; ends when you close out via Cash on Hand.

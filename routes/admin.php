@@ -24,6 +24,12 @@ Route::prefix('admin')
         Route::get('/frontdesk-kitchen', function () {
                 return view('admin.manage.kitchen-inventory');
         })->name('admin.food-inventory');
+        Route::get('/stock-movements', function () {
+                return view('admin.manage.stock-movements');
+        })->name('admin.stock-movements');
+        Route::get('/price-changes', function () {
+                return view('admin.manage.price-changes');
+        })->name('admin.price-changes');
         Route::get('/food/category', function () {
                 return view('frontdesk.food.category');
         })->name('frontdesk.food-category');
