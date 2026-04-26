@@ -187,6 +187,67 @@
             </div>
         </div>
 
+        @if($v2Enabled)
+        <!-- ATTACH TO ROOM (v2) -->
+        <div class="px-6 py-3 border-b shrink-0 bg-gray-50">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-gray-700">Charge to a room?</p>
+                    <p class="text-xs text-gray-500">
+                        @if($attachToRoom)
+                            Sale will be added to the guest's folio. No cash collected.
+                        @else
+                            Off &mdash; this is a cash walk-in sale.
+                        @endif
+                    </p>
+                </div>
+                <button type="button" wire:click="toggleAttachToRoom"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition {{ $attachToRoom ? 'bg-blue-600' : 'bg-gray-300' }}">
+                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition {{ $attachToRoom ? 'translate-x-6' : 'translate-x-1' }}"></span>
+                </button>
+            </div>
+
+            @if($attachToRoom)
+                <div class="mt-3 space-y-2">
+                    @if($selectedGuestData)
+                        <!-- Selected guest preview -->
+                        <div class="flex items-start justify-between rounded border border-blue-200 bg-blue-50 px-3 py-2">
+                            <div class="text-sm">
+                                <p class="font-semibold text-blue-900">
+                                    RM {{ $selectedGuestData['room_number'] ?? '—' }}
+                                    &middot; {{ $selectedGuestData['name'] }}
+                                </p>
+                                <p class="text-xs text-blue-700">
+                                    Open POS balance: &#8369;{{ number_format($selectedGuestData['open_pos_total'] ?? 0, 2) }}
+                                </p>
+                            </div>
+                            <button type="button" wire:click="clearSelectedGuest"
+                                class="text-xs text-blue-700 hover:text-blue-900 hover:underline">Change</button>
+                        </div>
+                    @else
+                        <!-- Guest search input + dropdown -->
+                        <input type="text" wire:model.debounce.250ms="guestSearch"
+                            placeholder="Search by room # or guest name..."
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        @if(trim($guestSearch) !== '')
+                            <div class="max-h-40 overflow-y-auto rounded border border-gray-200 bg-white divide-y">
+                                @forelse($this->guestSearchResults as $g)
+                                    <button type="button" wire:click="selectGuest({{ $g['id'] }})"
+                                        class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex justify-between items-center">
+                                        <span>{{ $g['name'] }}</span>
+                                        <span class="text-xs text-gray-500">RM {{ $g['room_number'] ?? '—' }}</span>
+                                    </button>
+                                @empty
+                                    <div class="px-3 py-2 text-sm text-gray-400">No checked-in guests match.</div>
+                                @endforelse
+                            </div>
+                        @endif
+                    @endif
+                </div>
+            @endif
+        </div>
+        @endif
+
         <!-- CART ITEMS (SCROLLABLE) -->
         <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             @forelse ($cart as $index => $item)
@@ -215,10 +276,38 @@
 
         <!-- TOTAL (FIXED BOTTOM) -->
         <div class="border-t px-6 py-4 space-y-2 shrink-0">
-            <div class="flex justify-between font-bold text-lg">
-                <span>Total</span>
-                <span class="text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</span>
-            </div>
+            @if($v2Enabled)
+                <!-- v2: subtotal / discount / total breakdown -->
+                <div class="flex justify-between text-sm text-gray-600">
+                    <span>Subtotal</span>
+                    <span>&#8369;{{ number_format($this->cartTotal, 2) }}</span>
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="pos-discount" class="text-gray-600">Discount (&#8369;)</label>
+                        <input id="pos-discount" type="number" min="0" step="1"
+                            wire:model.lazy="discountAmount"
+                            class="w-24 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    @if((int) $discountAmount > 0)
+                        <input type="text" wire:model.lazy="discountReason"
+                            placeholder="Discount reason (e.g. regular customer)"
+                            class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                    @endif
+                </div>
+
+                <div class="flex justify-between font-bold text-lg pt-1 border-t">
+                    <span>Total</span>
+                    <span class="text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</span>
+                </div>
+            @else
+                <!-- v1: simple total (legacy) -->
+                <div class="flex justify-between font-bold text-lg">
+                    <span>Total</span>
+                    <span class="text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</span>
+                </div>
+            @endif
 
             <button
                 wire:click="reviewCheckout"
@@ -228,6 +317,8 @@
                 <span wire:loading.remove wire:target="reviewCheckout">
                     @if(empty($cart))
                         Add items to checkout
+                    @elseif($v2Enabled && $attachToRoom)
+                        Charge to Room
                     @else
                         Review &amp; Checkout
                     @endif
@@ -390,18 +481,56 @@
                         @endforeach
                     </tbody>
                     <tfoot>
-                        <tr class="font-bold text-base">
-                            <td class="pt-3" colspan="3">Total</td>
-                            <td class="pt-3 text-right text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
-                        </tr>
+                        @if($v2Enabled)
+                            <tr class="text-sm text-gray-600">
+                                <td class="pt-3" colspan="3">Subtotal</td>
+                                <td class="pt-3 text-right">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
+                            </tr>
+                            @if((int) $discountAmount > 0)
+                                <tr class="text-sm text-amber-700">
+                                    <td colspan="3">
+                                        Discount{{ trim((string) $discountReason) !== '' ? ' — ' . $discountReason : '' }}
+                                    </td>
+                                    <td class="text-right">&minus;&#8369;{{ number_format((int) $discountAmount, 2) }}</td>
+                                </tr>
+                            @endif
+                            <tr class="font-bold text-base">
+                                <td class="pt-2" colspan="3">Total</td>
+                                <td class="pt-2 text-right text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</td>
+                            </tr>
+                        @else
+                            <tr class="font-bold text-base">
+                                <td class="pt-3" colspan="3">Total</td>
+                                <td class="pt-3 text-right text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
+                            </tr>
+                        @endif
                     </tfoot>
                 </table>
+
+                @if($v2Enabled)
+                    <div class="rounded border px-3 py-2 text-sm
+                        {{ ($attachToRoom && $selectedGuestData) ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-green-200 bg-green-50 text-green-900' }}">
+                        @if($attachToRoom && $selectedGuestData)
+                            <p class="font-semibold">Room Charge</p>
+                            <p class="text-xs">
+                                RM {{ $selectedGuestData['room_number'] ?? '—' }}
+                                &middot; {{ $selectedGuestData['name'] }}
+                                &middot; will be added to guest folio
+                            </p>
+                        @else
+                            <p class="font-semibold">Cash Sale</p>
+                            <p class="text-xs">Collect &#8369;{{ number_format($this->discountedTotal, 2) }} from customer.</p>
+                        @endif
+                    </div>
+                @endif
             </div>
 
             <x-slot name="footer">
                 <div class="flex justify-end gap-2">
                     <x-button flat label="Cancel" wire:click="cancelCheckout" />
-                    <x-button primary label="Confirm & Submit" wire:click="checkout" spinner="checkout" />
+                    <x-button primary
+                        label="{{ $v2Enabled && $attachToRoom ? 'Confirm Room Charge' : 'Confirm & Submit' }}"
+                        wire:click="checkout" spinner="checkout" />
                 </div>
             </x-slot>
         </x-card>

@@ -5,9 +5,14 @@ namespace App\Http\Livewire\Frontdesk;
 use App\Models\FrontdeskCategory;
 use App\Models\FrontdeskInventory;
 use App\Models\FrontdeskMenu;
+use App\Models\Guest;
+use App\Models\PosOrder;
 use App\Models\PosTransaction;
 use App\Models\ShiftLog;
 use App\Models\StockMovement;
+use App\Models\Transaction as TransactionModel;
+use App\Services\Pos\CheckoutService;
+use App\Services\Pos\InsufficientStockException;
 use App\Services\Pos\StockService;
 use Livewire\Component;
 use WireUi\Traits\Actions;
@@ -29,6 +34,20 @@ class PointOfSale extends Component
     public $stockIn_menu_id = null;
     public $stockIn_quantity = 0;
     public $stockIn_reason = '';
+
+    // ──────── POS v2 (behind branch.pos_v2_enabled flag) ────────
+    // When v2 is OFF, every property below stays at its default and the
+    // v1 code path runs unchanged. When v2 is ON, the blade exposes the
+    // attach-to-room toggle, guest search, and discount input — and the
+    // checkout() method routes through CheckoutService instead of writing
+    // legacy PosTransaction rows.
+    public $v2Enabled = false;
+    public $attachToRoom = false;
+    public $guestSearch = '';
+    public $selectedGuestId = null;
+    public $selectedGuestData = null; // ['id', 'name', 'room_number', 'floor_id', 'room_id', 'open_pos_total']
+    public $discountAmount = 0;
+    public $discountReason = '';
 
     public function openHistoryModal()
     {
@@ -64,7 +83,109 @@ class PointOfSale extends Component
             return;
         }
 
+        // v2 only: attach-to-room sales must have a guest selected. Block early
+        // so the confirm modal doesn't show "ROOM CHARGE — RM —".
+        if ($this->v2Enabled && $this->attachToRoom && $this->selectedGuestId === null) {
+            $this->notification()->error(
+                'Pick a guest',
+                'Search and select a guest to attach this sale to, or turn off "Attach to room".'
+            );
+            return;
+        }
+
         $this->showCheckoutConfirm = true;
+    }
+
+    // ──────── v2 helpers ────────
+
+    public function toggleAttachToRoom()
+    {
+        $this->attachToRoom = !$this->attachToRoom;
+        if (!$this->attachToRoom) {
+            $this->clearSelectedGuest();
+            $this->guestSearch = '';
+        }
+    }
+
+    public function selectGuest($guestId)
+    {
+        $guest = Guest::where('branch_id', auth()->user()->branch_id)
+            ->whereHas('checkInDetail', fn ($q) => $q->where('is_check_out', false))
+            ->with(['checkInDetail.room.floor'])
+            ->find($guestId);
+
+        if (!$guest) {
+            $this->notification()->error('Guest not found', 'That guest is no longer checked in.');
+            return;
+        }
+
+        $room = $guest->checkInDetail->room ?? null;
+
+        // Open POS balance: sum unpaid POS line totals (transaction_type_id=9)
+        // attached to this guest where the parent order is not voided.
+        $openTotal = (int) TransactionModel::where('guest_id', $guest->id)
+            ->where('transaction_type_id', 9)
+            ->whereNotNull('order_id')
+            ->whereIn('order_id', PosOrder::whereNull('voided_at')->pluck('id'))
+            ->sum('payable_amount');
+
+        $this->selectedGuestId = $guest->id;
+        $this->selectedGuestData = [
+            'id'             => $guest->id,
+            'name'           => trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) ?: ($guest->name ?? 'Guest #' . $guest->id),
+            'room_number'    => $room?->number,
+            'room_id'        => $room?->id,
+            'floor_id'       => $room?->floor_id,
+            'open_pos_total' => $openTotal,
+        ];
+    }
+
+    public function clearSelectedGuest()
+    {
+        $this->selectedGuestId = null;
+        $this->selectedGuestData = null;
+    }
+
+    public function getDiscountedTotalProperty()
+    {
+        $sub = (int) round($this->cartTotal);
+        $disc = max(0, (int) $this->discountAmount);
+        return max(0, $sub - $disc);
+    }
+
+    /**
+     * Live search results for the attach-to-room guest picker.
+     * Empty when v2 is off or attachToRoom is off — keeps render() cheap.
+     */
+    public function getGuestSearchResultsProperty()
+    {
+        if (!$this->v2Enabled || !$this->attachToRoom) {
+            return collect();
+        }
+        $term = trim($this->guestSearch);
+        if ($term === '' || mb_strlen($term) < 1) {
+            return collect();
+        }
+
+        return Guest::where('branch_id', auth()->user()->branch_id)
+            ->whereHas('checkInDetail', fn ($q) => $q->where('is_check_out', false))
+            ->with(['checkInDetail.room'])
+            ->where(function ($q) use ($term) {
+                $q->where('first_name', 'like', "%{$term}%")
+                  ->orWhere('last_name', 'like', "%{$term}%")
+                  ->orWhere('name', 'like', "%{$term}%")
+                  ->orWhereHas('checkInDetail.room', fn ($r) => $r->where('number', 'like', "%{$term}%"));
+            })
+            ->limit(10)
+            ->get()
+            ->map(function ($g) {
+                $room = $g->checkInDetail?->room;
+                return [
+                    'id'          => $g->id,
+                    'name'        => trim(($g->first_name ?? '') . ' ' . ($g->last_name ?? '')) ?: ($g->name ?? 'Guest #' . $g->id),
+                    'room_number' => $room?->number,
+                ];
+            });
     }
 
     public function cancelCheckout()
@@ -125,6 +246,8 @@ class PointOfSale extends Component
             auth()->user()->update(['cash_drawer_id' => null]);
             return redirect()->route('frontdesk.dashboard');
         }
+
+        $this->v2Enabled = (bool) (auth()->user()->branch?->pos_v2_enabled ?? false);
     }
 
     public function selectCategory($categoryId)
@@ -270,6 +393,13 @@ class PointOfSale extends Component
             return;
         }
 
+        // ──────── v2 path (behind branch.pos_v2_enabled) ────────
+        if ($this->v2Enabled) {
+            $this->checkoutV2();
+            return;
+        }
+
+        // ──────── v1 path (legacy — preserved unchanged) ────────
         // Pre-flight: validate every cart line against current stock BEFORE
         // creating any transaction. Block the whole sale if any item is short.
         $shortages = [];
@@ -332,6 +462,88 @@ class PointOfSale extends Component
         );
     }
 
+    /**
+     * v2 checkout: routes through CheckoutService so transactions land in
+     * `transactions` (type=9) + `pos_orders`, with snapshot columns and
+     * proper room-charge / discount support. Atomic — any failure (including
+     * stock race) rolls back the entire order.
+     */
+    protected function checkoutV2(): void
+    {
+        // Build the cart shape CheckoutService expects.
+        $cart = [];
+        foreach ($this->cart as $item) {
+            $cart[] = [
+                'menu_id'    => (int) $item['menu_id'],
+                'name'       => (string) $item['name'],
+                'unit_price' => (int) round((float) $item['price']),
+                'quantity'   => (float) $item['quantity'],
+            ];
+        }
+
+        $context = [
+            'branch_id'          => auth()->user()->branch_id,
+            'user_id'            => auth()->user()->id,
+            'shift_log_id'       => $this->current_shift->id,
+            'discount_amount'    => (int) max(0, (int) $this->discountAmount),
+            'discount_reason'    => trim((string) $this->discountReason) !== '' ? trim((string) $this->discountReason) : null,
+            'assigned_frontdesk' => auth()->user()->assigned_frontdesks ?? null,
+        ];
+
+        if ($this->attachToRoom && $this->selectedGuestId !== null && $this->selectedGuestData !== null) {
+            $context['guest_id'] = $this->selectedGuestId;
+            $context['room_id']  = $this->selectedGuestData['room_id']  ?? null;
+            $context['floor_id'] = $this->selectedGuestData['floor_id'] ?? null;
+            // Room-charge: no cash collected.
+            $context['paid_amount']   = 0;
+            $context['change_amount'] = 0;
+        } else {
+            // Walk-in cash: assume full pay (the v2 UI doesn't yet capture
+            // change tendered; matches v1 behavior of taking the cart total
+            // as paid). Future enhancement: tendered/change UI input.
+            $context['paid_amount']   = (int) $this->discountedTotal;
+            $context['change_amount'] = 0;
+        }
+
+        try {
+            $order = app(CheckoutService::class)->checkout($cart, $context);
+        } catch (InsufficientStockException $e) {
+            $this->showCheckoutConfirm = false;
+            $this->notification()->error('Insufficient stock', $e->getMessage());
+            return;
+        } catch (\InvalidArgumentException $e) {
+            $this->showCheckoutConfirm = false;
+            $this->notification()->error('Sale blocked', $e->getMessage());
+            return;
+        } catch (\Throwable $e) {
+            $this->showCheckoutConfirm = false;
+            $this->notification()->error('Checkout failed', $e->getMessage());
+            return;
+        }
+
+        // Reset cart + v2 state on success.
+        $this->cart = [];
+        $this->discountAmount = 0;
+        $this->discountReason = '';
+        $this->attachToRoom = false;
+        $this->guestSearch = '';
+        $this->clearSelectedGuest();
+        $this->showCheckoutConfirm = false;
+
+        $msg = $order->payment_method === null
+            ? "Charged to RM {$this->resolveRoomNumberForOrder($order)} (Order #{$order->id})"
+            : "Cash sale recorded (Order #{$order->id})";
+
+        $this->notification()->success('Transaction Complete', $msg);
+    }
+
+    private function resolveRoomNumberForOrder(PosOrder $order): string
+    {
+        if ($order->room_id === null) return '—';
+        $room = \App\Models\Room::find($order->room_id);
+        return $room?->number ?? (string) $order->room_id;
+    }
+
     public function getCartTotalProperty()
     {
         return (float) collect($this->cart)->sum(fn ($l) => (float) $l['subtotal']);
@@ -356,42 +568,87 @@ class PointOfSale extends Component
 
         $orders = collect();
         if ($this->current_shift) {
-            $this->total_pos = PosTransaction::where('branch_id', auth()->user()->branch_id)
-                ->where('shift_log_id', $this->current_shift->id)
-                ->where('user_id', auth()->user()->id)
-                ->sum('total');
+            if ($this->v2Enabled) {
+                // ──────── v2: read from pos_orders + transactions ────────
+                // Cash-only total (matches the total_pos column semantic).
+                // Voided orders excluded; room-charge orders excluded (no
+                // cash actually came into the drawer for those).
+                $this->total_pos = (int) PosOrder::where('branch_id', auth()->user()->branch_id)
+                    ->where('shift_log_id', $this->current_shift->id)
+                    ->where('user_id', auth()->user()->id)
+                    ->whereNull('voided_at')
+                    ->where('payment_method', 'cash')
+                    ->sum('total');
 
-            $transactions = PosTransaction::where('branch_id', auth()->user()->branch_id)
-                ->where('shift_log_id', $this->current_shift->id)
-                ->where('user_id', auth()->user()->id)
-                ->orderBy('created_at')
-                ->orderBy('id')
-                ->get();
+                $posOrders = PosOrder::where('branch_id', auth()->user()->branch_id)
+                    ->where('shift_log_id', $this->current_shift->id)
+                    ->where('user_id', auth()->user()->id)
+                    ->with(['lineItems' => fn ($q) => $q->orderBy('id')])
+                    ->orderByDesc('created_at')
+                    ->get();
 
-            // Group items created in the same checkout (same second) into one order
-            $orders = $transactions
-                ->groupBy(fn($t) => $t->created_at->format('Y-m-d H:i:s'))
-                ->map(fn($items) => [
-                    'order_id' => $items->min('id'),
-                    'date_time' => $items->first()->created_at,
-                    'items' => $items->values(),
-                    'amount' => $items->sum('total'),
-                    'item_count' => $items->sum('quantity'),
-                ])
-                ->sortByDesc('date_time')
-                ->values();
+                $orders = $posOrders->map(fn ($o) => [
+                    'order_id'       => $o->id,
+                    'date_time'      => $o->created_at,
+                    'items'          => $o->lineItems,
+                    'amount'         => (int) $o->total,
+                    'item_count'     => (float) $o->lineItems->sum('quantity'),
+                    'payment_method' => $o->payment_method, // 'cash' | null (room-charge)
+                    'voided_at'      => $o->voided_at,
+                    'discount'       => (int) $o->discount_amount,
+                    'guest_id'       => $o->guest_id,
+                ])->values();
 
-            // Apply history search filter (case-insensitive match on any item name)
-            if (trim($this->historySearch) !== '') {
-                $needle = mb_strtolower(trim($this->historySearch));
-                $orders = $orders->filter(function ($order) use ($needle) {
-                    foreach ($order['items'] as $item) {
-                        if (str_contains(mb_strtolower((string) $item->item_name), $needle)) {
-                            return true;
+                if (trim($this->historySearch) !== '') {
+                    $needle = mb_strtolower(trim($this->historySearch));
+                    $orders = $orders->filter(function ($order) use ($needle) {
+                        foreach ($order['items'] as $item) {
+                            if (str_contains(mb_strtolower((string) $item->item_name), $needle)) {
+                                return true;
+                            }
                         }
-                    }
-                    return false;
-                })->values();
+                        return false;
+                    })->values();
+                }
+            } else {
+                // ──────── v1: legacy PosTransaction reads (preserved) ────────
+                $this->total_pos = PosTransaction::where('branch_id', auth()->user()->branch_id)
+                    ->where('shift_log_id', $this->current_shift->id)
+                    ->where('user_id', auth()->user()->id)
+                    ->sum('total');
+
+                $transactions = PosTransaction::where('branch_id', auth()->user()->branch_id)
+                    ->where('shift_log_id', $this->current_shift->id)
+                    ->where('user_id', auth()->user()->id)
+                    ->orderBy('created_at')
+                    ->orderBy('id')
+                    ->get();
+
+                // Group items created in the same checkout (same second) into one order
+                $orders = $transactions
+                    ->groupBy(fn($t) => $t->created_at->format('Y-m-d H:i:s'))
+                    ->map(fn($items) => [
+                        'order_id' => $items->min('id'),
+                        'date_time' => $items->first()->created_at,
+                        'items' => $items->values(),
+                        'amount' => $items->sum('total'),
+                        'item_count' => $items->sum('quantity'),
+                    ])
+                    ->sortByDesc('date_time')
+                    ->values();
+
+                // Apply history search filter (case-insensitive match on any item name)
+                if (trim($this->historySearch) !== '') {
+                    $needle = mb_strtolower(trim($this->historySearch));
+                    $orders = $orders->filter(function ($order) use ($needle) {
+                        foreach ($order['items'] as $item) {
+                            if (str_contains(mb_strtolower((string) $item->item_name), $needle)) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    })->values();
+                }
             }
         } else {
             $this->total_pos = 0;
