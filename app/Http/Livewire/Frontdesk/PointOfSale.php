@@ -98,10 +98,12 @@ class PointOfSale extends Component
             return;
         }
 
-        // Pre-fill cash tendered with the total so the cashier just adjusts
-        // upward if the customer hands more than exact change.
+        // Cash tendered is intentionally NOT pre-filled with the total.
+        // Forces the cashier to look at the bill they actually received and
+        // type it in — pre-filling encourages confirming with a wrong amount
+        // when the customer hands over a different denomination.
         if (!$this->attachToRoom) {
-            $this->cashTendered = (int) $this->discountedTotal;
+            $this->cashTendered = 0;
         }
 
         $this->showCheckoutConfirm = true;
@@ -390,7 +392,9 @@ class PointOfSale extends Component
 
     public function clearCart()
     {
-        $this->cart = [];
+        // Clearing the cart should also reset attach-to-room, the selected
+        // guest, discount, and cash tendered — they all belong to "this sale".
+        $this->resetForNewSale();
     }
 
     public function confirmRemoveFromCart($index)
@@ -506,14 +510,8 @@ class PointOfSale extends Component
             return;
         }
 
-        // Reset cart + v2 state on success.
-        $this->cart = [];
-        $this->discountAmount = 0;
-        $this->discountReason = '';
-        $this->cashTendered = 0;
-        $this->attachToRoom = false;
-        $this->guestSearch = '';
-        $this->clearSelectedGuest();
+        // Reset every per-sale state so nothing leaks into the next order.
+        $this->resetForNewSale();
         $this->showCheckoutConfirm = false;
 
         // Open the printable receipt modal — the user prints from here via
@@ -533,6 +531,24 @@ class PointOfSale extends Component
     {
         $this->showReceiptModal = false;
         $this->receiptOrderId = null;
+    }
+
+    /**
+     * Nuke every property that belongs to a single sale. Called after a
+     * successful checkout, on Clear cart, and as a defensive guard
+     * anywhere we want to start fresh. Properties that survive (search
+     * filters, current shift, current category) are intentional.
+     */
+    private function resetForNewSale(): void
+    {
+        $this->cart = [];
+        $this->discountAmount = 0;
+        $this->discountReason = '';
+        $this->cashTendered = 0;
+        $this->attachToRoom = false;
+        $this->guestSearch = '';
+        $this->selectedGuestId = null;
+        $this->selectedGuestData = null;
     }
 
     private function resolveRoomNumberForOrder(PosOrder $order): string

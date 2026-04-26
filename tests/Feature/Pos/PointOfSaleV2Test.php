@@ -99,6 +99,7 @@ class PointOfSaleV2Test extends TestCase
             ->test(PointOfSale::class)
             ->call('addToCart', $coke->id)
             ->call('reviewCheckout')
+            ->set('cashTendered', 100) // simulate cashier entering cash
             ->call('checkout');
 
         $this->assertSame(0, PosTransaction::count(), 'POS rebuild must NEVER write to legacy pos_transactions');
@@ -118,6 +119,7 @@ class PointOfSaleV2Test extends TestCase
             ->call('addToCart', $coke->id) // qty 2
             ->call('addToCart', $chips->id)
             ->call('reviewCheckout')
+            ->set('cashTendered', 200) // 170 total + room for change
             ->call('checkout');
 
         $this->assertSame(0, PosTransaction::count(), 'v2 must NOT write legacy PosTransaction rows');
@@ -218,6 +220,7 @@ class PointOfSaleV2Test extends TestCase
             ->set('discountAmount', 50)
             ->set('discountReason', 'regular customer')
             ->call('reviewCheckout')
+            ->set('cashTendered', 250) // 300 - 50 discount = 250 total
             ->call('checkout');
 
         $order = PosOrder::first();

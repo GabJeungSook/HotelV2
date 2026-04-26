@@ -83,7 +83,8 @@ class PointOfSaleVoidTest extends TestCase
         for ($i = 0; $i < $qty; $i++) {
             $component->call('addToCart', $context['menu']->id);
         }
-        $component->call('reviewCheckout')->call('checkout');
+        // Cashier enters tendered cash (1000 covers any qty in these tests).
+        $component->call('reviewCheckout')->set('cashTendered', 1000)->call('checkout');
 
         return PosOrder::orderByDesc('id')->first();
     }

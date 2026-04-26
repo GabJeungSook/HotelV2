@@ -577,10 +577,12 @@
                                 <input id="cash-tendered" type="text"
                                     inputmode="numeric"
                                     pattern="[0-9]*"
+                                    placeholder="0"
                                     wire:model.live="cashTendered"
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                                     onkeypress="return event.charCode >= 48 && event.charCode <= 57"
                                     onpaste="event.preventDefault(); const t = (event.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g,''); document.execCommand('insertText', false, t);"
+                                    onfocus="this.select()"
                                     class="w-full px-4 py-3 text-right text-2xl font-bold border-2 border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-600 shadow-sm" />
                             </div>
                             <div class="flex justify-between items-center text-xl font-bold pt-2 border-t border-gray-200

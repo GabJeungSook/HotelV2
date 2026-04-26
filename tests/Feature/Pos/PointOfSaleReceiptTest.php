@@ -87,6 +87,7 @@ class PointOfSaleReceiptTest extends TestCase
             ->call('addToCart', $context['menu']->id)
             ->call('addToCart', $context['menu']->id) // qty 2 = 120
             ->call('reviewCheckout')
+            ->set('cashTendered', 200) // simulate cashier entering tendered cash
             ->call('checkout');
 
         $order = PosOrder::orderByDesc('id')->first();
@@ -105,6 +106,7 @@ class PointOfSaleReceiptTest extends TestCase
         $component->call('addToCart', $context['menu']->id);
         $component->call('addToCart', $context['menu']->id);
         $component->call('reviewCheckout');
+        $component->set('cashTendered', 200);
         $component->call('checkout');
 
         $component
@@ -183,6 +185,7 @@ class PointOfSaleReceiptTest extends TestCase
             ->test(PointOfSale::class)
             ->call('addToCart', $context['menu']->id)
             ->call('reviewCheckout')
+            ->set('cashTendered', 100)
             ->call('checkout')
             ->assertSet('showReceiptModal', true)
             ->call('closeReceiptModal')
