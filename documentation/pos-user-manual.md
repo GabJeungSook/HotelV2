@@ -1,9 +1,24 @@
 # POS — User Manual
 
-Practical, click-by-click guide to using the Point of Sale system.
+> **Audience:** People who **USE** the POS — Administrator, Frontdesk
+> cashier, Owner / Big Boss, Supervisor.
+>
+> **Looking for the developer / sysadmin reference instead?** See
+> [`pos-module.md`](./pos-module.md) — it covers code architecture,
+> database schema, migrations, and production deployment.
 
-This manual is written for the people who use the system —
-Administrator, Frontdesk cashier, and Owner / Big Boss.
+Practical, click-by-click guide to every part of the Point of Sale
+system that an end-user touches. Designed so a brand-new staff member
+can read their own role's section and start working.
+
+### Quick start by role
+
+| Your role | Start here | Then read |
+|---|---|---|
+| Administrator (set up the catalog) | [§2 — Managing the catalog](#2-administrator--managing-the-catalog) | [§5 — Audit trails](#5-audit-trails--who-changed-what-when) |
+| Frontdesk (cashier) | [§3 — Daily operations](#3-frontdesk--daily-operations) | [§6 — Common scenarios](#6-common-scenarios), [§7 — FAQ](#7-frequently-asked-questions) |
+| Owner / Big Boss / Supervisor | [§4 — Reading the reports](#4-owner--big-boss--reading-the-reports) | [§5 — Audit trails](#5-audit-trails--who-changed-what-when) |
+| Anyone — emergencies | [§9 — When something goes wrong](#9-when-something-goes-wrong) | — |
 
 ---
 
@@ -53,6 +68,7 @@ does not handle:
 6. [Common scenarios](#6-common-scenarios)
 7. [Frequently asked questions](#7-frequently-asked-questions)
 8. [Glossary](#8-glossary)
+9. [When something goes wrong](#9-when-something-goes-wrong)
 
 ---
 
@@ -321,8 +337,6 @@ Two buttons at the top of the report:
 
 ---
 
----
-
 ## 5. Audit trails — who changed what, when
 
 Every change to inventory and every menu price edit is automatically
@@ -399,7 +413,7 @@ and "When did Pineapple Juice go from ₱45 to ₱55?"
 
 ## 6. Common scenarios
 
-### 5.1 "I rang up the wrong item or wrong quantity"
+### 6.1 "I rang up the wrong item or wrong quantity"
 
 If you haven't confirmed yet → click the **× Void** button on the cart
 line, OR click **Clear** to empty the entire cart.
@@ -407,18 +421,18 @@ line, OR click **Clear** to empty the entire cart.
 If you already confirmed → open **View Purchase History**, find the
 order, click **Void**. Stock is restored automatically.
 
-### 5.2 "Customer pays cash with a big bill"
+### 6.2 "Customer pays cash with a big bill"
 
 Type the actual amount they handed over in **Cash Tendered**. The
 **Change Due** updates live. For example: total is ₱150, customer
 hands over ₱500 → type 500 → Change Due shows ₱350.
 
-### 5.3 "Customer is a hotel guest — wants to charge to room"
+### 6.3 "Customer is a hotel guest — wants to charge to room"
 
 Toggle **Charge to a room?** ON, search by room number or guest name,
 select the guest, then **Charge to Room**. No cash is collected.
 
-### 5.4 "Item shows Unavailable but I'm sure we have stock"
+### 6.4 "Item shows Unavailable but I'm sure we have stock"
 
 Two possibilities:
 - The item has no inventory record yet (admin must set initial stock —
@@ -426,20 +440,20 @@ Two possibilities:
 - All stock has been sold during the shift (record a delivery via
   **Stock In** if more arrived)
 
-### 5.5 "Where do I see how much cash I've collected today?"
+### 6.5 "Where do I see how much cash I've collected today?"
 
 In the POS page, click **View Purchase History**. The table shows
 every order with its amount; the bottom row shows
 **TOTAL (CASH, NON-VOIDED)** for the shift.
 
-### 5.6 "Can a different cashier void my order?"
+### 6.6 "Can a different cashier void my order?"
 
 No. Only the cashier who rang the order can void it, and only during
 the same shift. If the cashier has gone home, an admin / supervisor can
 manually adjust through the back office, but in normal operation the
 order stays as-is.
 
-### 5.7 "How do I add a discount?"
+### 6.7 "How do I add a discount?"
 
 The Discount field is currently hidden — there's no per-sale discount
 in normal operation. If your business needs to offer ad-hoc discounts,
@@ -564,4 +578,37 @@ only.
 History and on a re-printed receipt.
 
 ---
+
+## 9. When something goes wrong
+
+A short triage guide. For step-by-step fixes, jump to the section
+listed in the "How to recover" column.
+
+| What you see | What it means | How to recover |
+|---|---|---|
+| **"Add items to place order"** button is greyed out | The cart is empty | Click any menu tile to add an item |
+| **"Short by ₱X"** message under the cash field | The customer hasn't given enough cash yet | Ask for the rest, then update Cash Tendered |
+| Item tile shows **Unavailable** | Stock is 0 or no inventory record exists | See [§6.4](#64-item-shows-unavailable-but-im-sure-we-have-stock) — record a delivery via Stock-In or have admin set initial stock |
+| **"Insufficient stock"** error during checkout | Another cashier sold the item between your cart-add and your checkout | Refresh the page; the sale was rolled back so nothing was charged |
+| Receipt looks wrong on printer | Printer driver or paper-size issue | Use **Print to PDF** in the print dialog as a fallback; report the printer model to admin |
+| Page is stuck on a loading spinner | Network blip or backend timeout | Wait 10 seconds, then refresh. If your cart had items, you'll need to re-add them |
+| **"You cannot void this order"** when clicking Void | Different cashier, different shift, or already voided | See [§3.6](#36-void-a-mistake-same-shift-only) — only same-cashier same-shift orders can be voided |
+| Cash drawer total doesn't match physical cash | Could be a void after the count, an unrecorded delivery, or genuine variance | Open Stock Movements / Purchase History for the shift to trace the difference |
+| You forgot to record a delivery before selling | Sales drove stock negative or showed Unavailable | Record the delivery via **Stock In** now — the audit log will show the correct sequence by timestamp |
+| You see "Drawer 1" labeled in multiple places | Not a problem | It's the same drawer name shown by different widgets — see [§7 FAQ](#7-frequently-asked-questions) |
+
+### When to escalate
+
+Call your supervisor / administrator if you see any of these:
+
+- A customer disputes a charge from a previous shift (you cannot void
+  across shifts)
+- The total in **Cash on Hand** differs from your physical drawer by
+  more than the usual rounding
+- A menu item disappears from the catalog mid-shift
+- You need to refund a customer for an order from before today
+- A login error keeps you out of the POS entirely
+
+The administrator has access to the audit logs (Stock Movements and
+Price Changes) and can usually trace any discrepancy in minutes.
 

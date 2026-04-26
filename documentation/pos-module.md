@@ -1,9 +1,30 @@
-# POS Module — Reference Documentation
+# POS Module — Technical Reference
+
+> **Audience:** Developers, sysadmins, DBAs — anyone who **builds,
+> maintains, or deploys** the POS module.
+>
+> **Looking for the click-by-click how-to guide?** Cashiers, admins,
+> and owners should read [`pos-user-manual.md`](./pos-user-manual.md)
+> instead. That doc covers screens, buttons, and daily tasks; this one
+> covers code, schema, services, and infrastructure.
 
 **Module:** Point of Sale (frontdesk register)
-**Branch:** `pos-rebuild-plan-1`
+**Branch:** `future-updates` (merged from `pos-rebuild-plan-1`)
 **Last updated:** 2026-04-26
 **Supersedes:** `pos-module-current-state.md` (pre-rebuild snapshot)
+
+### What's in this doc
+
+| Section | For |
+|---|---|
+| §1–§4 Overview, roles, architecture, core concepts | Anyone onboarding to the codebase |
+| §5 Data model | Backend devs, DBAs |
+| §6–§10 Per-feature backend behavior | Backend devs (cross-reference for user-manual workflows) |
+| §11 Code reference (services, models, components, migrations) | Backend devs |
+| §11.7 Production rollout runbook | Sysadmin / DevOps deploying to prod |
+| §12 Verification SQL + recovery procedures | On-call, DBA, anyone debugging incidents |
+| §13 Known limitations | Anyone planning future work |
+| §14 Log growth, DB backups, log rotation, maintenance timeline | Sysadmin / owner — keep the system healthy as years pass |
 
 ---
 
@@ -22,7 +43,8 @@
 11. [Code Reference](#11-code-reference)
 12. [Verification and Troubleshooting](#12-verification-and-troubleshooting)
 13. [Known Limitations](#13-known-limitations)
-14. [Glossary](#14-glossary)
+14. [Log Growth, Backups, and Maintenance](#14-log-growth-backups-and-maintenance)
+15. [Glossary](#15-glossary)
 
 ---
 
@@ -683,19 +705,62 @@ Items with no shift activity are omitted to keep the report focused.
 
 ### 11.6 Migrations
 
-| File | Effect |
-|---|---|
-| `2026_04_25_120001_make_transactions_guest_room_floor_nullable.php` | Allows POS cash sales (no guest) |
-| `2026_04_25_120002_create_stock_movements_table.php` | Movement audit log |
-| `2026_04_25_120003_backfill_stock_movements_opening_balances.php` | Idempotent OPENING backfill |
-| `2026_04_25_120004_add_snapshot_columns_to_transactions_table.php` | Frozen line-item snapshot |
-| `2026_04_25_120005_create_menu_price_changes_table.php` | Price audit |
-| `2026_04_25_120006_create_pos_orders_table.php` | Order header |
-| `2026_04_25_120007_add_order_id_to_transactions_table.php` | Header link |
-| `2026_04_26_120002_add_void_columns_for_pos_v2.php` | Void support |
+| File | Effect | Idempotent |
+|---|---|---|
+| `2026_04_25_120001_make_transactions_guest_room_floor_nullable.php` | Allows POS cash sales (no guest) | ✓ (MySQL `MODIFY` is idempotent) |
+| `2026_04_25_120002_create_stock_movements_table.php` | Movement audit log | ✓ (`hasTable` guard) |
+| `2026_04_25_120003_backfill_stock_movements_opening_balances.php` | OPENING backfill | ✓ (per-row `exists` check) |
+| `2026_04_25_120004_add_snapshot_columns_to_transactions_table.php` | Frozen line-item snapshot | ✓ (per-column `hasColumn` guards) |
+| `2026_04_25_120005_create_menu_price_changes_table.php` | Price audit | ✓ (`hasTable` guard) |
+| `2026_04_25_120006_create_pos_orders_table.php` | Order header | ✓ (`hasTable` guard) |
+| `2026_04_25_120007_add_order_id_to_transactions_table.php` | Header link | ✓ (`hasColumn` + `SHOW INDEX` guards) |
+| `2026_04_26_120002_add_void_columns_for_pos_v2.php` | Void support | ✓ (per-column + index guards) |
+
+All eleven POS migrations are safe to re-run on any database state — fresh,
+fully-migrated, or partially-applied. Designed this way after a real staging
+incident where a partial migration left a half-applied state.
 
 The flag column added by `2026_04_26_120001_add_pos_v2_enabled_to_branches_table.php`
 was removed by `2026_04_26_120003_drop_pos_v2_enabled_make_v2_default.php`.
+
+### 11.7 Production Rollout Runbook
+
+When merging the POS module to `master` and deploying to a production server
+that has not yet run these migrations:
+
+```bash
+# 1. Backup (non-negotiable)
+mysqldump -u root -p --single-transaction --quick <DBNAME> \
+  > /backup/pre_pos_migrate_$(date +%Y%m%d_%H%M).sql
+
+# 2. Maintenance mode (HTTP 503 to all users)
+php artisan down --retry=120
+
+# 3. Pull and migrate
+git pull origin master
+php artisan migrate --force
+php artisan optimize:clear
+
+# 4. Smoke test (load /admin/dashboard, /frontdesk/dashboard in private tab)
+
+# 5. Bring back online
+php artisan up
+```
+
+**Expected duration:** ~1–2 minutes total. The slowest single step is
+`make_transactions_guest_room_floor_nullable`, which runs three `ALTER TABLE
+... MODIFY` statements against `transactions`. Observed ~15 seconds on
+staging; production may be longer depending on row count. Maintenance mode
+prevents cashiers from hitting a locked table during the ALTER.
+
+**Rollback (if smoke test fails):**
+
+```bash
+mysql -u root -p <DBNAME> < /backup/pre_pos_migrate_*.sql
+git checkout <previous-master-sha>
+php artisan optimize:clear
+php artisan up
+```
 
 ---
 
@@ -754,7 +819,7 @@ are in sync.
 | Room-charge does not appear in Big Boss Report's per-guest "foods" column | Pre-existing gap: kitchen/pub/POS room-charge transactions do not set `checkin_detail_id` | Use the Big Boss POS Report instead, which shows all POS regardless |
 | Receipt format is wrong on a specific thermal printer | CSS rendering quirk in the printer driver | Print to PDF as workaround; report the printer model for investigation |
 | POS cash total in header differs from Big Boss POS Report | Header shows current user's sales only; report shows entire shift session (all cashiers) | Expected behavior |
-| Migration fails locally with "table already exists" | Migration tracker out of sync with schema | Manually mark the create-table migration as run, then re-run `php artisan migrate` |
+| Migration fails with "table already exists" | Pre-idempotency artifact from old branch | All POS migrations now self-skip via `hasTable` / `hasColumn` guards. If you still see this, you are running a pre-`c6ca3ca` revision — pull latest. |
 
 ### 12.3 Recovery Procedures
 
@@ -804,7 +869,181 @@ not possible.
 
 ---
 
-## 14. Glossary
+## 14. Log Growth, Backups, and Maintenance
+
+### 14.1 Growth Math
+
+POS-related tables grow continuously. The current design holds up
+without intervention for years. The numbers below are estimates for one
+branch averaging ~50 POS sales per day (~3 items each).
+
+| Table | Rows per sale | Per year | After 5 years | After 10 years |
+|---|---|---|---|---|
+| `pos_orders` | 1 | ~18,000 | ~91,000 | ~182,000 |
+| `transactions` (POS lines only) | ~3 | ~54,000 | ~273,000 | ~547,000 |
+| `stock_movements` (POS sales + restocks) | ~3 | ~54,000 | ~273,000 | ~547,000 |
+| `menu_price_changes` | rare | < 100 | < 500 | < 1,000 |
+| `activity_logs` (Spatie) | varies | varies | monitor | archive at year 3 |
+
+The non-POS contribution to `transactions` (room fees, deposits,
+discounts) is the larger driver. Across multiple branches, multiply the
+estimates by branch count.
+
+### 14.2 Why It Stays Fast
+
+Every audit query in the POS module filters on `created_at`:
+
+| Page / Report | Default range | Index used |
+|---|---|---|
+| Stock Movements (`/admin/stock-movements`) | last 7 days | `stock_movements (branch_id, created_at)` |
+| Price Changes (`/admin/price-changes`) | last 30 days | `menu_price_changes (source_type, menu_id, created_at)` |
+| Big Boss POS Report | one shift session | `transactions (shift_log_id)`, `pos_orders (shift_log_id)` |
+| Purchase History (POS register) | current shift only | `pos_orders (shift_log_id)` |
+
+Combined with pagination (25 rows per page on the audit pages), a
+million-row table produces sub-second queries. None of the UI does a
+full-table scan.
+
+### 14.3 Three-Tier Maintenance Timeline
+
+| Year | Symptom | Action |
+|---|---|---|
+| **0–3** | None — queries fast | Monitor table sizes quarterly (one query, see below) |
+| **3–5** | Audit pages take 2–3 sec on broad date ranges | Add monthly partitioning to `stock_movements` and the POS slice of `transactions` |
+| **5+** | Queries slow even with date filter | Archive: move rows older than 2 years to `_archive` sibling tables. Old data stays queryable but off the hot table. |
+
+**Important:** No deletion. Archival moves rows to a sibling table that
+is still SQL-queryable. Historical receipts, audit trails, and reports
+remain readable forever.
+
+### 14.4 Quarterly Health Check Query
+
+Run this against the production read replica or a copy of prod:
+
+```sql
+SELECT table_name,
+       table_rows,
+       ROUND(data_length / 1024 / 1024, 1)  AS data_mb,
+       ROUND(index_length / 1024 / 1024, 1) AS index_mb
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+  AND table_name IN (
+    'transactions', 'pos_orders', 'stock_movements',
+    'menu_price_changes', 'activity_logs'
+  )
+ORDER BY data_length DESC;
+```
+
+**Action thresholds:**
+- Any table > 1M rows → review query plans for that table
+- `transactions.data_mb` > 500MB → start planning partitioning
+- `activity_logs` > 100MB → consider Spatie's prune command
+
+### 14.5 Database Backups
+
+**The application does NOT back up the database.** Backups are a
+server-level cron job using `mysqldump`. Set this up on every
+production and staging server.
+
+**Step 1 — Credentials file** (so the cron doesn't store passwords):
+
+```bash
+sudo nano /root/.my.cnf
+```
+
+```ini
+[client]
+user=root
+password=YOUR_DB_PASSWORD
+host=localhost
+```
+
+```bash
+sudo chmod 600 /root/.my.cnf
+```
+
+**Step 2 — Backup script** at `/usr/local/bin/db-backup.sh`:
+
+```bash
+#!/bin/bash
+set -e
+DBNAME="hotel_v2_production"   # change per environment
+TS=$(date +%Y%m%d_%H%M)
+DEST="/backup/mysql/${DBNAME}_${TS}.sql.gz"
+
+mkdir -p /backup/mysql
+mysqldump --single-transaction --quick --routines --triggers \
+  "$DBNAME" | gzip > "$DEST"
+
+# Keep last 30 days
+find /backup/mysql -name "${DBNAME}_*.sql.gz" -mtime +30 -delete
+
+echo "$(date): backup -> $DEST ($(du -h $DEST | cut -f1))" \
+  >> /var/log/db-backup.log
+```
+
+```bash
+sudo chmod 700 /usr/local/bin/db-backup.sh
+```
+
+**Step 3 — Schedule daily at 2:30 AM:**
+
+```bash
+sudo crontab -e
+# add:
+30 2 * * * /usr/local/bin/db-backup.sh
+```
+
+**Step 4 — Off-server copy (REQUIRED for true safety):**
+
+A backup that lives on the same VPS as the database does not survive
+disk failure or VPS deletion. Add one of these to the script:
+
+```bash
+# Option A — SCP to a separate server
+scp "$DEST" backup-user@backup-server:/remote/backup/
+
+# Option B — S3 / DigitalOcean Spaces (needs awscli configured)
+aws s3 cp "$DEST" s3://your-bucket/db-backups/
+
+# Option C — Google Drive via rclone
+rclone copy "$DEST" gdrive:hotel-backups/
+```
+
+**Restore procedure:**
+
+```bash
+gunzip < /backup/mysql/hotel_v2_production_20260426_0230.sql.gz \
+  | mysql hotel_v2_production
+```
+
+### 14.6 Laravel Log Rotation
+
+`storage/logs/laravel.log` grows forever in the default config.
+Switch to daily rotation in `.env`:
+
+```ini
+LOG_CHANNEL=daily
+LOG_DAILY_DAYS=14
+```
+
+This produces `laravel-YYYY-MM-DD.log` files; older than 14 days are
+auto-deleted by Laravel itself. No cron required.
+
+### 14.7 When You Hit Year 3+ — Partitioning Template
+
+When the quarterly check shows the warning thresholds, partition
+`stock_movements` by month using `RANGE` on `YEAR(created_at)*100 +
+MONTH(created_at)`. The migration template is documented separately
+under "Future maintenance" — when you're ready, file an issue and the
+on-call dev will produce the partition migration.
+
+The pattern is well-known and reversible. Don't preemptively partition
+— the overhead isn't justified before year 3.
+
+---
+
+## 15. Glossary
 
 **Cart** — The in-memory list of menu items and quantities the cashier
 has selected but not yet checked out. Stored as a Livewire component
