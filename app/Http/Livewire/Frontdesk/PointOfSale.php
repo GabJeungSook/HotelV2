@@ -111,7 +111,7 @@ class PointOfSale extends Component
     {
         $guest = Guest::where('branch_id', auth()->user()->branch_id)
             ->whereHas('checkInDetail', fn ($q) => $q->where('is_check_out', false))
-            ->with(['checkInDetail.room.floor'])
+            ->with(['checkInDetail.room.floor', 'checkInDetail.room.type'])
             ->find($guestId);
 
         if (!$guest) {
@@ -132,10 +132,12 @@ class PointOfSale extends Component
         $this->selectedGuestId = $guest->id;
         $this->selectedGuestData = [
             'id'             => $guest->id,
-            'name'           => trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) ?: ($guest->name ?? 'Guest #' . $guest->id),
+            'name'           => $guest->name ?: ('Guest #' . $guest->id),
             'room_number'    => $room?->number,
             'room_id'        => $room?->id,
             'floor_id'       => $room?->floor_id,
+            'floor_number'   => $room?->floor?->number,
+            'type_name'      => $room?->type?->name,
             'open_pos_total' => $openTotal,
         ];
     }
@@ -169,11 +171,9 @@ class PointOfSale extends Component
 
         return Guest::where('branch_id', auth()->user()->branch_id)
             ->whereHas('checkInDetail', fn ($q) => $q->where('is_check_out', false))
-            ->with(['checkInDetail.room'])
+            ->with(['checkInDetail.room.floor', 'checkInDetail.room.type'])
             ->where(function ($q) use ($term) {
-                $q->where('first_name', 'like', "%{$term}%")
-                  ->orWhere('last_name', 'like', "%{$term}%")
-                  ->orWhere('name', 'like', "%{$term}%")
+                $q->where('name', 'like', "%{$term}%")
                   ->orWhereHas('checkInDetail.room', fn ($r) => $r->where('number', 'like', "%{$term}%"));
             })
             ->limit(10)
@@ -181,9 +181,11 @@ class PointOfSale extends Component
             ->map(function ($g) {
                 $room = $g->checkInDetail?->room;
                 return [
-                    'id'          => $g->id,
-                    'name'        => trim(($g->first_name ?? '') . ' ' . ($g->last_name ?? '')) ?: ($g->name ?? 'Guest #' . $g->id),
-                    'room_number' => $room?->number,
+                    'id'           => $g->id,
+                    'name'         => $g->name ?: ('Guest #' . $g->id),
+                    'room_number'  => $room?->number,
+                    'floor_number' => $room?->floor?->number,
+                    'type_name'    => $room?->type?->name,
                 ];
             });
     }
@@ -625,9 +627,7 @@ class PointOfSale extends Component
             if ($order) {
                 $room = $order->room_id !== null ? \App\Models\Room::find($order->room_id) : null;
                 $guest = $order->guest_id !== null ? Guest::find($order->guest_id) : null;
-                $guestName = $guest
-                    ? (trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) ?: ($guest->name ?? ('Guest #' . $guest->id)))
-                    : null;
+                $guestName = $guest ? ($guest->name ?: ('Guest #' . $guest->id)) : null;
                 $receipt = [
                     'order'        => $order,
                     'branch'       => auth()->user()->branch,

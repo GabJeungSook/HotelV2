@@ -259,7 +259,16 @@
                                     RM {{ $selectedGuestData['room_number'] ?? '—' }}
                                     &middot; {{ $selectedGuestData['name'] }}
                                 </p>
-                                <p class="text-xs text-blue-700">
+                                <p class="text-[11px] text-blue-700 flex flex-wrap gap-x-2">
+                                    @if($selectedGuestData['floor_number'] ?? null)
+                                        <span>Floor {{ $selectedGuestData['floor_number'] }}</span>
+                                    @endif
+                                    @if($selectedGuestData['type_name'] ?? null)
+                                        <span>&middot;</span>
+                                        <span>{{ $selectedGuestData['type_name'] }}</span>
+                                    @endif
+                                </p>
+                                <p class="text-xs text-blue-700 mt-0.5">
                                     Open POS balance: &#8369;{{ number_format($selectedGuestData['open_pos_total'] ?? 0, 2) }}
                                 </p>
                             </div>
@@ -272,12 +281,23 @@
                             placeholder="Search by room # or guest name..."
                             class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                         @if(trim($guestSearch) !== '')
-                            <div class="max-h-40 overflow-y-auto rounded border border-gray-200 bg-white divide-y">
+                            <div class="max-h-56 overflow-y-auto rounded border border-gray-200 bg-white divide-y">
                                 @forelse($this->guestSearchResults as $g)
                                     <button type="button" wire:click="selectGuest({{ $g['id'] }})"
-                                        class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex justify-between items-center">
-                                        <span>{{ $g['name'] }}</span>
-                                        <span class="text-xs text-gray-500">RM {{ $g['room_number'] ?? '—' }}</span>
+                                        class="w-full px-3 py-2 text-left hover:bg-blue-50">
+                                        <div class="flex justify-between items-start gap-2">
+                                            <span class="text-sm font-semibold text-gray-800 truncate">{{ $g['name'] }}</span>
+                                            <span class="text-sm font-bold text-blue-700 whitespace-nowrap">RM {{ $g['room_number'] ?? '—' }}</span>
+                                        </div>
+                                        <div class="mt-0.5 text-[11px] text-gray-500 flex flex-wrap gap-x-2">
+                                            @if($g['floor_number'])
+                                                <span>Floor {{ $g['floor_number'] }}</span>
+                                            @endif
+                                            @if($g['type_name'])
+                                                <span>&middot;</span>
+                                                <span>{{ $g['type_name'] }}</span>
+                                            @endif
+                                        </div>
                                     </button>
                                 @empty
                                     <div class="px-3 py-2 text-sm text-gray-400">No checked-in guests match.</div>
