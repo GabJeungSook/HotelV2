@@ -155,4 +155,61 @@ class CheckoutService
             return $order->fresh('lineItems');
         });
     }
+
+    /**
+     * Void a previously-checked-out POS order. Reverses the order header,
+     * each line transaction, and each stock movement (via StockService::void
+     * which writes a TYPE_VOID IN movement and increments inventory back).
+     *
+     * Idempotent: voiding an already-voided order is a no-op.
+     *
+     * Caller is responsible for the same-shift / same-user authorization
+     * gate — this service trusts the call.
+     */
+    public function void(PosOrder $order, int $voidedByUserId, ?string $reason = null): PosOrder
+    {
+        if ($order->voided_at !== null) {
+            return $order; // already voided
+        }
+
+        return DB::transaction(function () use ($order, $voidedByUserId, $reason) {
+            $now = now();
+
+            // Mark the order header.
+            $order->forceFill([
+                'voided_at'         => $now,
+                'voided_by_user_id' => $voidedByUserId,
+                'void_reason'       => $reason,
+            ])->save();
+
+            // Mark every line transaction so folio queries can filter them out.
+            $lineTransactions = Transaction::where('order_id', $order->id)->get();
+            foreach ($lineTransactions as $tx) {
+                $tx->forceFill([
+                    'voided_at'         => $now,
+                    'voided_by_user_id' => $voidedByUserId,
+                ])->save();
+
+                // Reverse the stock — IN movement of the original quantity,
+                // referenced back to the original transaction for audit.
+                if ($tx->menu_id !== null && $tx->source_type !== null && $tx->quantity !== null) {
+                    $this->stock->void(
+                        $tx->source_type,
+                        (int) $tx->menu_id,
+                        (float) $tx->quantity,
+                        [
+                            'branch_id'    => $tx->branch_id,
+                            'ref_type'     => 'transaction_void',
+                            'ref_id'       => $tx->id,
+                            'reason'       => $reason !== null && $reason !== '' ? "void: {$reason}" : 'void',
+                            'user_id'      => $voidedByUserId,
+                            'shift_log_id' => $order->shift_log_id,
+                        ]
+                    );
+                }
+            }
+
+            return $order->fresh('lineItems');
+        });
+    }
 }

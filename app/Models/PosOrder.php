@@ -25,6 +25,7 @@ class PosOrder extends Model
         'change_amount',
         'voided_at',
         'voided_by_user_id',
+        'void_reason',
     ];
 
     protected $casts = [

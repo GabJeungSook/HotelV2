@@ -544,6 +544,74 @@ class PointOfSale extends Component
         return $room?->number ?? (string) $order->room_id;
     }
 
+    // ──────── v2 void flow ────────
+
+    public function confirmVoidOrder($posOrderId)
+    {
+        if (!$this->v2Enabled) return;
+
+        $order = $this->loadVoidableOrder($posOrderId);
+        if (!$order) return;
+
+        $this->dialog()->confirm([
+            'title'       => "Void Order #{$order->id}?",
+            'description' => 'This will reverse the sale and restore stock. Cannot be undone.',
+            'icon'        => 'warning',
+            'accept'      => [
+                'label'  => 'Yes, void',
+                'method' => 'voidOrder',
+                'params' => $order->id,
+            ],
+            'reject' => ['label' => 'Cancel'],
+        ]);
+    }
+
+    public function voidOrder($posOrderId)
+    {
+        if (!$this->v2Enabled) return;
+
+        $order = $this->loadVoidableOrder($posOrderId);
+        if (!$order) return;
+
+        try {
+            app(CheckoutService::class)->void($order, auth()->id(), null);
+        } catch (\Throwable $e) {
+            $this->notification()->error('Void failed', $e->getMessage());
+            return;
+        }
+
+        $this->notification()->success(
+            'Order Voided',
+            "Order #{$order->id} reversed. Stock restored."
+        );
+    }
+
+    /**
+     * Same-shift + same-user + not-already-voided gate. Returns null and
+     * shows an error toast if the order isn't voidable by this user.
+     */
+    private function loadVoidableOrder($posOrderId): ?PosOrder
+    {
+        $order = PosOrder::find($posOrderId);
+        if (!$order) {
+            $this->notification()->error('Not found', 'That order no longer exists.');
+            return null;
+        }
+        if ((int) $order->user_id !== (int) auth()->id()) {
+            $this->notification()->error('Cannot void', 'Only the cashier who rang the sale can void it.');
+            return null;
+        }
+        if ((int) $order->shift_log_id !== (int) ($this->current_shift->id ?? -1)) {
+            $this->notification()->error('Cannot void', 'Voids are only allowed in the same shift.');
+            return null;
+        }
+        if ($order->voided_at !== null) {
+            $this->notification()->error('Already voided', "Order #{$order->id} was already voided.");
+            return null;
+        }
+        return $order;
+    }
+
     public function getCartTotalProperty()
     {
         return (float) collect($this->cart)->sum(fn ($l) => (float) $l['subtotal']);

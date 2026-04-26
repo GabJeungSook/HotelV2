@@ -20,6 +20,8 @@
             #purchase-history-printable th,
             #purchase-history-printable td { border: 1px solid #000 !important; padding: 6px; }
             #purchase-history-printable thead { background: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
+            /* Screen-only columns (e.g. Void action button) must not print. */
+            #purchase-history-printable .no-print { display: none !important; }
             @page { margin: 12mm; }
         }
     </style>
@@ -367,33 +369,73 @@
                                 <tr class="bg-gray-100">
                                     <th class="border border-gray-400 px-3 py-2 text-left">DATE/TIME</th>
                                     <th class="border border-gray-400 px-3 py-2 text-left">ORDER ID</th>
+                                    @if($v2Enabled)
+                                        <th class="border border-gray-400 px-3 py-2 text-left">TYPE</th>
+                                    @endif
                                     <th class="border border-gray-400 px-3 py-2 text-left">ITEMS</th>
                                     <th class="border border-gray-400 px-3 py-2 text-right">AMOUNT</th>
+                                    @if($v2Enabled)
+                                        <th class="border border-gray-400 px-3 py-2 text-center no-print">ACTION</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse($orders as $order)
-                                    <tr>
+                                    @php
+                                        $isVoided = $v2Enabled && !empty($order['voided_at']);
+                                        $rowClass = $isVoided ? 'text-gray-400 line-through' : '';
+                                    @endphp
+                                    <tr class="{{ $rowClass }}">
                                         <td class="border border-gray-400 px-3 py-2 align-top">{{ $order['date_time']->format('F j, Y g:i A') }}</td>
                                         <td class="border border-gray-400 px-3 py-2 align-top">{{ $order['order_id'] }}</td>
+                                        @if($v2Enabled)
+                                            <td class="border border-gray-400 px-3 py-2 align-top">
+                                                @if(($order['payment_method'] ?? null) === 'cash')
+                                                    <span class="text-green-700 font-semibold">CASH</span>
+                                                @elseif(empty($order['payment_method']) && !empty($order['guest_id']))
+                                                    <span class="text-blue-700 font-semibold">ROOM</span>
+                                                @else
+                                                    &mdash;
+                                                @endif
+                                                @if($isVoided)
+                                                    <span class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold uppercase no-print">Voided</span>
+                                                @endif
+                                            </td>
+                                        @endif
                                         <td class="border border-gray-400 px-3 py-2 align-top">
                                             @foreach($order['items'] as $item)
                                                 <div>{{ $item->item_name }} &ndash; {{ $item->quantity }}{{ $item->quantity > 1 ? 'pcs' : 'pc' }}</div>
                                             @endforeach
                                         </td>
                                         <td class="border border-gray-400 px-3 py-2 align-top text-right">&#8369;{{ number_format($order['amount'], 2) }}</td>
+                                        @if($v2Enabled)
+                                            <td class="border border-gray-400 px-3 py-2 align-top text-center no-print">
+                                                @if(!$isVoided)
+                                                    <button type="button"
+                                                        wire:click="confirmVoidOrder({{ $order['order_id'] }})"
+                                                        class="px-2 py-1 text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded border border-red-200">
+                                                        Void
+                                                    </button>
+                                                @else
+                                                    <span class="text-xs text-gray-400">&mdash;</span>
+                                                @endif
+                                            </td>
+                                        @endif
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="4" class="border border-gray-400 px-3 py-6 text-center text-gray-400">No purchases recorded for this shift.</td>
+                                        <td colspan="{{ $v2Enabled ? 6 : 4 }}" class="border border-gray-400 px-3 py-6 text-center text-gray-400">No purchases recorded for this shift.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
                             @if($orders->isNotEmpty())
                                 <tfoot>
                                     <tr class="bg-gray-50 font-bold">
-                                        <td class="border border-gray-400 px-3 py-2" colspan="3">TOTAL</td>
+                                        <td class="border border-gray-400 px-3 py-2" colspan="{{ $v2Enabled ? 4 : 3 }}">TOTAL{{ $v2Enabled ? ' (CASH, NON-VOIDED)' : '' }}</td>
                                         <td class="border border-gray-400 px-3 py-2 text-right">&#8369;{{ number_format($total_pos, 2) }}</td>
+                                        @if($v2Enabled)
+                                            <td class="border border-gray-400 px-3 py-2 no-print"></td>
+                                        @endif
                                     </tr>
                                 </tfoot>
                             @endif
