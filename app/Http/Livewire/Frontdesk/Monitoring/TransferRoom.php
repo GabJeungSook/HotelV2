@@ -525,8 +525,15 @@ class TransferRoom extends Component
             ]);
         }
 
+        // Stamp the source room's check_out_time with the transfer moment so the
+        // roomboy queue (sorted by check_out_time ASC) ranks it as recently
+        // vacated instead of inheriting the prior guest's checkout time. This
+        // mirrors the write done by ManageGuestTransaction.php / GuestTransaction.php
+        // on a regular checkout — without it, transferred-from rooms appear
+        // hours/days behind in the queue.
         Room::where('id', $check_in_detail->room_id)->update([
-            'status' => $this->selected_status,
+            'status'         => $this->selected_status,
+            'check_out_time' => now()->toDateTimeString(),
         ]);
 
         Room::where('id',  $this->selected_room_id)->update([

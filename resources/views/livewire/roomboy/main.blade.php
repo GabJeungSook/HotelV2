@@ -15,6 +15,7 @@
                             <th class="px-2 py-2 text-center font-medium">#</th>
                             <th class="px-2 py-2 text-center font-medium">ROOM #</th>
                             <th class="px-2 py-2 text-center font-medium hidden sm:table-cell">FLOOR #</th>
+                            <th class="px-2 py-2 text-center font-medium">NOTE</th>
                             <th class="px-2 py-2 text-center font-medium hidden md:table-cell">CHECKOUT TIME</th>
                             <th class="px-2 py-2 text-center font-medium">TIME TO CLEAN</th>
                             <th class="px-2 py-2 text-center font-medium">ACTION</th>
@@ -38,6 +39,16 @@
                                 <td class="px-2 py-2 text-center text-gray-600">{{ $index + 1 }}.</td>
                                 <td class="px-2 py-2 text-center font-bold text-gray-900">{{ $room->number }}</td>
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $room->floor->number ?? $room->floor_id }}</td>
+                                <td class="px-2 py-2 text-center">
+                                    @if (!empty($room->transferred_to_room_number))
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#E6F5FE] text-[#0080cc] text-[10px] font-medium border border-[#009EF5]/30 whitespace-nowrap">
+                                            <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                            <span class="hidden sm:inline">Transferred to&nbsp;</span>RM {{ $room->transferred_to_room_number }}
+                                        </span>
+                                    @else
+                                        <span class="text-gray-300">&mdash;</span>
+                                    @endif
+                                </td>
                                 <td class="px-2 py-2 text-center text-gray-800 hidden md:table-cell">{{ $checkoutTime->format('g:i A') }}</td>
 
                                 {{-- TIME TO CLEAN: Real-time countdown --}}
@@ -93,7 +104,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-4 py-8 text-center text-gray-400 uppercase tracking-wide">
+                                <td colspan="7" class="px-4 py-8 text-center text-gray-400 uppercase tracking-wide">
                                     No Rooms To Clean
                                 </td>
                             </tr>

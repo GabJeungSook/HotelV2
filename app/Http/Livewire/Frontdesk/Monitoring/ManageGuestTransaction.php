@@ -19,6 +19,8 @@ use App\Models\Menu;
 use App\Models\Inventory;
 use App\Models\AssignedFrontdesk;
 use App\Models\StayExtension;
+use App\Models\TransferedGuestReport;
+use App\Models\CheckOutGuestReport;
 use Carbon\Carbon;
 use DB;
 
@@ -887,12 +889,36 @@ class ManageGuestTransaction extends Component
             'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
         ]);
 
+        // Snapshot the source room id/amount BEFORE the room status flip
+        // so the audit row reflects the previous-room data accurately.
+        $previous_room_id = $check_in_detail->room_id;
+        $previous_amount = $check_in_detail->static_room_amount;
+        $original_check_in_at = $check_in_detail->check_in_at ?? $check_in_detail->created_at;
+
+        // Stamp source room's check_out_time on transfer so the roomboy queue
+        // (sorted ASC by check_out_time) ranks it as recently vacated rather
+        // than inheriting the prior guest's stale checkout. Mirrors the fix
+        // already applied to TransferRoom::saveTransfer.
         Room::where('id',  $this->guest->checkInDetail->room_id)->update([
-            'status' => $this->old_status,
+            'status'         => $this->old_status,
+            'check_out_time' => now()->toDateTimeString(),
         ]);
 
         Room::where('id',  $this->room_id)->update([
             'status' => 'Occupied',
+        ]);
+
+        // Match TransferRoom::saveTransfer's audit write so the roomboy
+        // "Transferred to RM X" badge appears for transfers triggered from
+        // this modal too.
+        TransferedGuestReport::create([
+            'checkin_detail_id'      => $check_in_detail->id,
+            'previous_room_id'       => $previous_room_id,
+            'new_room_id'            => $this->room_id,
+            'rate_id'                => $this->guest->rate_id,
+            'previous_amount'        => $previous_amount,
+            'new_amount'             => $previous_amount + $this->total,
+            'original_check_in_time' => $original_check_in_at,
         ]);
 
         $this->dialog()->success(
@@ -1826,9 +1852,39 @@ class ManageGuestTransaction extends Component
                 'time_to_clean' => now()->addHours(4),
             ]);
 
+        // Also stamp check_out_at so the BackOffice CHECK-OUT GUEST REPORT
+        // (which selects checkinDetail.check_out_at) shows the real checkout
+        // time. The sibling path GuestTransaction::checkoutGuest already does
+        // this; mirroring here closes the divergence.
         CheckinDetail::where('guest_id', $this->guest->id)->update([
             'is_check_out' => true,
+            'check_out_at' => Carbon::now()->toDateTimeString(),
         ]);
+
+        // Close the audit gap: GuestTransaction::checkoutGuest writes a
+        // check_out_guest_reports row but this sibling path didn't, so
+        // checkouts done from this screen were silently missing from the
+        // BackOffice CHECK-OUT GUEST REPORT.
+        //
+        // Defensive against users with NULL assigned_frontdesks (admin/
+        // back-office accounts, plus several real users in the DB):
+        // - frontdesk_id and partner_name are NOT NULL columns, so we fall
+        //   back to the current user's id and 'N/A' (matches the format
+        //   used in the live data, e.g. [21, "N/A"]) instead of crashing.
+        $checkin = CheckinDetail::where('guest_id', $this->guest->id)->first();
+        $assigned = json_decode(auth()->user()->assigned_frontdesks ?? '[]', true) ?: [];
+        $shift_date = auth()->user()->time_in
+            ? Carbon::parse(auth()->user()->time_in)->format('F j, Y')
+            : now()->format('F j, Y');
+        CheckOutGuestReport::create([
+            'checkin_details_id' => $checkin->id,
+            'room_id'            => $checkin->room_id,
+            'shift_date'         => $shift_date,
+            'shift'              => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'frontdesk_id'       => $assigned[0] ?? auth()->id(),
+            'partner_name'       => $assigned[1] ?? 'N/A',
+        ]);
+
         DB::commit();
         $this->dialog()->success(
             $title = 'Success',
