@@ -268,9 +268,9 @@
                                         <span>{{ $selectedGuestData['type_name'] }}</span>
                                     @endif
                                 </p>
-                                <p class="text-xs text-blue-700 mt-0.5">
-                                    Open POS balance: &#8369;{{ number_format($selectedGuestData['open_pos_total'] ?? 0, 2) }}
-                                </p>
+                                {{-- Open POS balance display intentionally hidden for now.
+                                     Calculation still runs in selectGuest() so we can re-enable
+                                     this line later if a credit-limit policy is introduced. --}}
                             </div>
                             <button type="button" wire:click="clearSelectedGuest"
                                 class="text-xs text-blue-700 hover:text-blue-900 hover:underline">Change</button>
