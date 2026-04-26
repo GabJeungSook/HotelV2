@@ -896,3 +896,408 @@ The following sequence exercises every supported flow. Run in order.
 
 If all ten steps pass and the spot-check queries in Section 12 return
 expected results, the module is functioning as designed.
+
+---
+
+## Appendix B: End-to-End Flow Diagrams
+
+### B.1 Big Picture
+
+Actors and the data path through the system.
+
+```
+┌─────────────┐   ┌──────────────┐   ┌─────────────┐   ┌──────────────┐
+│ Administrator│   │  Frontdesk   │   │   Owner     │   │ Customer     │
+│             │   │  (Cashier)   │   │  (Big Boss) │   │ (walk-in or  │
+│             │   │              │   │             │   │  guest)      │
+└──────┬──────┘   └──────┬───────┘   └──────┬──────┘   └──────┬───────┘
+       │                 │                  │                 │
+       │ catalog         │ rings sale,      │ reads           │ pays cash
+       │ + initial stock │ stock-in,        │ shift report    │ or asks to
+       │                 │ void             │                 │ charge room
+       ▼                 ▼                  ▼                 │
+┌──────────────────────────────────────────────────────────────────────┐
+│                       Livewire UI Layer                              │
+│                                                                       │
+│  Food/Menu      PointOfSale       BigBossPosReport                   │
+│  Food/Category  StockIn           ReportHub                          │
+│  Food/Inventory CashOnHand                                           │
+└──────────────────┬─────────────────────────┬─────────────────────────┘
+                   │                         │
+                   │ writes                  │ reads (read-only)
+                   ▼                         │
+┌──────────────────────────────────────────────────────────────────────┐
+│                      Service Layer (App\Services\Pos)                │
+│                                                                       │
+│  CheckoutService.checkout()  ── orchestrates an order                │
+│  CheckoutService.void()      ── reverses an order                    │
+│  StockService.in()           ── delivery / restock                   │
+│  StockService.out()          ── sale (called by CheckoutService)     │
+│  StockService.void()         ── reversal (called by CheckoutService) │
+│  StockService.adjust()       ── manual correction                    │
+└──────────────────┬───────────────────────────────────────────────────┘
+                   │ atomic DB transaction
+                   ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                          Data Layer                                  │
+│                                                                       │
+│  pos_orders (header)                                                 │
+│    └─ transactions (lines, type_id=9, snapshot fields, order_id FK)  │
+│  stock_movements (audit log: IN/OUT/ADJUST/VOID/OPENING)             │
+│    └─ frontdesk_inventories / inventories / pub_inventories          │
+│         (number_of_serving kept in sync with latest movement)        │
+│  menu_price_changes (audited via observer on menu UPDATEs)           │
+│  pos_transactions (legacy, frozen, read-only)                        │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### B.2 Catalog Setup (Administrator)
+
+One-time, then ongoing as the menu evolves.
+
+```
+Admin → Food → Category
+        │
+        └─► INSERT frontdesk_categories(branch_id, name)
+
+Admin → Food → Menu
+        │
+        ├─► INSERT frontdesk_menus(branch_id, frontdesk_category_id,
+        │                          name, price, image, item_code)
+        │
+        └─► (on price/name UPDATE)
+            MenuPriceObserver fires
+                │
+                └─► INSERT menu_price_changes(source_type, menu_id,
+                                              field, old_value, new_value,
+                                              changed_by_user_id)
+
+Admin → Food → Menu → Inventory icon
+        │
+        └─► INSERT/UPDATE frontdesk_inventories(branch_id,
+                                                frontdesk_menu_id,
+                                                number_of_serving)
+```
+
+### B.3 Stock-In (Frontdesk Receiving)
+
+```
+Frontdesk → POS → "Stock In" button
+                │
+                ▼
+         StockIn::submitStockIn()
+                │
+                ▼
+         StockService::in(SOURCE_FRONTDESK, menu_id, qty, context)
+                │
+                ▼ (single DB transaction)
+         ┌──────────────────────────────────────────────┐
+         │ 1. INSERT stock_movements                    │
+         │      type='IN', quantity=qty,                │
+         │      balance_after=current+qty,              │
+         │      ref_type='stock_in_form',               │
+         │      reason=<note>, user_id, branch_id       │
+         │                                              │
+         │ 2. UPDATE frontdesk_inventories              │
+         │      number_of_serving = balance_after       │
+         │    (or INSERT if no row existed)             │
+         └──────────────────────────────────────────────┘
+                │
+                ▼
+         "Stock recorded" success toast
+```
+
+### B.4 Cash Sale
+
+```
+Frontdesk → POS
+        │
+        ▼ click menu tiles → cart fills (in-memory)
+        │
+        ▼ (optional) enter Discount + reason
+        │
+        ▼ click "Review & Checkout"
+        │
+        ▼ confirm modal → "Confirm & Submit"
+        │
+        ▼
+   PointOfSale::checkout()
+        │
+        ▼ guard: shift active, cart not empty
+        │
+        ▼ delegate to checkoutV2()
+        │
+        ▼ build cart payload + context (branch, user, shift,
+        │   discount, paid_amount = discounted total)
+        │
+        ▼
+   CheckoutService::checkout($cart, $context)
+        │
+        ▼ validate (cart shape, discount ≤ subtotal,
+        │           paid ≥ total for cash sales)
+        │
+        ▼ (single DB transaction)
+        │
+        ├─► INSERT pos_orders
+        │     payment_method='cash', guest_id=NULL, room_id=NULL,
+        │     subtotal, discount_amount, discount_reason, total,
+        │     paid_amount=total, change_amount=0,
+        │     shift_log_id, user_id, branch_id
+        │
+        ├─► For each cart line:
+        │     │
+        │     ├─► INSERT transactions
+        │     │     order_id=<header.id>, transaction_type_id=9,
+        │     │     branch_id, shift_log_id, payable_amount=line_total,
+        │     │     SNAPSHOT: source_type='frontdesk', menu_id,
+        │     │              item_name, unit_price, quantity
+        │     │
+        │     └─► StockService::out(SOURCE_FRONTDESK, menu_id, qty,
+        │                           ref_type='transaction',
+        │                           ref_id=<transactions.id>)
+        │           │
+        │           ├─► (lockForUpdate) SELECT FrontdeskInventory
+        │           ├─► if available < qty → throw InsufficientStockException
+        │           │     (entire DB transaction rolls back, no partial state)
+        │           │
+        │           ├─► INSERT stock_movements
+        │           │     type='OUT', quantity=qty,
+        │           │     balance_after=available - qty
+        │           │
+        │           └─► UPDATE frontdesk_inventories
+        │                 number_of_serving = balance_after
+        │
+        └─► return PosOrder
+                │
+                ▼
+        PointOfSale resets cart + opens Receipt modal
+                │
+                ▼
+        User clicks Print → window.print() → browser dialog →
+        any installed printer (incl. thermal)
+```
+
+### B.5 Room-Charge Sale
+
+Differences from cash sale highlighted with `*`.
+
+```
+Frontdesk → POS
+        │
+        ▼ click menu tiles → cart fills
+        │
+        ▼ * toggle "Charge to a room?" ON
+        │
+        ▼ * type room # or guest name → search dropdown
+        │
+        ▼ * click a guest → selectGuest($guestId)
+        │     │
+        │     ▼ load Guest with checkInDetail.room.floor
+        │     │ + compute open POS balance
+        │     │
+        │     ▼ store selectedGuestData = {id, name, room_id,
+        │                                  room_number, floor_id,
+        │                                  open_pos_total}
+        │
+        ▼ (optional) discount
+        │
+        ▼ click "Charge to Room" → confirm modal (blue banner)
+        │     "Confirm Room Charge"
+        │
+        ▼ checkoutV2() builds context with:
+        │     guest_id = selectedGuestId
+        │     room_id  = selectedGuestData.room_id
+        │     floor_id = selectedGuestData.floor_id
+        │     paid_amount = 0   (no cash collected)
+        │     change_amount = 0
+        │
+        ▼
+   CheckoutService::checkout()
+        │
+        ▼ detects guest_id → payment_method = NULL (room-charge)
+        │
+        ▼ INSERT pos_orders
+        │   * payment_method = NULL
+        │   * guest_id, room_id populated
+        │   * paid_amount = 0, change_amount = 0
+        │
+        ▼ For each line:
+        │   * transactions.guest_id, room_id, floor_id populated
+        │     (so the line shows on the guest's folio at checkout)
+        │   StockService::out(...) — identical to cash sale
+        │
+        ▼ Receipt modal opens with:
+            "ROOM CHARGE / RM <number> / <Guest Name>"
+            "Will be settled at guest checkout."
+```
+
+### B.6 Void (Same Shift, Same Cashier)
+
+```
+Frontdesk → POS → "Purchase History" modal
+        │
+        ▼ click "Void" on a row
+        │
+        ▼ confirmVoidOrder($posOrderId)
+        │
+        ▼ loadVoidableOrder($posOrderId) — three-way gate:
+        │   ✗ order not found        → "Not found"
+        │   ✗ user_id mismatch       → "Only the cashier who rang it..."
+        │   ✗ shift_log_id mismatch  → "Voids are only allowed in the same shift"
+        │   ✗ already voided         → "Already voided"
+        │
+        ▼ confirmation dialog → "Yes, void"
+        │
+        ▼ voidOrder($posOrderId)
+        │
+        ▼
+   CheckoutService::void(PosOrder, voidedByUserId, reason)
+        │
+        ▼ idempotent: if already voided, no-op
+        │
+        ▼ (single DB transaction)
+        │
+        ├─► UPDATE pos_orders SET
+        │     voided_at = NOW(), voided_by_user_id, void_reason
+        │
+        └─► For each linked transaction:
+              │
+              ├─► UPDATE transactions SET
+              │     voided_at = NOW(), voided_by_user_id
+              │
+              └─► StockService::void(source_type, menu_id, qty,
+                                     ref_type='transaction_void',
+                                     ref_id=<transactions.id>)
+                    │
+                    ├─► INSERT stock_movements
+                    │     type='VOID', quantity=qty,
+                    │     balance_after=current + qty
+                    │
+                    └─► UPDATE inventory
+                          number_of_serving = balance_after
+
+Effects:
+  • Voided row shows greyed-out + struck-through with "Voided" pill
+    in Purchase History
+  • Running shift total at top of POS drops by the voided amount
+  • Inventory restored to pre-sale level
+  • Folio (for room-charge voids) no longer shows the line at checkout
+```
+
+### B.7 End of Shift — Cash on Hand
+
+```
+Frontdesk → Cash on Hand (mount)
+        │
+        ▼ load current shift (open ShiftLog matching user + drawer)
+        │
+        ▼ compute total_pos = SUM of TWO sources:
+        │
+        │   Source 1 — POS v2 (current):
+        │   ──────────────────────────
+        │   SELECT SUM(total) FROM pos_orders
+        │     WHERE shift_log_id = <shift>
+        │       AND user_id = <user>
+        │       AND voided_at IS NULL
+        │       AND payment_method = 'cash'
+        │
+        │   Source 2 — Legacy (transition shifts only):
+        │   ──────────────────────────────────────────
+        │   SELECT SUM(total) FROM pos_transactions
+        │     WHERE shift_log_id = <shift>
+        │       AND user_id = <user>
+        │
+        │   total_pos = Source 1 + Source 2
+        │
+        ▼ display alongside other shift totals
+        │
+        ▼ on shift close:
+            UPDATE shift_logs SET total_pos = <computed>, time_out = NOW()
+```
+
+### B.8 Owner Reporting — Big Boss POS Report
+
+```
+Owner → Back Office → Report Hub → "Big Boss POS Report"
+        │
+        ▼ BigBossPosReport::mount()
+        │   │
+        │   └─► loadAvailableShiftSessions() — closed shifts this week,
+        │                                       grouped by date+type so
+        │                                       multi-cashier shifts merge
+        │
+        ▼ user picks a session → selectedShiftLogId set
+        │
+        ▼ render() → generateReport($session)
+        │   │
+        │   ├─► posSalesRows($session, $branchId)
+        │   │     │
+        │   │     ▼ SELECT pos_orders WHERE shift_log_id IN <session.log_ids>
+        │   │     │ + eager load lineItems
+        │   │     │
+        │   │     ▼ map to per-order rows + totals
+        │   │       (cash_total, room_total, gross, voided_count)
+        │   │
+        │   └─► inventoryRows($session, $branchId)
+        │         │
+        │         ▼ find every (source_type, inventory_id) with movement
+        │         │ in [time_in, time_out]
+        │         │
+        │         ▼ for each:
+        │           opening = balance_after of last movement BEFORE time_in
+        │           in      = SUM(qty) for IN + VOID in window
+        │           out     = SUM(qty) for OUT in window
+        │           closing = balance_after of last movement IN window
+        │
+        ▼ blade renders POS Sales table + Inventory table
+        │
+        ▼ user can:
+            • Print Report  → window.print() (any printer)
+            • Export HTML   → streamDownload of self-contained HTML file
+```
+
+### B.9 Failure Path (Atomic Rollback)
+
+What happens when something goes wrong mid-checkout. Demonstrates the
+"no partial state" guarantee.
+
+```
+CheckoutService::checkout()
+        │
+        ▼ DB::transaction(function() {
+        │
+        ├─► INSERT pos_orders                          ✓ row created
+        │
+        ├─► Line 1: INSERT transactions                ✓ row created
+        │           StockService::out(...)             ✓ stock decremented
+        │
+        ├─► Line 2: INSERT transactions                ✓ row created
+        │           StockService::out(...)
+        │             │
+        │             ▼ available (1) < requested (3)
+        │             │
+        │             ✗ throw InsufficientStockException
+        │
+        └─► exception propagates out of transaction closure
+                │
+                ▼
+        DB engine rolls back ALL writes:
+            ✗ pos_orders row    →  removed
+            ✗ Line 1 transaction →  removed
+            ✗ Line 1 stock_movement → removed
+            ✗ Line 1 inventory decrement → reverted
+            ✗ Line 2 transaction →  removed
+                │
+                ▼
+        PointOfSale::checkoutV2() catches InsufficientStockException
+                │
+                ▼
+        Notification: "Insufficient stock"
+                │
+                ▼
+        Cart preserved (in memory), user can adjust and retry
+```
+
+The same atomicity applies to void, kitchen `addFood()`, pub
+`addFood()`, and stock-in. There is no scenario in which the database
+holds a half-completed sale.
