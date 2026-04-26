@@ -19,13 +19,18 @@ class PubTransactionUsesStockServiceTest extends TestCase
             'Pub PubTransaction must import StockService'
         );
         $this->assertStringContainsString(
+            'use App\\Services\\Pos\\InsufficientStockException;',
+            $code,
+            'Pub PubTransaction must import InsufficientStockException to handle stock-out errors'
+        );
+        $this->assertStringContainsString(
             'use App\\Models\\StockMovement;',
             $code,
             'Pub PubTransaction must import StockMovement'
         );
     }
 
-    public function test_pub_addFood_includes_shadow_stock_service_call_with_pub_source(): void
+    public function test_pub_addFood_calls_stock_service_in_real_mode(): void
     {
         $code = file_get_contents(app_path('Http/Livewire/Pub/PubTransaction.php'));
 
@@ -34,10 +39,36 @@ class PubTransactionUsesStockServiceTest extends TestCase
             $code,
             'Pub addFood must call StockService::out with SOURCE_PUB'
         );
-        $this->assertStringContainsString(
-            "'shadow'    => true,",
+        $this->assertStringNotContainsString(
+            "'shadow'    => true",
             $code,
-            'Pub StockService call must use shadow=true during shadow-write phase'
+            'Pub StockService call must no longer use shadow mode (legacy dual-write removed)'
+        );
+        $this->assertStringNotContainsString(
+            "'shadow' => true",
+            $code,
+            'Pub StockService call must no longer use shadow mode (legacy dual-write removed)'
+        );
+        $this->assertStringContainsString(
+            "'ref_type'  => 'transaction',",
+            $code,
+            'Pub stock movement must reference the transaction'
+        );
+    }
+
+    public function test_pub_legacy_direct_inventory_update_is_removed(): void
+    {
+        $code = file_get_contents(app_path('Http/Livewire/Pub/PubTransaction.php'));
+
+        $this->assertStringNotContainsString(
+            "\$inventory->update([",
+            $code,
+            'Pub legacy direct inventory->update() must be removed; StockService is the single writer'
+        );
+        $this->assertStringNotContainsString(
+            'number_of_serving' . "' => \$new_stock",
+            $code,
+            'Pub legacy $new_stock decrement assignment must be removed'
         );
     }
 
@@ -60,14 +91,30 @@ class PubTransactionUsesStockServiceTest extends TestCase
         }
     }
 
-    public function test_pub_shadow_failure_does_not_block_legacy_path(): void
+    public function test_pub_addFood_handles_insufficient_stock_with_dialog_and_rollback(): void
     {
         $code = file_get_contents(app_path('Http/Livewire/Pub/PubTransaction.php'));
 
         $this->assertMatchesRegularExpression(
-            '/try\s*{[^}]*StockService::class[^}]*}\s*catch\s*\(\s*\\\\Throwable/s',
+            '/catch\s*\(\s*InsufficientStockException\s+\$e\s*\)\s*{[^}]*DB::rollBack\(\)[^}]*Out Of Stock/s',
             $code,
-            'Pub shadow-write must be wrapped in try/catch on \\Throwable'
+            'Pub addFood must catch InsufficientStockException, rollback, and show the Out Of Stock dialog'
+        );
+        $this->assertMatchesRegularExpression(
+            '/catch\s*\(\s*\\\\Throwable\s+\$e\s*\)\s*{[^}]*DB::rollBack\(\)/s',
+            $code,
+            'Pub addFood must defensively rollback on any other Throwable'
+        );
+    }
+
+    public function test_pub_addFood_pre_checks_stock_before_opening_transaction(): void
+    {
+        $code = file_get_contents(app_path('Http/Livewire/Pub/PubTransaction.php'));
+
+        $this->assertMatchesRegularExpression(
+            '/\$inventory\s*===\s*null\s*\|\|.*number_of_serving.*<.*food_quantity/s',
+            $code,
+            'Pub addFood must pre-check (inventory null OR insufficient quantity) before DB::beginTransaction'
         );
     }
 }

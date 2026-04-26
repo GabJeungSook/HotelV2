@@ -10,6 +10,7 @@ use App\Models\StockMovement;
 use App\Models\Transaction as TransactionModel;
 use App\Models\CheckinDetail;
 use App\Services\Pos\StockService;
+use App\Services\Pos\InsufficientStockException;
 use WireUi\Traits\Actions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -91,7 +92,6 @@ class Transaction extends Component
                 'food_quantity.required' => 'This field is required',
             ]
         );
-        DB::beginTransaction();
         $check_in_detail = CheckinDetail::where(
             'guest_id',
             $this->guest->id
@@ -103,8 +103,21 @@ class Transaction extends Component
         $inventory = Inventory::where('branch_id', auth()->user()->branch_id)
             ->where('menu_id', $this->food_id)
             ->first();
-        if($inventory != null)
-        {
+
+        // Out-of-stock guard before opening a DB transaction. Catches both
+        // missing inventory rows and insufficient quantity. StockService::out
+        // also enforces this atomically below, but pre-checking lets us show
+        // the same dialog the legacy code did without any rollback noise.
+        if ($inventory === null || (float) $inventory->number_of_serving < (float) $this->food_quantity) {
+            $this->dialog()->error(
+                $title = 'Out Of Stock',
+                $description = 'This item is out of stock',
+            );
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
             $transaction = TransactionModel::create([
                 'branch_id' => $check_in_detail->guest->branch_id,
                 'room_id' => $check_in_detail->room_id,
@@ -128,50 +141,44 @@ class Transaction extends Component
                 'unit_price'  => (int) $food->price,
                 'quantity'    => $this->food_quantity,
             ]);
-            //update stock (legacy path — kept during shadow-write phase)
-            $new_stock =
-                $inventory->number_of_serving - $this->food_quantity;
-            $inventory->update([
-                'number_of_serving' => $new_stock,
-            ]);
 
-            // SHADOW-WRITE: log to stock_movements without re-decrementing inventory.
-            // Wrapped in try/catch so any failure here can never block the live flow.
-            try {
-                app(StockService::class)->out(
-                    StockMovement::SOURCE_KITCHEN,
-                    (int) $this->food_id,
-                    (float) $this->food_quantity,
-                    [
-                        'branch_id' => auth()->user()->branch_id,
-                        'ref_type'  => 'transaction',
-                        'ref_id'    => $transaction->id,
-                        'user_id'   => auth()->id(),
-                        'shadow'    => true,
-                    ]
-                );
-            } catch (\Throwable $e) {
-                Log::warning('StockService shadow-write failed (kitchen)', [
-                    'menu_id' => $this->food_id,
-                    'qty'     => $this->food_quantity,
-                    'error'   => $e->getMessage(),
-                ]);
-            }
+            // Real stock decrement via StockService (single source of truth,
+            // row-locked, atomic with the surrounding DB transaction). Throws
+            // InsufficientStockException on race with another writer.
+            app(StockService::class)->out(
+                StockMovement::SOURCE_KITCHEN,
+                (int) $this->food_id,
+                (float) $this->food_quantity,
+                [
+                    'branch_id' => auth()->user()->branch_id,
+                    'ref_type'  => 'transaction',
+                    'ref_id'    => $transaction->id,
+                    'user_id'   => auth()->id(),
+                ]
+            );
+
+            DB::commit();
 
             $this->food_beverages_modal = false;
             $this->dialog()->success(
                 $title = 'Success',
                 $description = 'Transaction Added Successfully',
             );
-        }else{
+        } catch (InsufficientStockException $e) {
+            DB::rollBack();
             $this->dialog()->error(
                 $title = 'Out Of Stock',
                 $description = 'This item is out of stock',
             );
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Kitchen addFood failed', [
+                'menu_id' => $this->food_id,
+                'qty'     => $this->food_quantity,
+                'error'   => $e->getMessage(),
+            ]);
+            throw $e;
         }
-        DB::commit();
-
-        // return redirect()->route('kitchen.transactions');
     }
 
     public function render()
