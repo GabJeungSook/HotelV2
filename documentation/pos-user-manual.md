@@ -2,9 +2,44 @@
 
 Practical, click-by-click guide to using the Point of Sale system.
 
-This manual is written for the people who use the system — Administrator,
-Frontdesk cashier, and Owner / Big Boss. For the technical reference
-(database schema, code paths, flows), see `pos-module.md`.
+This manual is written for the people who use the system —
+Administrator, Frontdesk cashier, and Owner / Big Boss.
+
+---
+
+## What is POS, and where does it fit in HOMI?
+
+**POS** stands for **Point of Sale** — it's the cash register for the
+hotel's small in-house store. Use it to sell food, drinks, toiletries,
+or any small item to either:
+
+- A **walk-in customer** who pays cash on the spot, or
+- A **hotel guest** who wants the item charged to their room (paid at
+  guest checkout)
+
+### Where it connects in HOMI
+
+POS is one part of the bigger HOMI hotel system. Here's how it ties in:
+
+| HOMI area | What POS shares with it |
+|---|---|
+| **Hotel guests / rooms** | Room-charge POS sales attach to a checked-in guest. The amount appears on the guest's folio at checkout, alongside room fees and other charges. |
+| **Frontdesk shift** | POS sales count toward the frontdesk's shift cash total. When the cashier closes their shift in **Cash on Hand**, the POS cash collected is part of the reconciliation. |
+| **Kitchen and Pub** | POS uses the same audit log (`Stock Movements`) as Kitchen and Pub. Every item sold or restocked anywhere in the hotel is recorded in one consistent log. |
+| **Owner reports** | The owner sees POS activity in the dedicated **Big Boss POS Report** in the back-office Report Hub, separate from but consistent with the regular Big Boss Report. |
+
+### What POS does NOT do
+
+To set expectations: POS is a register, not a full business system. It
+does not handle:
+
+- Refunds beyond same-shift voids
+- Payment methods other than cash (card / GCash are deferred for now)
+- Discounts (the field is hidden — your business doesn't apply
+  discounts at the register)
+- Tax-on-top calculation (prices are tax-inclusive)
+- Variance counts at shift close
+- Reorder threshold alerts
 
 ---
 
@@ -530,5 +565,3 @@ History and on a re-printed receipt.
 
 ---
 
-*For developer-facing technical details (architecture, schema, code
-paths), see `pos-module.md` in this folder.*
