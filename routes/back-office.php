@@ -50,4 +50,10 @@ Route::prefix('back-office')
         Route::get('/archives', function () {
             return view('back-office.archives');
         })->name('back-office.archives');
+        Route::get('/stock-movements', function () {
+            return view('back-office.stock-movements');
+        })->name('back-office.stock-movements');
+        Route::get('/price-changes', function () {
+            return view('back-office.price-changes');
+        })->name('back-office.price-changes');
     });

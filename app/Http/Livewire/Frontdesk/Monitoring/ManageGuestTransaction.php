@@ -685,11 +685,15 @@ class ManageGuestTransaction extends Component
 
     public function render()
     {
+        // Exclude voided POS transactions (their voided_at is set when an
+        // order is voided in Purchase History). Kitchen / Pub flows never
+        // void, so their voided_at stays NULL and they continue to appear.
         $this->transaction = Transaction::where(
             'branch_id',
             auth()->user()->branch_id
         )
             ->where('guest_id', request()->id)
+            ->whereNull('voided_at')
             ->get();
 
         $bills_paid = Transaction::selectRaw(
@@ -698,6 +702,7 @@ class ManageGuestTransaction extends Component
             ->where('branch_id', auth()->user()->branch_id)
             ->where('guest_id', request()->id)
             ->whereNotNull('paid_at')
+            ->whereNull('voided_at')
             ->groupBy('transaction_type_id')
             ->get();
         $bills_unpaid = Transaction::selectRaw(
@@ -706,6 +711,7 @@ class ManageGuestTransaction extends Component
             ->where('branch_id', auth()->user()->branch_id)
             ->where('guest_id', request()->id)
             ->whereNull('paid_at')
+            ->whereNull('voided_at')
             ->groupBy('transaction_type_id')
             ->get();
 

@@ -164,6 +164,16 @@ Route::prefix('frontdesk')
                 return view('frontdesk.select-frontdesk');
             }
         })->name('frontdesk.point-of-sale');
+        Route::get('/stock-in', function () {
+            if (auth()->user()->cash_drawer_id != null) {
+                return view('frontdesk.stock-in');
+            } else {
+                return view('frontdesk.select-frontdesk');
+            }
+        })->name('frontdesk.stock-in');
+        Route::get('/archives', function () {
+            return view('frontdesk.archives');
+        })->name('frontdesk.archives');
         Route::get('/override-requests', function () {
             if (auth()->user()->cash_drawer_id != null) {
                 return view('frontdesk.override-requests');

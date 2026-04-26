@@ -8,6 +8,8 @@ use WireUi\Traits\Actions;
 use App\Models\FrontdeskMenu;
 use App\Models\FrontdeskCategory;
 use App\Models\FrontdeskInventory;
+use App\Models\StockMovement;
+use App\Services\Pos\StockService;
 use Illuminate\Support\Facades\DB;
 use Livewire\WithFileUploads;
 
@@ -99,11 +101,14 @@ class KitchenInventory extends Component
             'description' => 'Created menu ' . $this->name,
         ]);
 
-        // Inventory::create([
-        //     'branch_id' => auth()->user()->branch_id,
-        //     'menu_id' => $menu->id,
-        //     'number_of_serving' => $this->stock,
-        // ]);
+        // Auto-create a zero-stock inventory row so the new menu item
+        // appears immediately on the POS register (showing as 'Out of stock'
+        // until a Stock-In or admin Add Stock fills it).
+        FrontdeskInventory::create([
+            'branch_id'         => auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,
+            'frontdesk_menu_id' => $menu->id,
+            'number_of_serving' => 0,
+        ]);
         DB::commit();
 
         $this->add_modal = false;
@@ -126,28 +131,38 @@ class KitchenInventory extends Component
             'menu_quantity' => 'required|numeric|min:1'
         ]);
 
-        if($this->menu_item->inventory === null)
-        {
-            FrontdeskInventory::create([
-                'branch_id' =>  auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,
-                'frontdesk_menu_id' => $this->menu_item->id,
-                'number_of_serving' => $this->menu_quantity
-            ]);
+        $branchId = auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id;
 
-            ActivityLog::create([
-                'branch_id' => auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,
-                'user_id' => auth()->user()->id,
-                'activity' => 'Add Inventory',
-                'description' => 'Added inventory for menu ' . $this->menu_item->name,
-            ]);
-
-        }else{
-            $this->menu_item->inventory->update([
-                'number_of_serving' => $this->menu_item->inventory->number_of_serving + $this->menu_quantity,
-            ]);
+        // Route through StockService::in so an audited stock_movements row
+        // is created. Direct $inventory->update() bypassed the audit log
+        // and produced drift between inventory and movement totals; this
+        // is the same fix class as the Kitchen/Pub Phase A refactor.
+        try {
+            app(StockService::class)->in(
+                StockMovement::SOURCE_FRONTDESK,
+                (int) $this->menu_item->id,
+                (float) $this->menu_quantity,
+                [
+                    'branch_id' => $branchId,
+                    'reason'    => 'Admin add stock',
+                    'ref_type'  => 'admin_add_stock',
+                    'user_id'   => auth()->id(),
+                ]
+            );
+        } catch (\Throwable $e) {
+            $this->dialog()->error(
+                $title = 'Stock add failed',
+                $description = $e->getMessage(),
+            );
+            return;
         }
 
-
+        ActivityLog::create([
+            'branch_id'   => $branchId,
+            'user_id'     => auth()->user()->id,
+            'activity'    => 'Add Inventory',
+            'description' => sprintf('Added %s units to %s (admin)', rtrim(rtrim(number_format((float) $this->menu_quantity, 2), '0'), '.'), $this->menu_item->name),
+        ]);
 
         $this->add_modal = false;
         $this->menu_quantity = '';

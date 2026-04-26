@@ -20,4 +20,9 @@ class FrontdeskMenu extends Model
     {
         return $this->belongsTo(FrontdeskInventory::class,'id', 'frontdesk_menu_id');
     }
+
+    protected static function booted(): void
+    {
+        static::observe(\App\Observers\MenuPriceObserver::class);
+    }
 }

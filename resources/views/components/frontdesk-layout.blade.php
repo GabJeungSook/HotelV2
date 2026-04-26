@@ -1,3 +1,4 @@
+@props(['bare' => false])
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
@@ -362,15 +363,19 @@
     </div>
 
     <main class="-mt-32">
-      <div class="px-20 pb-12 ">
-        <!-- Replace with your content -->
-        <div class="rounded-lg bg-white px-5 py-6 shadow sm:px-6">
-          <div class="rounded-xl ">
-            {{ $slot }}
+      @if($bare)
+        {{ $slot }}
+      @else
+        <div class="px-20 pb-12 ">
+          <!-- Replace with your content -->
+          <div class="rounded-lg bg-white px-5 py-6 shadow sm:px-6">
+            <div class="rounded-xl ">
+              {{ $slot }}
+            </div>
           </div>
+          <!-- /End replace -->
         </div>
-        <!-- /End replace -->
-      </div>
+      @endif
     </main>
   </div>
 

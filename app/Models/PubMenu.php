@@ -20,4 +20,9 @@ class PubMenu extends Model
     {
         return $this->belongsTo(PubInventory::class, 'id', 'pub_menu_id');
     }
+
+    protected static function booted(): void
+    {
+        static::observe(\App\Observers\MenuPriceObserver::class);
+    }
 }
