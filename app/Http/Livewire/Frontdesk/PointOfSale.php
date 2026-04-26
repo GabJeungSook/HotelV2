@@ -121,12 +121,18 @@ class PointOfSale extends Component
 
         $room = $guest->checkInDetail->room ?? null;
 
-        // Open POS balance: sum unpaid POS line totals (transaction_type_id=9)
-        // attached to this guest where the parent order is not voided.
+        // Open POS balance: sum POS line totals (transaction_type_id=9)
+        // attached to this guest where the parent pos_order is not voided.
+        // Each check-in creates a new Guest record, so guest_id naturally
+        // scopes to the current stay.
         $openTotal = (int) TransactionModel::where('guest_id', $guest->id)
             ->where('transaction_type_id', 9)
             ->whereNotNull('order_id')
-            ->whereIn('order_id', PosOrder::whereNull('voided_at')->pluck('id'))
+            ->whereExists(function ($query) {
+                $query->from('pos_orders')
+                    ->whereColumn('pos_orders.id', 'transactions.order_id')
+                    ->whereNull('pos_orders.voided_at');
+            })
             ->sum('payable_amount');
 
         $this->selectedGuestId = $guest->id;
