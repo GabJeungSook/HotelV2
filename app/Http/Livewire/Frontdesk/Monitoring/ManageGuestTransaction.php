@@ -1865,16 +1865,24 @@ class ManageGuestTransaction extends Component
         // check_out_guest_reports row but this sibling path didn't, so
         // checkouts done from this screen were silently missing from the
         // BackOffice CHECK-OUT GUEST REPORT.
+        //
+        // Defensive against users with NULL assigned_frontdesks (admin/
+        // back-office accounts, plus several real users in the DB):
+        // - frontdesk_id and partner_name are NOT NULL columns, so we fall
+        //   back to the current user's id and 'N/A' (matches the format
+        //   used in the live data, e.g. [21, "N/A"]) instead of crashing.
         $checkin = CheckinDetail::where('guest_id', $this->guest->id)->first();
-        $assigned = json_decode(auth()->user()->assigned_frontdesks, true);
-        $shift_date = Carbon::parse(auth()->user()->time_in)->format('F j, Y');
+        $assigned = json_decode(auth()->user()->assigned_frontdesks ?? '[]', true) ?: [];
+        $shift_date = auth()->user()->time_in
+            ? Carbon::parse(auth()->user()->time_in)->format('F j, Y')
+            : now()->format('F j, Y');
         CheckOutGuestReport::create([
             'checkin_details_id' => $checkin->id,
             'room_id'            => $checkin->room_id,
             'shift_date'         => $shift_date,
             'shift'              => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
-            'frontdesk_id'       => $assigned[0] ?? null,
-            'partner_name'       => $assigned[1] ?? null,
+            'frontdesk_id'       => $assigned[0] ?? auth()->id(),
+            'partner_name'       => $assigned[1] ?? 'N/A',
         ]);
 
         DB::commit();
