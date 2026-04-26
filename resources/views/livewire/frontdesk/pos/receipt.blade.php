@@ -54,9 +54,7 @@
 
     @if($order->payment_method === 'cash')
         <div class="r-row"><span>CASH</span><span>&#8369;{{ number_format((int) $order->paid_amount, 2) }}</span></div>
-        @if((int) $order->change_amount > 0)
-            <div class="r-row"><span>CHANGE</span><span>&#8369;{{ number_format((int) $order->change_amount, 2) }}</span></div>
-        @endif
+        <div class="r-row"><span>CHANGE</span><span>&#8369;{{ number_format((int) $order->change_amount, 2) }}</span></div>
     @else
         <div class="r-row r-strong"><span>ROOM CHARGE</span><span>&nbsp;</span></div>
         <div class="r-row r-small">
