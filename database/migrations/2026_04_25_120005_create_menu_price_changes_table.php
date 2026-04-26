@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        if (Schema::hasTable('menu_price_changes')) {
+            return;
+        }
         Schema::create('menu_price_changes', function (Blueprint $table) {
             $table->id();
             $table->string('source_type', 20);

@@ -13,6 +13,9 @@ return new class extends Migration
      */
     public function up()
     {
+        if (Schema::hasTable('kiosk_current_batch')) {
+            return;
+        }
         Schema::create('kiosk_current_batch', function (Blueprint $table) {
             $table->id();
             $table->foreignId('branch_id');

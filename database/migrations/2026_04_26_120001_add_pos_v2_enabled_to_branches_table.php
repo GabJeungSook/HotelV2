@@ -8,9 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('branches', 'pos_v2_enabled')) {
+            return;
+        }
         Schema::table('branches', function (Blueprint $table) {
-            // Pilot rollout flag for the rebuilt POS register UI (Plan 2).
-            // Default false so all existing branches keep v1 until explicitly opted in.
             $table->boolean('pos_v2_enabled')->default(false)->after('force_auto_override');
         });
     }
