@@ -70,13 +70,10 @@
     <!-- LEFT SIDE -->
     <div class="flex-1 flex flex-col bg-gray-100 overflow-hidden">
 
-        <!-- HEADER (compact: action buttons + user) -->
+        <!-- HEADER (compact: action buttons only — user/drawer info lives
+             in the layout's top bar, no need to duplicate here) -->
         <div class="bg-white px-6 py-3 border-b flex justify-between items-center">
-            <div class="flex items-center gap-2 text-sm text-gray-500">
-                <span class="font-semibold text-gray-700">POS</span>
-                <span>&middot;</span>
-                <span>{{ auth()->user()->cash_drawer->name ?? '' }}</span>
-            </div>
+            <span class="text-sm font-semibold text-gray-700">POS</span>
             <div class="flex items-center gap-3">
                 <button
                     wire:click="openStockInModal"
@@ -94,10 +91,6 @@
                     </svg>
                     View Purchase History
                 </button>
-                <div class="text-right">
-                    <p class="text-sm font-semibold">{{ auth()->user()->name }}</p>
-                    <p class="text-xs text-gray-400">{{ auth()->user()->cash_drawer->name ?? '' }}</p>
-                </div>
             </div>
         </div>
 
@@ -337,26 +330,12 @@
 
         <!-- TOTAL (FIXED BOTTOM) -->
         <div class="border-t px-6 py-4 space-y-2 shrink-0">
-            <div class="flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
-                <span>&#8369;{{ number_format($this->cartTotal, 2) }}</span>
-            </div>
-
-            <div class="space-y-1">
-                <div class="flex justify-between items-center text-sm">
-                    <label for="pos-discount" class="text-gray-600">Discount (&#8369;)</label>
-                    <input id="pos-discount" type="number" min="0" step="1"
-                        wire:model.lazy="discountAmount"
-                        class="w-24 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </div>
-                @if((int) $discountAmount > 0)
-                    <input type="text" wire:model.lazy="discountReason"
-                        placeholder="Discount reason (e.g. regular customer)"
-                        class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                @endif
-            </div>
-
-            <div class="flex justify-between font-bold text-lg pt-1 border-t">
+            {{-- Discount input intentionally hidden for now. Properties
+                 ($discountAmount, $discountReason) and the discountedTotal
+                 calculation remain wired up so this block can be brought
+                 back with no other code changes if a discount policy is
+                 introduced later. --}}
+            <div class="flex justify-between font-bold text-lg">
                 <span>Total</span>
                 <span class="text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</span>
             </div>
@@ -368,11 +347,11 @@
                 class="w-full mt-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold">
                 <span wire:loading.remove wire:target="reviewCheckout">
                     @if(empty($cart))
-                        Add items to checkout
+                        Add items to place order
                     @elseif($attachToRoom)
                         Charge to Room
                     @else
-                        Review &amp; Checkout
+                        Place Order
                     @endif
                 </span>
                 <span wire:loading wire:target="reviewCheckout">Loading...</span>
@@ -540,7 +519,7 @@
     @endif
 
     <x-modal wire:model.defer="showCheckoutConfirm" align="center" max-width="md">
-        <x-card title="Confirm Checkout">
+        <x-card title="Confirm Order">
             <div class="space-y-3">
                 <p class="text-sm text-gray-500">Review the order before submitting.</p>
                 <table class="w-full text-sm">
@@ -563,21 +542,13 @@
                         @endforeach
                     </tbody>
                     <tfoot>
-                        <tr class="text-sm text-gray-600">
-                            <td class="pt-3" colspan="3">Subtotal</td>
-                            <td class="pt-3 text-right">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
-                        </tr>
-                        @if((int) $discountAmount > 0)
-                            <tr class="text-sm text-amber-700">
-                                <td colspan="3">
-                                    Discount{{ trim((string) $discountReason) !== '' ? ' — ' . $discountReason : '' }}
-                                </td>
-                                <td class="text-right">&minus;&#8369;{{ number_format((int) $discountAmount, 2) }}</td>
-                            </tr>
-                        @endif
+                        {{-- Discount row hidden for now (no business need
+                             for cashier-applied discounts). Re-enable by
+                             putting back the @if((int) $discountAmount > 0)
+                             row when a policy is introduced. --}}
                         <tr class="font-bold text-base">
-                            <td class="pt-2" colspan="3">Total</td>
-                            <td class="pt-2 text-right text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</td>
+                            <td class="pt-3" colspan="3">Total</td>
+                            <td class="pt-3 text-right text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -593,7 +564,27 @@
                         </p>
                     @else
                         <p class="font-semibold">Cash Sale</p>
-                        <p class="text-xs">Collect &#8369;{{ number_format($this->discountedTotal, 2) }} from customer.</p>
+                        <p class="text-xs mb-2">Collect &#8369;{{ number_format($this->discountedTotal, 2) }} from customer.</p>
+
+                        <div class="space-y-2 mt-2">
+                            <div class="flex justify-between items-center">
+                                <label for="cash-tendered" class="text-xs font-semibold">Cash Tendered (&#8369;)</label>
+                                <input id="cash-tendered" type="number" min="0" step="1"
+                                    wire:model.live="cashTendered"
+                                    class="w-32 px-2 py-1 text-right text-sm border border-green-300 rounded bg-white focus:ring-1 focus:ring-green-500 focus:border-green-500" />
+                            </div>
+                            <div class="flex justify-between items-center text-base font-bold
+                                {{ ((int) $cashTendered < (int) $this->discountedTotal) ? 'text-red-700' : '' }}">
+                                <span>Change Due</span>
+                                <span>&#8369;{{ number_format($this->changeDue, 2) }}</span>
+                            </div>
+                            @if((int) $cashTendered < (int) $this->discountedTotal)
+                                <p class="text-xs text-red-700">
+                                    Short by &#8369;{{ number_format((int) $this->discountedTotal - (int) $cashTendered, 2) }}
+                                    &mdash; ask customer for more cash before confirming.
+                                </p>
+                            @endif
+                        </div>
                     @endif
                 </div>
             </div>
@@ -602,7 +593,7 @@
                 <div class="flex justify-end gap-2">
                     <x-button flat label="Cancel" wire:click="cancelCheckout" />
                     <x-button primary
-                        label="{{ $attachToRoom ? 'Confirm Room Charge' : 'Confirm & Submit' }}"
+                        label="{{ $attachToRoom ? 'Confirm Room Charge' : 'Confirm Order' }}"
                         wire:click="checkout" spinner="checkout" />
                 </div>
             </x-slot>

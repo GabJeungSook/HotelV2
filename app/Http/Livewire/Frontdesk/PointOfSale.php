@@ -45,6 +45,11 @@ class PointOfSale extends Component
     public $discountAmount = 0;
     public $discountReason = '';
 
+    // Cash tendered by the customer at the register. Cashier enters this
+    // on the confirm modal; the system computes change against the total.
+    // Ignored for room-charge sales (no cash collected).
+    public $cashTendered = 0;
+
     // Receipt modal: opened on successful checkout, dismissible.
     public $showReceiptModal = false;
     public $receiptOrderId = null;
@@ -91,6 +96,12 @@ class PointOfSale extends Component
                 'Search and select a guest to attach this sale to, or turn off "Attach to room".'
             );
             return;
+        }
+
+        // Pre-fill cash tendered with the total so the cashier just adjusts
+        // upward if the customer hands more than exact change.
+        if (!$this->attachToRoom) {
+            $this->cashTendered = (int) $this->discountedTotal;
         }
 
         $this->showCheckoutConfirm = true;
@@ -162,6 +173,18 @@ class PointOfSale extends Component
     }
 
     /**
+     * Cash change due to the customer = tendered − total. Floored at 0
+     * (negative means cashier hasn't entered enough yet — reviewCheckout
+     * blocks the sale in that case).
+     */
+    public function getChangeDueProperty()
+    {
+        $tendered = max(0, (int) $this->cashTendered);
+        $total = (int) $this->discountedTotal;
+        return max(0, $tendered - $total);
+    }
+
+    /**
      * Live search results for the attach-to-room guest picker.
      * Empty when attachToRoom is off — keeps render() cheap.
      */
@@ -199,6 +222,7 @@ class PointOfSale extends Component
     public function cancelCheckout()
     {
         $this->showCheckoutConfirm = false;
+        $this->cashTendered = 0;
     }
 
     public function openStockInModal()
@@ -438,11 +462,19 @@ class PointOfSale extends Component
             $context['paid_amount']   = 0;
             $context['change_amount'] = 0;
         } else {
-            // Walk-in cash: assume full pay (the v2 UI doesn't yet capture
-            // change tendered; matches v1 behavior of taking the cart total
-            // as paid). Future enhancement: tendered/change UI input.
-            $context['paid_amount']   = (int) $this->discountedTotal;
-            $context['change_amount'] = 0;
+            // Walk-in cash: cashier must have tendered at least the total.
+            // CheckoutService also enforces this defensively, but catching
+            // it here gives a clearer toast and keeps the modal open.
+            if ((int) $this->cashTendered < (int) $this->discountedTotal) {
+                $this->notification()->error(
+                    'Not enough cash',
+                    'Cash tendered (₱' . number_format($this->cashTendered, 2)
+                        . ') is less than the total (₱' . number_format($this->discountedTotal, 2) . ').'
+                );
+                return;
+            }
+            $context['paid_amount']   = (int) $this->cashTendered;
+            $context['change_amount'] = (int) $this->changeDue;
         }
 
         try {
@@ -465,6 +497,7 @@ class PointOfSale extends Component
         $this->cart = [];
         $this->discountAmount = 0;
         $this->discountReason = '';
+        $this->cashTendered = 0;
         $this->attachToRoom = false;
         $this->guestSearch = '';
         $this->clearSelectedGuest();
