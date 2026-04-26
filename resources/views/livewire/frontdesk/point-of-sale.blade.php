@@ -383,13 +383,15 @@
                     <div id="purchase-history-printable">
                         <h3 class="text-lg font-bold print-only-title" style="display:none;">Purchase History</h3>
                         <div class="mb-4 pb-3 border-b">
+                            {{-- Shift Total intentionally not shown in this header.
+                                 The same number appears at the bottom of the table as
+                                 'TOTAL (CASH, NON-VOIDED)' which is clearer. --}}
                             <div class="grid grid-cols-2 gap-2 text-sm text-gray-700">
                                 <div><span class="font-semibold">Shift:</span> {{ $shiftType }}</div>
                                 <div><span class="font-semibold">Date:</span> {{ $shiftDateLabel }}</div>
                                 <div><span class="font-semibold">Frontdesk:</span> {{ auth()->user()->name }}</div>
                                 <div><span class="font-semibold">Cash Drawer:</span> {{ auth()->user()->cash_drawer->name ?? '-' }}</div>
                                 <div><span class="font-semibold">Shift Started:</span> {{ $shiftStartLabel }}</div>
-                                <div><span class="font-semibold">Shift Total:</span> &#8369;{{ number_format($total_pos, 2) }}</div>
                             </div>
                         </div>
                         <table class="w-full border-collapse text-sm">

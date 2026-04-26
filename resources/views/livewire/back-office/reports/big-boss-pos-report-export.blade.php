@@ -44,8 +44,7 @@
                     <th>TIME</th>
                     <th>ORDER</th>
                     <th>CASHIER</th>
-                    <th>TYPE</th>
-                    <th>GUEST / ROOM</th>
+                    <th>PAYMENT</th>
                     <th>ITEMS</th>
                     <th class="right">SUBTOTAL</th>
                     <th class="right">TOTAL</th>
@@ -58,15 +57,13 @@
                         <td>{{ sprintf('OR-%05d', $order['id']) }}</td>
                         <td>{{ $order['cashier'] }}</td>
                         <td>
-                            {{ $order['type'] }}
+                            <strong>{{ $order['type'] }}</strong>
                             @if($order['voided']) <span class="badge-voided">VOID</span> @endif
-                        </td>
-                        <td>
                             @if($order['type'] === 'ROOM')
-                                RM {{ $order['room_number'] ?? '—' }}
-                                @if($order['guest']) &middot; {{ $order['guest'] }} @endif
-                            @else
-                                &mdash;
+                                <div class="small">
+                                    RM {{ $order['room_number'] ?? '—' }}
+                                    @if($order['guest']) &middot; {{ $order['guest'] }} @endif
+                                </div>
                             @endif
                         </td>
                         <td>{{ $order['items'] }}</td>
@@ -77,20 +74,20 @@
             </tbody>
             <tfoot>
                 <tr class="strong">
-                    <td colspan="7">CASH SALES (non-voided)</td>
+                    <td colspan="6">CASH SALES (non-voided)</td>
                     <td class="right">&#8369;{{ number_format($posSales['totals']['cash'], 2) }}</td>
                 </tr>
                 <tr class="strong">
-                    <td colspan="7">ROOM-CHARGE SALES (non-voided)</td>
+                    <td colspan="6">ROOM-CHARGE SALES (non-voided)</td>
                     <td class="right">&#8369;{{ number_format($posSales['totals']['room'], 2) }}</td>
                 </tr>
                 <tr class="strong" style="background:#f3f4f6;">
-                    <td colspan="7">GROSS POS</td>
+                    <td colspan="6">GROSS POS</td>
                     <td class="right">&#8369;{{ number_format($posSales['totals']['gross'], 2) }}</td>
                 </tr>
                 @if($posSales['totals']['voided_count'] > 0)
                     <tr style="background:#fee2e2;color:#b91c1c;">
-                        <td colspan="8">{{ $posSales['totals']['voided_count'] }} order(s) voided this shift &mdash; not counted in totals above.</td>
+                        <td colspan="7">{{ $posSales['totals']['voided_count'] }} order(s) voided this shift &mdash; not counted in totals above.</td>
                     </tr>
                 @endif
             </tfoot>

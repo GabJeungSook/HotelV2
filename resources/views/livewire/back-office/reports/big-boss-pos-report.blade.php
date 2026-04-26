@@ -70,8 +70,7 @@
                                 <th class="border border-gray-300 px-2 py-1 text-left">TIME</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">ORDER</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">CASHIER</th>
-                                <th class="border border-gray-300 px-2 py-1 text-left">TYPE</th>
-                                <th class="border border-gray-300 px-2 py-1 text-left">GUEST / ROOM</th>
+                                <th class="border border-gray-300 px-2 py-1 text-left">PAYMENT</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">ITEMS</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">SUBTOTAL</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">TOTAL</th>
@@ -83,24 +82,22 @@
                                     <td class="border border-gray-300 px-2 py-1">{{ $order['time'] }}</td>
                                     <td class="border border-gray-300 px-2 py-1 font-mono">{{ sprintf('OR-%05d', $order['id']) }}</td>
                                     <td class="border border-gray-300 px-2 py-1">{{ $order['cashier'] }}</td>
-                                    <td class="border border-gray-300 px-2 py-1">
+                                    <td class="border border-gray-300 px-2 py-1 align-top">
                                         @if($order['type'] === 'CASH')
-                                            <span class="font-semibold text-green-700">CASH</span>
+                                            <span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-800 text-xs font-bold uppercase tracking-wide">CASH</span>
                                         @elseif($order['type'] === 'ROOM')
-                                            <span class="font-semibold text-blue-700">ROOM</span>
+                                            <span class="inline-block px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-xs font-bold uppercase tracking-wide">ROOM</span>
+                                            <div class="mt-0.5 text-[11px]">
+                                                <span class="font-semibold">RM {{ $order['room_number'] ?? '—' }}</span>
+                                                @if($order['guest']) &middot; {{ $order['guest'] }} @endif
+                                            </div>
                                         @else
                                             {{ $order['type'] }}
                                         @endif
                                         @if($order['voided'])
-                                            <span class="ml-1 inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold uppercase">Voided</span>
-                                        @endif
-                                    </td>
-                                    <td class="border border-gray-300 px-2 py-1">
-                                        @if($order['type'] === 'ROOM')
-                                            RM {{ $order['room_number'] ?? '—' }}
-                                            @if($order['guest']) &middot; {{ $order['guest'] }} @endif
-                                        @else
-                                            &mdash;
+                                            <div class="mt-0.5">
+                                                <span class="inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold uppercase">Voided</span>
+                                            </div>
                                         @endif
                                     </td>
                                     <td class="border border-gray-300 px-2 py-1">{{ $order['items'] }}</td>
@@ -111,20 +108,20 @@
                         </tbody>
                         <tfoot>
                             <tr class="bg-gray-50 font-semibold">
-                                <td class="border border-gray-300 px-2 py-1" colspan="7">CASH SALES (non-voided)</td>
+                                <td class="border border-gray-300 px-2 py-1" colspan="6">CASH SALES (non-voided)</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">&#8369;{{ number_format($posSales['totals']['cash'], 2) }}</td>
                             </tr>
                             <tr class="bg-gray-50 font-semibold">
-                                <td class="border border-gray-300 px-2 py-1" colspan="7">ROOM-CHARGE SALES (non-voided)</td>
+                                <td class="border border-gray-300 px-2 py-1" colspan="6">ROOM-CHARGE SALES (non-voided)</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">&#8369;{{ number_format($posSales['totals']['room'], 2) }}</td>
                             </tr>
                             <tr class="bg-gray-100 font-bold text-base">
-                                <td class="border border-gray-300 px-2 py-1" colspan="7">GROSS POS</td>
+                                <td class="border border-gray-300 px-2 py-1" colspan="6">GROSS POS</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">&#8369;{{ number_format($posSales['totals']['gross'], 2) }}</td>
                             </tr>
                             @if($posSales['totals']['voided_count'] > 0)
                                 <tr class="bg-red-50 text-red-700 text-sm">
-                                    <td class="border border-gray-300 px-2 py-1" colspan="8">
+                                    <td class="border border-gray-300 px-2 py-1" colspan="7">
                                         {{ $posSales['totals']['voided_count'] }} order(s) voided this shift &mdash; not counted in totals above.
                                     </td>
                                 </tr>
