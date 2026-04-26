@@ -3,6 +3,7 @@
 namespace App\Http\Livewire\Frontdesk;
 use App\Models\CashOnDrawer;
 use App\Models\Expense;
+use App\Models\PosOrder;
 use App\Models\PosTransaction;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
@@ -56,10 +57,24 @@ class CashOnHand extends Component
             ->where('user_id', auth()->user()->id)
             ->sum('total_remittance');
 
-        $this->total_pos = PosTransaction::where('branch_id', auth()->user()->branch_id)
+        // POS shift cash total = sum of CASH PosOrders (non-voided) for this
+        // shift, PLUS any leftover legacy PosTransaction rows from the
+        // pre-rebuild era (kept for shifts that straddle the cutover and for
+        // historical accuracy on already-closed shifts that read this view).
+        // Going forward all new POS sales write only to pos_orders.
+        $cashFromPosOrders = (int) PosOrder::where('branch_id', auth()->user()->branch_id)
+            ->where('shift_log_id', $this->current_shift->id)
+            ->where('user_id', auth()->user()->id)
+            ->whereNull('voided_at')
+            ->where('payment_method', 'cash')
+            ->sum('total');
+
+        $cashFromLegacyPosTransactions = (int) PosTransaction::where('branch_id', auth()->user()->branch_id)
             ->where('shift_log_id', $this->current_shift->id)
             ->where('user_id', auth()->user()->id)
             ->sum('total');
+
+        $this->total_pos = $cashFromPosOrders + $cashFromLegacyPosTransactions;
 
         $deposits = CashOnDrawer::where('branch_id', auth()->user()->branch_id)
             ->where('cash_drawer_id', auth()->user()->cash_drawer_id)

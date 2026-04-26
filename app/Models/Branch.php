@@ -12,7 +12,6 @@ class Branch extends Model
 
     protected $casts = [
         'force_auto_override' => 'boolean',
-        'pos_v2_enabled' => 'boolean',
     ];
 
     public function users()

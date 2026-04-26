@@ -230,8 +230,7 @@
             </div>
         </div>
 
-        @if($v2Enabled)
-        <!-- ATTACH TO ROOM (v2) -->
+        <!-- ATTACH TO ROOM -->
         <div class="px-6 py-3 border-b shrink-0 bg-gray-50">
             <div class="flex items-center justify-between">
                 <div>
@@ -289,7 +288,6 @@
                 </div>
             @endif
         </div>
-        @endif
 
         <!-- CART ITEMS (SCROLLABLE) -->
         <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
@@ -319,38 +317,29 @@
 
         <!-- TOTAL (FIXED BOTTOM) -->
         <div class="border-t px-6 py-4 space-y-2 shrink-0">
-            @if($v2Enabled)
-                <!-- v2: subtotal / discount / total breakdown -->
-                <div class="flex justify-between text-sm text-gray-600">
-                    <span>Subtotal</span>
-                    <span>&#8369;{{ number_format($this->cartTotal, 2) }}</span>
-                </div>
+            <div class="flex justify-between text-sm text-gray-600">
+                <span>Subtotal</span>
+                <span>&#8369;{{ number_format($this->cartTotal, 2) }}</span>
+            </div>
 
-                <div class="space-y-1">
-                    <div class="flex justify-between items-center text-sm">
-                        <label for="pos-discount" class="text-gray-600">Discount (&#8369;)</label>
-                        <input id="pos-discount" type="number" min="0" step="1"
-                            wire:model.lazy="discountAmount"
-                            class="w-24 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                    @if((int) $discountAmount > 0)
-                        <input type="text" wire:model.lazy="discountReason"
-                            placeholder="Discount reason (e.g. regular customer)"
-                            class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                    @endif
+            <div class="space-y-1">
+                <div class="flex justify-between items-center text-sm">
+                    <label for="pos-discount" class="text-gray-600">Discount (&#8369;)</label>
+                    <input id="pos-discount" type="number" min="0" step="1"
+                        wire:model.lazy="discountAmount"
+                        class="w-24 px-2 py-1 text-sm border border-gray-300 rounded text-right focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
                 </div>
+                @if((int) $discountAmount > 0)
+                    <input type="text" wire:model.lazy="discountReason"
+                        placeholder="Discount reason (e.g. regular customer)"
+                        class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                @endif
+            </div>
 
-                <div class="flex justify-between font-bold text-lg pt-1 border-t">
-                    <span>Total</span>
-                    <span class="text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</span>
-                </div>
-            @else
-                <!-- v1: simple total (legacy) -->
-                <div class="flex justify-between font-bold text-lg">
-                    <span>Total</span>
-                    <span class="text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</span>
-                </div>
-            @endif
+            <div class="flex justify-between font-bold text-lg pt-1 border-t">
+                <span>Total</span>
+                <span class="text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</span>
+            </div>
 
             <button
                 wire:click="reviewCheckout"
@@ -360,7 +349,7 @@
                 <span wire:loading.remove wire:target="reviewCheckout">
                     @if(empty($cart))
                         Add items to checkout
-                    @elseif($v2Enabled && $attachToRoom)
+                    @elseif($attachToRoom)
                         Charge to Room
                     @else
                         Review &amp; Checkout
@@ -410,73 +399,63 @@
                                 <tr class="bg-gray-100">
                                     <th class="border border-gray-400 px-3 py-2 text-left">DATE/TIME</th>
                                     <th class="border border-gray-400 px-3 py-2 text-left">ORDER ID</th>
-                                    @if($v2Enabled)
-                                        <th class="border border-gray-400 px-3 py-2 text-left">TYPE</th>
-                                    @endif
+                                    <th class="border border-gray-400 px-3 py-2 text-left">TYPE</th>
                                     <th class="border border-gray-400 px-3 py-2 text-left">ITEMS</th>
                                     <th class="border border-gray-400 px-3 py-2 text-right">AMOUNT</th>
-                                    @if($v2Enabled)
-                                        <th class="border border-gray-400 px-3 py-2 text-center no-print">ACTION</th>
-                                    @endif
+                                    <th class="border border-gray-400 px-3 py-2 text-center no-print">ACTION</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse($orders as $order)
                                     @php
-                                        $isVoided = $v2Enabled && !empty($order['voided_at']);
+                                        $isVoided = !empty($order['voided_at']);
                                         $rowClass = $isVoided ? 'text-gray-400 line-through' : '';
                                     @endphp
                                     <tr class="{{ $rowClass }}">
                                         <td class="border border-gray-400 px-3 py-2 align-top">{{ $order['date_time']->format('F j, Y g:i A') }}</td>
                                         <td class="border border-gray-400 px-3 py-2 align-top">{{ $order['order_id'] }}</td>
-                                        @if($v2Enabled)
-                                            <td class="border border-gray-400 px-3 py-2 align-top">
-                                                @if(($order['payment_method'] ?? null) === 'cash')
-                                                    <span class="text-green-700 font-semibold">CASH</span>
-                                                @elseif(empty($order['payment_method']) && !empty($order['guest_id']))
-                                                    <span class="text-blue-700 font-semibold">ROOM</span>
-                                                @else
-                                                    &mdash;
-                                                @endif
-                                                @if($isVoided)
-                                                    <span class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold uppercase no-print">Voided</span>
-                                                @endif
-                                            </td>
-                                        @endif
+                                        <td class="border border-gray-400 px-3 py-2 align-top">
+                                            @if(($order['payment_method'] ?? null) === 'cash')
+                                                <span class="text-green-700 font-semibold">CASH</span>
+                                            @elseif(empty($order['payment_method']) && !empty($order['guest_id']))
+                                                <span class="text-blue-700 font-semibold">ROOM</span>
+                                            @else
+                                                &mdash;
+                                            @endif
+                                            @if($isVoided)
+                                                <span class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold uppercase no-print">Voided</span>
+                                            @endif
+                                        </td>
                                         <td class="border border-gray-400 px-3 py-2 align-top">
                                             @foreach($order['items'] as $item)
                                                 <div>{{ $item->item_name }} &ndash; {{ $item->quantity }}{{ $item->quantity > 1 ? 'pcs' : 'pc' }}</div>
                                             @endforeach
                                         </td>
                                         <td class="border border-gray-400 px-3 py-2 align-top text-right">&#8369;{{ number_format($order['amount'], 2) }}</td>
-                                        @if($v2Enabled)
-                                            <td class="border border-gray-400 px-3 py-2 align-top text-center no-print">
-                                                @if(!$isVoided)
-                                                    <button type="button"
-                                                        wire:click="confirmVoidOrder({{ $order['order_id'] }})"
-                                                        class="px-2 py-1 text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded border border-red-200">
-                                                        Void
-                                                    </button>
-                                                @else
-                                                    <span class="text-xs text-gray-400">&mdash;</span>
-                                                @endif
-                                            </td>
-                                        @endif
+                                        <td class="border border-gray-400 px-3 py-2 align-top text-center no-print">
+                                            @if(!$isVoided)
+                                                <button type="button"
+                                                    wire:click="confirmVoidOrder({{ $order['order_id'] }})"
+                                                    class="px-2 py-1 text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded border border-red-200">
+                                                    Void
+                                                </button>
+                                            @else
+                                                <span class="text-xs text-gray-400">&mdash;</span>
+                                            @endif
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ $v2Enabled ? 6 : 4 }}" class="border border-gray-400 px-3 py-6 text-center text-gray-400">No purchases recorded for this shift.</td>
+                                        <td colspan="6" class="border border-gray-400 px-3 py-6 text-center text-gray-400">No purchases recorded for this shift.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
                             @if($orders->isNotEmpty())
                                 <tfoot>
                                     <tr class="bg-gray-50 font-bold">
-                                        <td class="border border-gray-400 px-3 py-2" colspan="{{ $v2Enabled ? 4 : 3 }}">TOTAL{{ $v2Enabled ? ' (CASH, NON-VOIDED)' : '' }}</td>
+                                        <td class="border border-gray-400 px-3 py-2" colspan="4">TOTAL (CASH, NON-VOIDED)</td>
                                         <td class="border border-gray-400 px-3 py-2 text-right">&#8369;{{ number_format($total_pos, 2) }}</td>
-                                        @if($v2Enabled)
-                                            <td class="border border-gray-400 px-3 py-2 no-print"></td>
-                                        @endif
+                                        <td class="border border-gray-400 px-3 py-2 no-print"></td>
                                     </tr>
                                 </tfoot>
                             @endif
@@ -564,63 +543,54 @@
                         @endforeach
                     </tbody>
                     <tfoot>
-                        @if($v2Enabled)
-                            <tr class="text-sm text-gray-600">
-                                <td class="pt-3" colspan="3">Subtotal</td>
-                                <td class="pt-3 text-right">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
-                            </tr>
-                            @if((int) $discountAmount > 0)
-                                <tr class="text-sm text-amber-700">
-                                    <td colspan="3">
-                                        Discount{{ trim((string) $discountReason) !== '' ? ' — ' . $discountReason : '' }}
-                                    </td>
-                                    <td class="text-right">&minus;&#8369;{{ number_format((int) $discountAmount, 2) }}</td>
-                                </tr>
-                            @endif
-                            <tr class="font-bold text-base">
-                                <td class="pt-2" colspan="3">Total</td>
-                                <td class="pt-2 text-right text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</td>
-                            </tr>
-                        @else
-                            <tr class="font-bold text-base">
-                                <td class="pt-3" colspan="3">Total</td>
-                                <td class="pt-3 text-right text-blue-600">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
+                        <tr class="text-sm text-gray-600">
+                            <td class="pt-3" colspan="3">Subtotal</td>
+                            <td class="pt-3 text-right">&#8369;{{ number_format($this->cartTotal, 2) }}</td>
+                        </tr>
+                        @if((int) $discountAmount > 0)
+                            <tr class="text-sm text-amber-700">
+                                <td colspan="3">
+                                    Discount{{ trim((string) $discountReason) !== '' ? ' — ' . $discountReason : '' }}
+                                </td>
+                                <td class="text-right">&minus;&#8369;{{ number_format((int) $discountAmount, 2) }}</td>
                             </tr>
                         @endif
+                        <tr class="font-bold text-base">
+                            <td class="pt-2" colspan="3">Total</td>
+                            <td class="pt-2 text-right text-blue-600">&#8369;{{ number_format($this->discountedTotal, 2) }}</td>
+                        </tr>
                     </tfoot>
                 </table>
 
-                @if($v2Enabled)
-                    <div class="rounded border px-3 py-2 text-sm
-                        {{ ($attachToRoom && $selectedGuestData) ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-green-200 bg-green-50 text-green-900' }}">
-                        @if($attachToRoom && $selectedGuestData)
-                            <p class="font-semibold">Room Charge</p>
-                            <p class="text-xs">
-                                RM {{ $selectedGuestData['room_number'] ?? '—' }}
-                                &middot; {{ $selectedGuestData['name'] }}
-                                &middot; will be added to guest folio
-                            </p>
-                        @else
-                            <p class="font-semibold">Cash Sale</p>
-                            <p class="text-xs">Collect &#8369;{{ number_format($this->discountedTotal, 2) }} from customer.</p>
-                        @endif
-                    </div>
-                @endif
+                <div class="rounded border px-3 py-2 text-sm
+                    {{ ($attachToRoom && $selectedGuestData) ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-green-200 bg-green-50 text-green-900' }}">
+                    @if($attachToRoom && $selectedGuestData)
+                        <p class="font-semibold">Room Charge</p>
+                        <p class="text-xs">
+                            RM {{ $selectedGuestData['room_number'] ?? '—' }}
+                            &middot; {{ $selectedGuestData['name'] }}
+                            &middot; will be added to guest folio
+                        </p>
+                    @else
+                        <p class="font-semibold">Cash Sale</p>
+                        <p class="text-xs">Collect &#8369;{{ number_format($this->discountedTotal, 2) }} from customer.</p>
+                    @endif
+                </div>
             </div>
 
             <x-slot name="footer">
                 <div class="flex justify-end gap-2">
                     <x-button flat label="Cancel" wire:click="cancelCheckout" />
                     <x-button primary
-                        label="{{ $v2Enabled && $attachToRoom ? 'Confirm Room Charge' : 'Confirm & Submit' }}"
+                        label="{{ $attachToRoom ? 'Confirm Room Charge' : 'Confirm & Submit' }}"
                         wire:click="checkout" spinner="checkout" />
                 </div>
             </x-slot>
         </x-card>
     </x-modal>
 
-    {{-- ──────── v2 receipt modal (server-rendered, browser-printed) ──────── --}}
-    @if($v2Enabled && $showReceiptModal && $receipt)
+    {{-- Receipt modal (server-rendered, browser-printed, printer-agnostic) --}}
+    @if($showReceiptModal && $receipt)
         <div class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
                 <div class="px-6 py-3 border-b flex justify-between items-center no-print">

@@ -30,8 +30,7 @@ class PointOfSaleReceiptTest extends TestCase
     private function seedShift(): array
     {
         $branch = Branch::create([
-            'name'           => 'Receipt Test Branch ' . uniqid(),
-            'pos_v2_enabled' => true,
+            'name' => 'Receipt Test Branch ' . uniqid(),
         ]);
 
         $drawer = CashDrawer::create([
@@ -81,12 +80,12 @@ class PointOfSaleReceiptTest extends TestCase
 
     public function test_v2_cash_checkout_opens_receipt_modal_for_the_new_order(): void
     {
-        $ctx = $this->seedShift();
+        $context = $this->seedShift();
 
-        $component = Livewire::actingAs($ctx['user'])
+        $component = Livewire::actingAs($context['user'])
             ->test(PointOfSale::class)
-            ->call('addToCart', $ctx['menu']->id)
-            ->call('addToCart', $ctx['menu']->id) // qty 2 = 120
+            ->call('addToCart', $context['menu']->id)
+            ->call('addToCart', $context['menu']->id) // qty 2 = 120
             ->call('reviewCheckout')
             ->call('checkout');
 
@@ -100,16 +99,16 @@ class PointOfSaleReceiptTest extends TestCase
 
     public function test_v2_receipt_html_contains_branch_total_and_cash_payment_line(): void
     {
-        $ctx = $this->seedShift();
+        $context = $this->seedShift();
 
-        $component = Livewire::actingAs($ctx['user'])->test(PointOfSale::class);
-        $component->call('addToCart', $ctx['menu']->id);
-        $component->call('addToCart', $ctx['menu']->id);
+        $component = Livewire::actingAs($context['user'])->test(PointOfSale::class);
+        $component->call('addToCart', $context['menu']->id);
+        $component->call('addToCart', $context['menu']->id);
         $component->call('reviewCheckout');
         $component->call('checkout');
 
         $component
-            ->assertSee(strtoupper($ctx['branch']->name), false)
+            ->assertSee(strtoupper($context['branch']->name), false)
             ->assertSee('Coke')
             ->assertSee('120.00')
             ->assertSee('CASH')
@@ -119,20 +118,20 @@ class PointOfSaleReceiptTest extends TestCase
 
     public function test_v2_room_charge_receipt_shows_room_charge_line_not_cash(): void
     {
-        $ctx = $this->seedShift();
+        $context = $this->seedShift();
 
         // Guest scaffolding
-        $type = Type::create(['branch_id' => $ctx['branch']->id, 'name' => 'Standard']);
-        $floor = Floor::create(['branch_id' => $ctx['branch']->id, 'number' => 1]);
-        $stayingHour = StayingHour::create(['branch_id' => $ctx['branch']->id, 'number' => 12]);
+        $type = Type::create(['branch_id' => $context['branch']->id, 'name' => 'Standard']);
+        $floor = Floor::create(['branch_id' => $context['branch']->id, 'number' => 1]);
+        $stayingHour = StayingHour::create(['branch_id' => $context['branch']->id, 'number' => 12]);
         $rate = Rate::create([
-            'branch_id'       => $ctx['branch']->id,
+            'branch_id'       => $context['branch']->id,
             'type_id'         => $type->id,
             'staying_hour_id' => $stayingHour->id,
             'amount'          => 500,
         ]);
         $room = Room::create([
-            'branch_id'   => $ctx['branch']->id,
+            'branch_id'   => $context['branch']->id,
             'floor_id'    => $floor->id,
             'type_id'     => $type->id,
             'number'      => '210',
@@ -140,7 +139,7 @@ class PointOfSaleReceiptTest extends TestCase
             'is_priority' => true,
         ]);
         $guest = Guest::create([
-            'branch_id'     => $ctx['branch']->id,
+            'branch_id'     => $context['branch']->id,
             'name'          => 'Pedro Alvarez',
             'qr_code'       => 'TEST-' . uniqid(),
             'room_id'       => $room->id,
@@ -161,8 +160,8 @@ class PointOfSaleReceiptTest extends TestCase
             'is_check_out'  => false,
         ]);
 
-        $component = Livewire::actingAs($ctx['user'])->test(PointOfSale::class);
-        $component->call('addToCart', $ctx['menu']->id);
+        $component = Livewire::actingAs($context['user'])->test(PointOfSale::class);
+        $component->call('addToCart', $context['menu']->id);
         $component->call('toggleAttachToRoom');
         $component->call('selectGuest', $guest->id);
         $component->call('reviewCheckout');
@@ -178,11 +177,11 @@ class PointOfSaleReceiptTest extends TestCase
 
     public function test_close_receipt_modal_clears_state(): void
     {
-        $ctx = $this->seedShift();
+        $context = $this->seedShift();
 
-        Livewire::actingAs($ctx['user'])
+        Livewire::actingAs($context['user'])
             ->test(PointOfSale::class)
-            ->call('addToCart', $ctx['menu']->id)
+            ->call('addToCart', $context['menu']->id)
             ->call('reviewCheckout')
             ->call('checkout')
             ->assertSet('showReceiptModal', true)

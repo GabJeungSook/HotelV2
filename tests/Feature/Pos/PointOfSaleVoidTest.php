@@ -29,8 +29,7 @@ class PointOfSaleVoidTest extends TestCase
     private function seedShiftWithCart(): array
     {
         $branch = Branch::create([
-            'name'           => 'POS Void Test ' . uniqid(),
-            'pos_v2_enabled' => true,
+            'name' => 'POS Void Test ' . uniqid(),
         ]);
 
         $drawer = CashDrawer::create([
@@ -78,11 +77,11 @@ class PointOfSaleVoidTest extends TestCase
         return compact('branch', 'user', 'drawer', 'shift', 'category', 'menu');
     }
 
-    private function ringSale(array $ctx, int $qty = 2): PosOrder
+    private function ringSale(array $context, int $qty = 2): PosOrder
     {
-        $component = Livewire::actingAs($ctx['user'])->test(PointOfSale::class);
+        $component = Livewire::actingAs($context['user'])->test(PointOfSale::class);
         for ($i = 0; $i < $qty; $i++) {
-            $component->call('addToCart', $ctx['menu']->id);
+            $component->call('addToCart', $context['menu']->id);
         }
         $component->call('reviewCheckout')->call('checkout');
 
@@ -91,30 +90,30 @@ class PointOfSaleVoidTest extends TestCase
 
     public function test_void_reverses_order_transactions_and_restores_stock(): void
     {
-        $ctx = $this->seedShiftWithCart();
-        $order = $this->ringSale($ctx, qty: 3); // 3 Coke @ 60 = 180; stock 10 -> 7
+        $context = $this->seedShiftWithCart();
+        $order = $this->ringSale($context, qty: 3); // 3 Coke @ 60 = 180; stock 10 -> 7
 
-        $this->assertEquals(7, FrontdeskInventory::where('frontdesk_menu_id', $ctx['menu']->id)->first()->number_of_serving);
+        $this->assertEquals(7, FrontdeskInventory::where('frontdesk_menu_id', $context['menu']->id)->first()->number_of_serving);
         $this->assertNull($order->voided_at);
 
-        Livewire::actingAs($ctx['user'])
+        Livewire::actingAs($context['user'])
             ->test(PointOfSale::class)
             ->call('voidOrder', $order->id);
 
         $order->refresh();
         $this->assertNotNull($order->voided_at, 'Order header must be marked voided');
-        $this->assertSame($ctx['user']->id, (int) $order->voided_by_user_id);
+        $this->assertSame($context['user']->id, (int) $order->voided_by_user_id);
 
         // Every line transaction also marked voided
         $lineTx = Transaction::where('order_id', $order->id)->get();
         $this->assertCount(1, $lineTx, 'Single cart line (Coke x3) = one transaction row');
         foreach ($lineTx as $tx) {
             $this->assertNotNull($tx->voided_at, 'Each line transaction must be marked voided');
-            $this->assertSame($ctx['user']->id, (int) $tx->voided_by_user_id);
+            $this->assertSame($context['user']->id, (int) $tx->voided_by_user_id);
         }
 
         // Stock restored to original
-        $this->assertEquals(10, FrontdeskInventory::where('frontdesk_menu_id', $ctx['menu']->id)->first()->number_of_serving);
+        $this->assertEquals(10, FrontdeskInventory::where('frontdesk_menu_id', $context['menu']->id)->first()->number_of_serving);
 
         // A VOID stock movement was written referencing the original transaction
         $voidMovement = StockMovement::where('type', StockMovement::TYPE_VOID)->first();
@@ -124,55 +123,55 @@ class PointOfSaleVoidTest extends TestCase
 
     public function test_void_excludes_order_from_cash_total(): void
     {
-        $ctx = $this->seedShiftWithCart();
-        $first = $this->ringSale($ctx, qty: 2);  // 120
-        $second = $this->ringSale($ctx, qty: 1); // 60
+        $context = $this->seedShiftWithCart();
+        $first = $this->ringSale($context, qty: 2);  // 120
+        $second = $this->ringSale($context, qty: 1); // 60
 
-        $component = Livewire::actingAs($ctx['user'])->test(PointOfSale::class);
+        $component = Livewire::actingAs($context['user'])->test(PointOfSale::class);
         $this->assertSame(180, (int) $component->get('total_pos'), '2 sales totalling 180 before void');
 
         $component->call('voidOrder', $first->id);
 
-        $component2 = Livewire::actingAs($ctx['user'])->test(PointOfSale::class);
+        $component2 = Livewire::actingAs($context['user'])->test(PointOfSale::class);
         $this->assertSame(60, (int) $component2->get('total_pos'), 'Voided order must drop out of the cash total');
     }
 
     public function test_void_is_idempotent(): void
     {
-        $ctx = $this->seedShiftWithCart();
-        $order = $this->ringSale($ctx, qty: 1);
+        $context = $this->seedShiftWithCart();
+        $order = $this->ringSale($context, qty: 1);
 
-        $stockBefore = FrontdeskInventory::where('frontdesk_menu_id', $ctx['menu']->id)->first()->number_of_serving;
+        $stockBefore = FrontdeskInventory::where('frontdesk_menu_id', $context['menu']->id)->first()->number_of_serving;
 
         // First void
-        Livewire::actingAs($ctx['user'])->test(PointOfSale::class)->call('voidOrder', $order->id);
-        $stockAfterFirstVoid = FrontdeskInventory::where('frontdesk_menu_id', $ctx['menu']->id)->first()->number_of_serving;
+        Livewire::actingAs($context['user'])->test(PointOfSale::class)->call('voidOrder', $order->id);
+        $stockAfterFirstVoid = FrontdeskInventory::where('frontdesk_menu_id', $context['menu']->id)->first()->number_of_serving;
         $this->assertEquals($stockBefore + 1, $stockAfterFirstVoid, 'Stock should be restored once');
 
         // Second void (via service directly to bypass the UI guard)
-        app(CheckoutService::class)->void($order->fresh(), $ctx['user']->id, null);
-        $stockAfterSecondVoid = FrontdeskInventory::where('frontdesk_menu_id', $ctx['menu']->id)->first()->number_of_serving;
+        app(CheckoutService::class)->void($order->fresh(), $context['user']->id, null);
+        $stockAfterSecondVoid = FrontdeskInventory::where('frontdesk_menu_id', $context['menu']->id)->first()->number_of_serving;
         $this->assertEquals($stockAfterFirstVoid, $stockAfterSecondVoid, 'Second void must NOT double-restore stock');
     }
 
     public function test_void_blocked_when_attempted_by_different_user(): void
     {
-        $ctx = $this->seedShiftWithCart();
-        $order = $this->ringSale($ctx, qty: 1);
+        $context = $this->seedShiftWithCart();
+        $order = $this->ringSale($context, qty: 1);
 
         $other = User::create([
             'name'           => 'Other Cashier ' . uniqid(),
             'email'          => 'other-' . uniqid() . '@example.com',
             'password'       => bcrypt('secret'),
-            'branch_id'      => $ctx['branch']->id,
-            'branch_name'    => $ctx['branch']->name,
-            'cash_drawer_id' => $ctx['drawer']->id,
+            'branch_id'      => $context['branch']->id,
+            'branch_name'    => $context['branch']->name,
+            'cash_drawer_id' => $context['drawer']->id,
         ]);
         // Other cashier needs a shift to even mount the component.
         ShiftLog::create([
-            'branch_id'      => $ctx['branch']->id,
+            'branch_id'      => $context['branch']->id,
             'frontdesk_id'   => $other->id,
-            'cash_drawer_id' => $ctx['drawer']->id,
+            'cash_drawer_id' => $context['drawer']->id,
             'time_in'        => Carbon::now()->subMinutes(30),
             'time_out'       => null,
             'frontdesk_ids'  => json_encode([$other->id]),

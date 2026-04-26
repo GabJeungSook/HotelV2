@@ -34,11 +34,10 @@ class PointOfSaleV2Test extends TestCase
      * Build the minimum scaffolding to operate a frontdesk POS shift.
      * @return array{branch: Branch, user: User, drawer: CashDrawer, shift: ShiftLog, category: FrontdeskCategory}
      */
-    private function seedShift(bool $v2Enabled): array
+    private function seedShift(): array
     {
         $branch = Branch::create([
-            'name'            => 'POS Test Branch ' . uniqid(),
-            'pos_v2_enabled'  => $v2Enabled,
+            'name' => 'POS Test Branch ' . uniqid(),
         ]);
 
         $drawer = CashDrawer::create([
@@ -91,29 +90,29 @@ class PointOfSaleV2Test extends TestCase
         return $menu;
     }
 
-    public function test_v2_flag_off_writes_legacy_pos_transactions_not_pos_orders(): void
+    public function test_pos_no_longer_writes_legacy_pos_transactions(): void
     {
-        $ctx = $this->seedShift(v2Enabled: false);
-        $coke = $this->seedMenuItem($ctx['branch']->id, $ctx['category']->id, 'Coke', 60, 5);
+        $context = $this->seedShift();
+        $coke = $this->seedMenuItem($context['branch']->id, $context['category']->id, 'Coke', 60, 5);
 
-        Livewire::actingAs($ctx['user'])
+        Livewire::actingAs($context['user'])
             ->test(PointOfSale::class)
             ->call('addToCart', $coke->id)
             ->call('reviewCheckout')
             ->call('checkout');
 
-        $this->assertSame(0, PosOrder::count(), 'v1 path must NOT write pos_orders');
-        $this->assertSame(0, Transaction::where('transaction_type_id', 9)->count(), 'v1 path must NOT write transactions');
-        $this->assertSame(1, PosTransaction::count(), 'v1 path must write the legacy PosTransaction row');
+        $this->assertSame(0, PosTransaction::count(), 'POS rebuild must NEVER write to legacy pos_transactions');
+        $this->assertSame(1, PosOrder::count(), 'POS sale must create a pos_order');
+        $this->assertSame(1, Transaction::where('transaction_type_id', 9)->count(), 'POS sale must create a transactions row');
     }
 
-    public function test_v2_cash_walk_in_creates_pos_order_transactions_and_stock_movements(): void
+    public function test_cash_walk_in_creates_pos_order_transactions_and_stock_movements(): void
     {
-        $ctx = $this->seedShift(v2Enabled: true);
-        $coke = $this->seedMenuItem($ctx['branch']->id, $ctx['category']->id, 'Coke', 60, 10);
-        $chips = $this->seedMenuItem($ctx['branch']->id, $ctx['category']->id, 'Chips', 50, 5);
+        $context = $this->seedShift();
+        $coke = $this->seedMenuItem($context['branch']->id, $context['category']->id, 'Coke', 60, 10);
+        $chips = $this->seedMenuItem($context['branch']->id, $context['category']->id, 'Chips', 50, 5);
 
-        Livewire::actingAs($ctx['user'])
+        Livewire::actingAs($context['user'])
             ->test(PointOfSale::class)
             ->call('addToCart', $coke->id)
             ->call('addToCart', $coke->id) // qty 2
@@ -130,7 +129,7 @@ class PointOfSaleV2Test extends TestCase
         $this->assertSame(170, (int) $order->subtotal); // 60*2 + 50*1
         $this->assertSame(170, (int) $order->total);
         $this->assertSame(0, (int) $order->discount_amount);
-        $this->assertSame($ctx['shift']->id, (int) $order->shift_log_id);
+        $this->assertSame($context['shift']->id, (int) $order->shift_log_id);
 
         $this->assertSame(2, Transaction::where('order_id', $order->id)->count(), 'one transaction per cart line');
         $this->assertSame(2, StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)->where('type', StockMovement::TYPE_OUT)->count());
@@ -142,21 +141,21 @@ class PointOfSaleV2Test extends TestCase
 
     public function test_v2_room_charge_attaches_guest_and_omits_payment_method(): void
     {
-        $ctx = $this->seedShift(v2Enabled: true);
-        $beer = $this->seedMenuItem($ctx['branch']->id, $ctx['category']->id, 'Beer', 80, 5);
+        $context = $this->seedShift();
+        $beer = $this->seedMenuItem($context['branch']->id, $context['category']->id, 'Beer', 80, 5);
 
         // Guest scaffolding
-        $type = Type::create(['branch_id' => $ctx['branch']->id, 'name' => 'Standard']);
-        $floor = Floor::create(['branch_id' => $ctx['branch']->id, 'number' => 1]);
-        $stayingHour = StayingHour::create(['branch_id' => $ctx['branch']->id, 'number' => 12]);
+        $type = Type::create(['branch_id' => $context['branch']->id, 'name' => 'Standard']);
+        $floor = Floor::create(['branch_id' => $context['branch']->id, 'number' => 1]);
+        $stayingHour = StayingHour::create(['branch_id' => $context['branch']->id, 'number' => 12]);
         $rate = Rate::create([
-            'branch_id'       => $ctx['branch']->id,
+            'branch_id'       => $context['branch']->id,
             'type_id'         => $type->id,
             'staying_hour_id' => $stayingHour->id,
             'amount'          => 500,
         ]);
         $room = Room::create([
-            'branch_id'   => $ctx['branch']->id,
+            'branch_id'   => $context['branch']->id,
             'floor_id'    => $floor->id,
             'type_id'     => $type->id,
             'number'      => '305',
@@ -164,7 +163,7 @@ class PointOfSaleV2Test extends TestCase
             'is_priority' => true,
         ]);
         $guest = Guest::create([
-            'branch_id'     => $ctx['branch']->id,
+            'branch_id'     => $context['branch']->id,
             'name'          => 'Maria Santos',
             'qr_code'       => 'TEST-' . uniqid(),
             'room_id'       => $room->id,
@@ -185,7 +184,7 @@ class PointOfSaleV2Test extends TestCase
             'is_check_out'  => false,
         ]);
 
-        Livewire::actingAs($ctx['user'])
+        Livewire::actingAs($context['user'])
             ->test(PointOfSale::class)
             ->call('addToCart', $beer->id)
             ->call('toggleAttachToRoom')
@@ -208,10 +207,10 @@ class PointOfSaleV2Test extends TestCase
 
     public function test_v2_discount_persists_to_pos_order_and_total(): void
     {
-        $ctx = $this->seedShift(v2Enabled: true);
-        $snack = $this->seedMenuItem($ctx['branch']->id, $ctx['category']->id, 'Snack', 100, 5);
+        $context = $this->seedShift();
+        $snack = $this->seedMenuItem($context['branch']->id, $context['category']->id, 'Snack', 100, 5);
 
-        Livewire::actingAs($ctx['user'])
+        Livewire::actingAs($context['user'])
             ->test(PointOfSale::class)
             ->call('addToCart', $snack->id)
             ->call('addToCart', $snack->id)
@@ -232,10 +231,10 @@ class PointOfSaleV2Test extends TestCase
 
     public function test_v2_attach_to_room_without_selecting_guest_blocks_checkout(): void
     {
-        $ctx = $this->seedShift(v2Enabled: true);
-        $coke = $this->seedMenuItem($ctx['branch']->id, $ctx['category']->id, 'Coke', 60, 5);
+        $context = $this->seedShift();
+        $coke = $this->seedMenuItem($context['branch']->id, $context['category']->id, 'Coke', 60, 5);
 
-        Livewire::actingAs($ctx['user'])
+        Livewire::actingAs($context['user'])
             ->test(PointOfSale::class)
             ->call('addToCart', $coke->id)
             ->call('toggleAttachToRoom')      // ON, but no guest selected
