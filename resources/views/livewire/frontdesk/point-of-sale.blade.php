@@ -217,10 +217,9 @@
                     </button>
                 @endif
             </div>
-            <div class="text-right">
-                <p class="text-xs text-gray-400">Shift Total</p>
-                <p class="text-sm font-bold text-green-600">&#8369;{{ number_format($total_pos, 2) }}</p>
-            </div>
+            {{-- Shift Total intentionally not shown here — sat too close to
+                 'Cart' and read like the current cart amount. The figure is
+                 still available via the View Purchase History modal. --}}
         </div>
 
         <!-- ATTACH TO ROOM -->
