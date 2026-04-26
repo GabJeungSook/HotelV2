@@ -185,6 +185,19 @@ class PointOfSale extends Component
     }
 
     /**
+     * Whether the cashier can submit the order from the confirm modal.
+     * Room-charge sales: always true (no cash to validate).
+     * Cash sales: tendered must cover the total AND cart must be non-empty.
+     */
+    public function getCanConfirmOrderProperty(): bool
+    {
+        if (empty($this->cart)) return false;
+        if ($this->attachToRoom) return true;
+        return (int) $this->cashTendered >= (int) $this->discountedTotal
+            && (int) $this->discountedTotal > 0;
+    }
+
+    /**
      * Live search results for the attach-to-room guest picker.
      * Empty when attachToRoom is off — keeps render() cheap.
      */

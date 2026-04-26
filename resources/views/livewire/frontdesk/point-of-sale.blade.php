@@ -559,7 +559,7 @@
                 </table>
 
                 <div class="rounded border px-3 py-2 text-sm
-                    {{ ($attachToRoom && $selectedGuestData) ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-green-200 bg-green-50 text-green-900' }}">
+                    {{ ($attachToRoom && $selectedGuestData) ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-gray-300 bg-gray-50 text-gray-900' }}">
                     @if($attachToRoom && $selectedGuestData)
                         <p class="font-semibold">Room Charge</p>
                         <p class="text-xs">
@@ -569,22 +569,27 @@
                         </p>
                     @else
                         <p class="font-semibold">Cash Sale</p>
-                        <p class="text-xs mb-2">Collect &#8369;{{ number_format($this->discountedTotal, 2) }} from customer.</p>
+                        <p class="text-xs mb-2 text-gray-600">Collect &#8369;{{ number_format($this->discountedTotal, 2) }} from customer.</p>
 
-                        <div class="space-y-2 mt-2">
-                            <div class="flex justify-between items-center">
-                                <label for="cash-tendered" class="text-xs font-semibold">Cash Tendered (&#8369;)</label>
-                                <input id="cash-tendered" type="number" min="0" step="1"
+                        <div class="space-y-3 mt-3">
+                            <div>
+                                <label for="cash-tendered" class="block text-sm font-semibold mb-1 text-gray-700">Cash Tendered (&#8369;)</label>
+                                <input id="cash-tendered" type="text"
+                                    inputmode="numeric"
+                                    pattern="[0-9]*"
                                     wire:model.live="cashTendered"
-                                    class="w-32 px-2 py-1 text-right text-sm border border-green-300 rounded bg-white focus:ring-1 focus:ring-green-500 focus:border-green-500" />
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                    onkeypress="return event.charCode >= 48 && event.charCode <= 57"
+                                    onpaste="event.preventDefault(); const t = (event.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g,''); document.execCommand('insertText', false, t);"
+                                    class="w-full px-4 py-3 text-right text-2xl font-bold border-2 border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-600 shadow-sm" />
                             </div>
-                            <div class="flex justify-between items-center text-base font-bold
-                                {{ ((int) $cashTendered < (int) $this->discountedTotal) ? 'text-red-700' : '' }}">
+                            <div class="flex justify-between items-center text-xl font-bold pt-2 border-t border-gray-200
+                                {{ ((int) $cashTendered < (int) $this->discountedTotal) ? 'text-red-700' : 'text-gray-900' }}">
                                 <span>Change Due</span>
                                 <span>&#8369;{{ number_format($this->changeDue, 2) }}</span>
                             </div>
                             @if((int) $cashTendered < (int) $this->discountedTotal)
-                                <p class="text-xs text-red-700">
+                                <p class="text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
                                     Short by &#8369;{{ number_format((int) $this->discountedTotal - (int) $cashTendered, 2) }}
                                     &mdash; ask customer for more cash before confirming.
                                 </p>
@@ -597,9 +602,17 @@
             <x-slot name="footer">
                 <div class="flex justify-end gap-2">
                     <x-button flat label="Cancel" wire:click="cancelCheckout" />
-                    <x-button primary
-                        label="{{ $attachToRoom ? 'Confirm Room Charge' : 'Confirm Order' }}"
-                        wire:click="checkout" spinner="checkout" />
+                    <button type="button" wire:click="checkout"
+                        @disabled(!$this->canConfirmOrder)
+                        class="px-5 py-2 rounded-lg font-semibold text-white text-sm
+                               bg-blue-600 hover:bg-blue-700
+                               disabled:bg-gray-300 disabled:cursor-not-allowed disabled:hover:bg-gray-300"
+                        wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="checkout">
+                            {{ $attachToRoom ? 'Confirm Room Charge' : 'Confirm Order' }}
+                        </span>
+                        <span wire:loading wire:target="checkout">Saving...</span>
+                    </button>
                 </div>
             </x-slot>
         </x-card>
