@@ -48,7 +48,6 @@
                     <th>GUEST / ROOM</th>
                     <th>ITEMS</th>
                     <th class="right">SUBTOTAL</th>
-                    <th class="right">DISCOUNT</th>
                     <th class="right">TOTAL</th>
                 </tr>
             </thead>
@@ -72,36 +71,26 @@
                         </td>
                         <td>{{ $order['items'] }}</td>
                         <td class="right">&#8369;{{ number_format($order['subtotal'], 2) }}</td>
-                        <td class="right">
-                            @if($order['discount'] > 0)
-                                -&#8369;{{ number_format($order['discount'], 2) }}
-                                @if($order['discount_reason'])
-                                    <div class="small">{{ $order['discount_reason'] }}</div>
-                                @endif
-                            @else
-                                &mdash;
-                            @endif
-                        </td>
                         <td class="right strong">&#8369;{{ number_format($order['total'], 2) }}</td>
                     </tr>
                 @endforeach
             </tbody>
             <tfoot>
                 <tr class="strong">
-                    <td colspan="8">CASH SALES (non-voided)</td>
+                    <td colspan="7">CASH SALES (non-voided)</td>
                     <td class="right">&#8369;{{ number_format($posSales['totals']['cash'], 2) }}</td>
                 </tr>
                 <tr class="strong">
-                    <td colspan="8">ROOM-CHARGE SALES (non-voided)</td>
+                    <td colspan="7">ROOM-CHARGE SALES (non-voided)</td>
                     <td class="right">&#8369;{{ number_format($posSales['totals']['room'], 2) }}</td>
                 </tr>
                 <tr class="strong" style="background:#f3f4f6;">
-                    <td colspan="8">GROSS POS</td>
+                    <td colspan="7">GROSS POS</td>
                     <td class="right">&#8369;{{ number_format($posSales['totals']['gross'], 2) }}</td>
                 </tr>
                 @if($posSales['totals']['voided_count'] > 0)
                     <tr style="background:#fee2e2;color:#b91c1c;">
-                        <td colspan="9">{{ $posSales['totals']['voided_count'] }} order(s) voided this shift &mdash; not counted in totals above.</td>
+                        <td colspan="8">{{ $posSales['totals']['voided_count'] }} order(s) voided this shift &mdash; not counted in totals above.</td>
                     </tr>
                 @endif
             </tfoot>

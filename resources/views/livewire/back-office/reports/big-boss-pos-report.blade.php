@@ -74,7 +74,6 @@
                                 <th class="border border-gray-300 px-2 py-1 text-left">GUEST / ROOM</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">ITEMS</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">SUBTOTAL</th>
-                                <th class="border border-gray-300 px-2 py-1 text-right">DISCOUNT</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">TOTAL</th>
                             </tr>
                         </thead>
@@ -106,36 +105,26 @@
                                     </td>
                                     <td class="border border-gray-300 px-2 py-1">{{ $order['items'] }}</td>
                                     <td class="border border-gray-300 px-2 py-1 text-right">&#8369;{{ number_format($order['subtotal'], 2) }}</td>
-                                    <td class="border border-gray-300 px-2 py-1 text-right">
-                                        @if($order['discount'] > 0)
-                                            -&#8369;{{ number_format($order['discount'], 2) }}
-                                            @if($order['discount_reason'])
-                                                <div class="text-[10px] text-gray-500 italic">{{ $order['discount_reason'] }}</div>
-                                            @endif
-                                        @else
-                                            &mdash;
-                                        @endif
-                                    </td>
                                     <td class="border border-gray-300 px-2 py-1 text-right font-semibold">&#8369;{{ number_format($order['total'], 2) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
                         <tfoot>
                             <tr class="bg-gray-50 font-semibold">
-                                <td class="border border-gray-300 px-2 py-1" colspan="8">CASH SALES (non-voided)</td>
+                                <td class="border border-gray-300 px-2 py-1" colspan="7">CASH SALES (non-voided)</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">&#8369;{{ number_format($posSales['totals']['cash'], 2) }}</td>
                             </tr>
                             <tr class="bg-gray-50 font-semibold">
-                                <td class="border border-gray-300 px-2 py-1" colspan="8">ROOM-CHARGE SALES (non-voided)</td>
+                                <td class="border border-gray-300 px-2 py-1" colspan="7">ROOM-CHARGE SALES (non-voided)</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">&#8369;{{ number_format($posSales['totals']['room'], 2) }}</td>
                             </tr>
                             <tr class="bg-gray-100 font-bold text-base">
-                                <td class="border border-gray-300 px-2 py-1" colspan="8">GROSS POS</td>
+                                <td class="border border-gray-300 px-2 py-1" colspan="7">GROSS POS</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">&#8369;{{ number_format($posSales['totals']['gross'], 2) }}</td>
                             </tr>
                             @if($posSales['totals']['voided_count'] > 0)
                                 <tr class="bg-red-50 text-red-700 text-sm">
-                                    <td class="border border-gray-300 px-2 py-1" colspan="9">
+                                    <td class="border border-gray-300 px-2 py-1" colspan="8">
                                         {{ $posSales['totals']['voided_count'] }} order(s) voided this shift &mdash; not counted in totals above.
                                     </td>
                                 </tr>
