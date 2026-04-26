@@ -4,10 +4,39 @@
          #purchase-history-printable region. Uses the browser's native
          window.print() — no popup, no extra script registration. --}}
     <style>
+        /* ─────────────────────────────────────────────────────────────
+           POS receipt — printer-agnostic.
+           Same HTML renders cleanly on 58mm/80mm thermal rolls AND on
+           A4/Letter. Single narrow column, monospace, no backgrounds.
+           Browser's standard print dialog handles the printer choice.
+           ───────────────────────────────────────────────────────────── */
+        .pos-receipt {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #000;
+            max-width: 280px;     /* ~75mm — fits 80mm thermal w/ margin; A4 is fine narrower */
+            margin: 0 auto;
+        }
+        .pos-receipt .r-row { display: flex; justify-content: space-between; gap: 8px; }
+        .pos-receipt .r-center { text-align: center; }
+        .pos-receipt .r-strong { font-weight: 700; }
+        .pos-receipt .r-small { font-size: 11px; }
+        .pos-receipt .r-mt { margin-top: 4px; }
+        .pos-receipt .r-item-name { font-weight: 600; margin-top: 4px; }
+        .pos-receipt .r-rule {
+            border-top: 1px dashed #000;
+            margin: 6px 0;
+        }
+
         @media print {
             body * { visibility: hidden !important; }
+
             #purchase-history-printable,
-            #purchase-history-printable * { visibility: visible !important; }
+            #purchase-history-printable *,
+            #pos-receipt-printable,
+            #pos-receipt-printable * { visibility: visible !important; }
+
             #purchase-history-printable {
                 position: absolute !important;
                 left: 0; top: 0;
@@ -22,7 +51,19 @@
             #purchase-history-printable thead { background: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
             /* Screen-only columns (e.g. Void action button) must not print. */
             #purchase-history-printable .no-print { display: none !important; }
-            @page { margin: 12mm; }
+
+            /* POS receipt: position at top-left so thermal printers don't
+               waste a strip of paper, and force black-on-white. */
+            #pos-receipt-printable {
+                position: absolute !important;
+                left: 0; top: 0;
+                width: 100%;
+                padding: 4mm;
+                color: #000 !important;
+                background: #fff !important;
+            }
+
+            @page { margin: 4mm; }
         }
     </style>
 
@@ -577,5 +618,35 @@
             </x-slot>
         </x-card>
     </x-modal>
+
+    {{-- ──────── v2 receipt modal (server-rendered, browser-printed) ──────── --}}
+    @if($v2Enabled && $showReceiptModal && $receipt)
+        <div class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+                <div class="px-6 py-3 border-b flex justify-between items-center no-print">
+                    <h2 class="text-lg font-bold text-gray-800">Receipt</h2>
+                    <div class="flex gap-2">
+                        <button onclick="window.print()" type="button"
+                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded">
+                            Print
+                        </button>
+                        <button wire:click="closeReceiptModal" type="button"
+                            class="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm rounded">
+                            Close
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6 bg-gray-50">
+                    @include('livewire.frontdesk.pos.receipt', [
+                        'order'        => $receipt['order'],
+                        'branch'       => $receipt['branch'],
+                        'cashier_name' => $receipt['cashier_name'],
+                        'room_number'  => $receipt['room_number'],
+                        'guest_name'   => $receipt['guest_name'],
+                    ])
+                </div>
+            </div>
+        </div>
+    @endif
 
 </div>

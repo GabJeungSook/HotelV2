@@ -49,6 +49,10 @@ class PointOfSale extends Component
     public $discountAmount = 0;
     public $discountReason = '';
 
+    // v2 receipt modal: opened on successful checkout, dismissible.
+    public $showReceiptModal = false;
+    public $receiptOrderId = null;
+
     public function openHistoryModal()
     {
         $this->historySearch = '';
@@ -530,11 +534,22 @@ class PointOfSale extends Component
         $this->clearSelectedGuest();
         $this->showCheckoutConfirm = false;
 
+        // Open the printable receipt modal — the user prints from here via
+        // the browser's native print dialog (any printer, including thermal).
+        $this->receiptOrderId = $order->id;
+        $this->showReceiptModal = true;
+
         $msg = $order->payment_method === null
             ? "Charged to RM {$this->resolveRoomNumberForOrder($order)} (Order #{$order->id})"
             : "Cash sale recorded (Order #{$order->id})";
 
         $this->notification()->success('Transaction Complete', $msg);
+    }
+
+    public function closeReceiptModal(): void
+    {
+        $this->showReceiptModal = false;
+        $this->receiptOrderId = null;
     }
 
     private function resolveRoomNumberForOrder(PosOrder $order): string
@@ -722,10 +737,31 @@ class PointOfSale extends Component
             $this->total_pos = 0;
         }
 
+        // Receipt context (only populated when showReceiptModal is open).
+        $receipt = null;
+        if ($this->v2Enabled && $this->showReceiptModal && $this->receiptOrderId !== null) {
+            $order = PosOrder::with(['lineItems' => fn ($q) => $q->orderBy('id')])->find($this->receiptOrderId);
+            if ($order) {
+                $room = $order->room_id !== null ? \App\Models\Room::find($order->room_id) : null;
+                $guest = $order->guest_id !== null ? Guest::find($order->guest_id) : null;
+                $guestName = $guest
+                    ? (trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) ?: ($guest->name ?? ('Guest #' . $guest->id)))
+                    : null;
+                $receipt = [
+                    'order'        => $order,
+                    'branch'       => auth()->user()->branch,
+                    'cashier_name' => auth()->user()->name,
+                    'room_number'  => $room?->number,
+                    'guest_name'   => $guestName,
+                ];
+            }
+        }
+
         return view('livewire.frontdesk.point-of-sale', [
             'menus' => $menuQuery->get(),
             'categories' => FrontdeskCategory::where('branch_id', auth()->user()->branch_id)->get(),
             'orders' => $orders,
+            'receipt' => $receipt,
         ]);
     }
 }
