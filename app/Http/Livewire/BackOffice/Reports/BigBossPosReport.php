@@ -1,0 +1,343 @@
+<?php
+
+namespace App\Http\Livewire\BackOffice\Reports;
+
+use App\Models\Branch;
+use App\Models\FrontdeskInventory;
+use App\Models\FrontdeskMenu;
+use App\Models\Guest;
+use App\Models\Inventory;
+use App\Models\Menu;
+use App\Models\PosOrder;
+use App\Models\PubInventory;
+use App\Models\PubMenu;
+use App\Models\Room;
+use App\Models\ShiftLog;
+use App\Models\StockMovement;
+use App\Models\User;
+use Carbon\Carbon;
+use Livewire\Component;
+
+/**
+ * Per-shift POS report for Big Boss. Sibling of BigBossReport, kept
+ * separate so neither report can break the other. Renders two sections:
+ *
+ *  1. POS Sales — every pos_order rung in the shift session, with
+ *     payment type (cash/room), items, totals, voided indicator.
+ *  2. Inventory — opening / IN / OUT / closing per item touched in the
+ *     shift's time window (across frontdesk + kitchen + pub sources).
+ *
+ * Per-shift "session" semantics match BigBossReport: when multiple
+ * frontdesks share a shift their shift_logs are aggregated by date+type.
+ */
+class BigBossPosReport extends Component
+{
+    public $weekStart = null;
+    public $selectedShiftLogId;
+    public array $availableShiftSessions = [];
+
+    public function mount(): void
+    {
+        $this->loadAvailableShiftSessions();
+        if (!empty($this->availableShiftSessions)) {
+            $this->selectedShiftLogId = end($this->availableShiftSessions)['id'];
+        }
+    }
+
+    public function updatedSelectedShiftLogId(): void
+    {
+        // triggers re-render
+    }
+
+    public function exportHtml()
+    {
+        $session = $this->getSelectedSession();
+        if (!$session) {
+            return null;
+        }
+
+        $reportData = $this->generateReport($session);
+        $branch = Branch::find(auth()->user()->branch_id);
+        $branchName = $branch->name ?? 'Branch';
+
+        $html = view('livewire.back-office.reports.big-boss-pos-report-export', array_merge(
+            [
+                'selectedSession' => $session,
+                'branchName'      => $branchName,
+            ],
+            $reportData
+        ))->render();
+
+        $shiftDate = $session['shift_date'] ?? now()->format('Y-m-d');
+        $shiftType = $session['shift_type'] ?? 'AM';
+        $filename = "{$branchName} POS {$shiftDate} {$shiftType} SHIFT.html";
+
+        return response()->streamDownload(function () use ($html) {
+            echo $html;
+        }, $filename, ['Content-Type' => 'text/html']);
+    }
+
+    public function render()
+    {
+        $session = $this->getSelectedSession();
+        $reportData = $this->generateReport($session);
+
+        return view('livewire.back-office.reports.big-boss-pos-report', array_merge(
+            ['selectedSession' => $session],
+            $reportData
+        ));
+    }
+
+    public function generateReport(?array $session): array
+    {
+        if (!$session) {
+            return [
+                'posSales'      => ['orders' => [], 'totals' => $this->emptyPosTotals()],
+                'inventoryRows' => [],
+            ];
+        }
+
+        $branchId = auth()->user()->branch_id;
+
+        return [
+            'posSales'      => $this->posSalesRows($session, $branchId),
+            'inventoryRows' => $this->inventoryRows($session, $branchId),
+        ];
+    }
+
+    /**
+     * Per-order POS sales for the shift session, plus aggregated totals.
+     */
+    public function posSalesRows(array $session, int $branchId): array
+    {
+        $logIds = $session['log_ids'] ?? [];
+        if (empty($logIds)) {
+            return ['orders' => [], 'totals' => $this->emptyPosTotals()];
+        }
+
+        $posOrders = PosOrder::query()
+            ->whereIn('shift_log_id', $logIds)
+            ->where('branch_id', $branchId)
+            ->with(['lineItems' => fn ($query) => $query->orderBy('id')])
+            ->orderBy('created_at')
+            ->get();
+
+        $userNames  = User::whereIn('id', $posOrders->pluck('user_id')->unique()->filter())->pluck('name', 'id');
+        $guestNames = Guest::whereIn('id', $posOrders->pluck('guest_id')->unique()->filter())->pluck('name', 'id');
+        $roomNumbers = Room::whereIn('id', $posOrders->pluck('room_id')->unique()->filter())->pluck('number', 'id');
+
+        $orders = $posOrders->map(function ($order) use ($userNames, $guestNames, $roomNumbers) {
+            $items = $order->lineItems->map(
+                fn ($line) => $line->item_name . ' x' . rtrim(rtrim(number_format((float) $line->quantity, 2), '0'), '.')
+            )->implode(', ');
+
+            $type = $order->payment_method === 'cash'
+                ? 'CASH'
+                : (($order->guest_id !== null) ? 'ROOM' : 'OTHER');
+
+            return [
+                'id'          => $order->id,
+                'time'        => $order->created_at?->format('g:i A'),
+                'cashier'     => $userNames[$order->user_id] ?? '-',
+                'type'        => $type,
+                'guest'       => $order->guest_id ? ($guestNames[$order->guest_id] ?? null) : null,
+                'room_number' => $order->room_id ? ($roomNumbers[$order->room_id] ?? null) : null,
+                'items'       => $items,
+                'subtotal'    => (int) $order->subtotal,
+                'discount'    => (int) $order->discount_amount,
+                'discount_reason' => $order->discount_reason,
+                'total'       => (int) $order->total,
+                'voided'      => $order->voided_at !== null,
+            ];
+        })->values()->toArray();
+
+        $live = $posOrders->whereNull('voided_at');
+        $cashTotal = (int) $live->where('payment_method', 'cash')->sum('total');
+        $roomTotal = (int) $live->whereNull('payment_method')->sum('total');
+
+        return [
+            'orders' => $orders,
+            'totals' => [
+                'cash'         => $cashTotal,
+                'room'         => $roomTotal,
+                'gross'        => $cashTotal + $roomTotal,
+                'live_count'   => $live->count(),
+                'voided_count' => $posOrders->whereNotNull('voided_at')->count(),
+            ],
+        ];
+    }
+
+    /**
+     * Per-item inventory movement for the shift's time window. Touches
+     * every (source_type, inventory_id) that had at least one movement
+     * inside [time_in, time_out]. Items with no shift activity are
+     * omitted — keeps the report focused on what actually moved.
+     */
+    public function inventoryRows(array $session, int $branchId): array
+    {
+        $timeIn  = Carbon::parse($session['time_in']);
+        $timeOut = Carbon::parse($session['time_out']);
+
+        $touched = StockMovement::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->select('source_type', 'inventory_id', 'menu_id')
+            ->distinct()
+            ->get();
+
+        $rows = [];
+        foreach ($touched as $key) {
+            $sourceType  = $key->source_type;
+            $inventoryId = $key->inventory_id;
+
+            $opening = $this->openingBalance($sourceType, $inventoryId, $timeIn);
+
+            $movements = StockMovement::where('source_type', $sourceType)
+                ->where('inventory_id', $inventoryId)
+                ->whereBetween('created_at', [$timeIn, $timeOut])
+                ->orderBy('id')
+                ->get();
+
+            $inQty  = (float) $movements->whereIn('type', [StockMovement::TYPE_IN, StockMovement::TYPE_VOID])->sum('quantity');
+            $outQty = (float) $movements->where('type', StockMovement::TYPE_OUT)->sum('quantity');
+
+            $closing = $movements->isNotEmpty()
+                ? (float) $movements->last()->balance_after
+                : $opening;
+
+            $rows[] = [
+                'source_type' => $sourceType,
+                'item_name'   => $this->resolveMenuName($sourceType, $key->menu_id),
+                'opening'     => $opening,
+                'in'          => $inQty,
+                'out'         => $outQty,
+                'closing'     => $closing,
+                'movements'   => $movements->count(),
+            ];
+        }
+
+        usort($rows, function ($a, $b) {
+            return [$a['source_type'], strtolower($a['item_name'])]
+                <=> [$b['source_type'], strtolower($b['item_name'])];
+        });
+
+        return $rows;
+    }
+
+    private function openingBalance(string $sourceType, ?int $inventoryId, Carbon $timeIn): float
+    {
+        $previous = StockMovement::where('source_type', $sourceType)
+            ->where('inventory_id', $inventoryId)
+            ->where('created_at', '<', $timeIn)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
+
+        return $previous ? (float) $previous->balance_after : 0.0;
+    }
+
+    private function resolveMenuName(string $sourceType, ?int $menuId): string
+    {
+        if ($menuId === null) return '(unknown item)';
+
+        $menu = match ($sourceType) {
+            StockMovement::SOURCE_FRONTDESK => FrontdeskMenu::find($menuId),
+            StockMovement::SOURCE_KITCHEN   => Menu::find($menuId),
+            StockMovement::SOURCE_PUB       => PubMenu::find($menuId),
+            default                         => null,
+        };
+
+        return $menu?->name ?? "(menu #{$menuId})";
+    }
+
+    private function emptyPosTotals(): array
+    {
+        return [
+            'cash'         => 0,
+            'room'         => 0,
+            'gross'        => 0,
+            'live_count'   => 0,
+            'voided_count' => 0,
+        ];
+    }
+
+    /**
+     * Per-shift session selector — same pattern as BigBossReport so the
+     * dropdown lists exactly the same shift sessions as the main report.
+     */
+    private function loadAvailableShiftSessions(): void
+    {
+        $weekStart = $this->weekStart ? Carbon::parse($this->weekStart)->startOfWeek() : now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+
+        $shiftLogs = ShiftLog::query()
+            ->where('branch_id', auth()->user()->branch_id)
+            ->whereNotNull('time_out')
+            ->whereBetween('time_in', [$weekStart, $weekEnd])
+            ->with('frontdesk:id,name')
+            ->orderBy('time_in', 'asc')
+            ->get();
+
+        $sessions = [];
+        foreach ($shiftLogs as $log) {
+            $shiftType = $this->getShiftType($log->time_in);
+            $shiftDate = $log->time_in->format('Y-m-d');
+            $key = $shiftType . '_' . $shiftDate;
+
+            if (!isset($sessions[$key])) {
+                $sessions[$key] = [
+                    'id'          => $log->id,
+                    'log_ids'     => [],
+                    'time_in'     => $log->time_in,
+                    'time_out'    => $log->time_out,
+                    'shift_type'  => $shiftType,
+                    'shift_date'  => $shiftDate,
+                    'frontdesks'  => [],
+                ];
+            }
+
+            $sessions[$key]['log_ids'][]    = $log->id;
+            $sessions[$key]['frontdesks'][] = $log->frontdesk?->name ?? 'Unknown';
+
+            if ($log->time_in < $sessions[$key]['time_in']) {
+                $sessions[$key]['time_in'] = $log->time_in;
+            }
+            if ($log->time_out > $sessions[$key]['time_out']) {
+                $sessions[$key]['time_out'] = $log->time_out;
+            }
+        }
+
+        $this->availableShiftSessions = collect($sessions)
+            ->sortBy('time_in')
+            ->map(function ($session) {
+                $frontdeskNames = implode(', ', array_unique($session['frontdesks']));
+                return [
+                    'id'                 => $session['log_ids'][0],
+                    'log_ids'            => $session['log_ids'],
+                    'label'              => $session['shift_type'] . ' ' . $session['time_in']->format('M j')
+                                            . ' - ' . $frontdeskNames
+                                            . ' (' . $session['time_in']->format('g:i A') . ' - ' . $session['time_out']->format('g:i A') . ')',
+                    'frontdesks'         => $frontdeskNames,
+                    'shift_type'         => $session['shift_type'],
+                    'shift_date'         => $session['shift_date'],
+                    'time_in'            => $session['time_in']->toIso8601String(),
+                    'time_out'           => $session['time_out']->toIso8601String(),
+                    'time_in_formatted'  => $session['time_in']->format('F d, Y g:i A'),
+                    'time_out_formatted' => $session['time_out']->format('F d, Y g:i A'),
+                    'date_formatted'     => $session['time_in']->format('l, F d, Y'),
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
+    private function getShiftType(Carbon $timeIn): string
+    {
+        $hour = $timeIn->hour;
+        return ($hour >= 6 && $hour < 20) ? 'AM' : 'PM';
+    }
+
+    private function getSelectedSession(): ?array
+    {
+        return collect($this->availableShiftSessions)->firstWhere('id', $this->selectedShiftLogId);
+    }
+}

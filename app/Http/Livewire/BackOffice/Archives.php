@@ -36,6 +36,10 @@ class Archives extends Component
                 'label' => 'Big Boss Report',
                 'component' => 'back-office.reports.big-boss-report',
             ],
+            'big-boss-pos' => [
+                'label' => 'Big Boss POS Report',
+                'component' => 'back-office.reports.big-boss-pos-report',
+            ],
             'frontdesk-logs' => [
                 'label' => 'Frontdesk Logs',
                 'component' => 'back-office.reports.frontdesk-logs',
