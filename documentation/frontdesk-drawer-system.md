@@ -202,6 +202,46 @@ private function getShiftType(Carbon $timeIn): string
 
 ---
 
+## Room Status Protection Rules
+
+### Maintenance Status Restrictions
+
+The system prevents setting a room to **Maintenance** status in certain situations to protect data integrity and avoid report discrepancies.
+
+| Condition | Action | Error Message |
+|-----------|--------|---------------|
+| Room has ongoing cleaning | **BLOCKED** | "This room has ongoing cleaning. Please finish cleaning first before setting to Maintenance." |
+| Room has active guest | **BLOCKED** | "This room has an active guest checked in. Please transfer or check out the guest first before setting to Maintenance." |
+
+### Why This Matters
+
+1. **Ongoing Cleaning**: If a room boy has started cleaning (`status = 'Cleaning'` or `cleaning_by_user_id` is set), changing to Maintenance would:
+   - Leave the cleaning record incomplete
+   - Break Room Boy Reports
+
+2. **Active Guest**: If a guest is checked in (`CheckinDetail.is_check_out = false`), changing to Maintenance would:
+   - Create orphaned transactions
+   - Break Sales Report calculations
+   - Make guest checkout impossible
+
+### Proper Workflow
+
+**For rooms with ongoing cleaning:**
+```
+Room Boy → Click "Finish Cleaning" → Then Admin can set to Maintenance
+```
+
+**For rooms with active guests:**
+```
+Frontdesk → Transfer guest OR Check out guest → Then Admin can set to Maintenance
+```
+
+### Code Reference
+
+`app/Http/Livewire/Admin/Manage/Room.php` - EditAction validation (lines 205-232)
+
+---
+
 ## Key Files
 
 | File | Purpose |
@@ -212,3 +252,4 @@ private function getShiftType(Carbon $timeIn): string
 | `app/Models/AssignedFrontdesk.php` | Assignment model |
 | `app/Http/Livewire/Frontdesk/AssignedFrontdesk.php` | Shift assignment UI |
 | `app/Http/Livewire/BackOffice/SalesReportV2.php` | Sales reporting |
+| `app/Http/Livewire/Admin/Manage/Room.php` | Room management with status protection |

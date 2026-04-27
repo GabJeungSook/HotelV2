@@ -3,6 +3,7 @@
 namespace App\Http\Livewire\Admin\Manage;
 
 use App\Models\ActivityLog;
+use App\Models\CheckinDetail;
 use Livewire\Component;
 use App\Models\Room as roomModel;
 use App\Models\Type;
@@ -202,6 +203,34 @@ class Room extends Component implements Tables\Contracts\HasTable
                 ->icon('heroicon-o-pencil-alt')
                 ->color('success')
                 ->action(function ($record, $data) {
+                    $newStatus = $data['status'] ?? $record->status;
+
+                    // Prevent changing to Maintenance if room has ongoing cleaning
+                    if ($newStatus === 'Maintenance') {
+                        $hasOngoingCleaning = $record->status === 'Cleaning' || $record->cleaning_by_user_id !== null;
+
+                        if ($hasOngoingCleaning) {
+                            $this->dialog()->error(
+                                $title = 'Cannot Set to Maintenance',
+                                $description = 'This room has ongoing cleaning. Please finish cleaning first before setting to Maintenance.'
+                            );
+                            return;
+                        }
+
+                        // Prevent changing to Maintenance if room has active guest
+                        $hasActiveGuest = CheckinDetail::where('room_id', $record->id)
+                            ->where('is_check_out', false)
+                            ->exists();
+
+                        if ($hasActiveGuest) {
+                            $this->dialog()->error(
+                                $title = 'Cannot Set to Maintenance',
+                                $description = 'This room has an active guest checked in. Please transfer or check out the guest first before setting to Maintenance.'
+                            );
+                            return;
+                        }
+                    }
+
                     $record->update($data);
 
                     ActivityLog::create([
