@@ -133,7 +133,7 @@
         <div class="px-4 py-4 border-t border-gray-700">
           <div class="flex items-center justify-between">
             <span class="text-gray-300 text-sm font-medium">Force Auto-override</span>
-            <livewire:supervisor.force-auto-override-toggle />
+            <livewire:supervisor.force-auto-override-toggle wire:key="mobile-toggle" />
           </div>
         </div>
 
@@ -198,7 +198,7 @@
         <div class="px-4 py-4 border-t border-gray-700">
           <div class="flex items-center justify-between">
             <span class="text-gray-300 text-xs font-medium">Force Auto-override</span>
-            <livewire:supervisor.force-auto-override-toggle />
+            <livewire:supervisor.force-auto-override-toggle wire:key="desktop-toggle" />
           </div>
         </div>
 

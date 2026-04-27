@@ -12,6 +12,13 @@ class ForceAutoOverrideToggle extends Component
 
     public $enabled = false;
 
+    protected $listeners = ['forceAutoOverrideChanged' => 'syncState'];
+
+    public function syncState($enabled)
+    {
+        $this->enabled = $enabled;
+    }
+
     public function mount()
     {
         $branch = Branch::find(auth()->user()->branch_id);
@@ -57,6 +64,9 @@ class ForceAutoOverrideToggle extends Component
         $branch->update(['force_auto_override' => true]);
         $this->enabled = true;
 
+        // Emit event to sync other toggle instances
+        $this->emit('forceAutoOverrideChanged', true);
+
         $this->dialog()->success(
             $title = 'Auto-Override Enabled',
             $description = 'Override requests will be auto-approved.'
@@ -68,6 +78,9 @@ class ForceAutoOverrideToggle extends Component
         $branch = Branch::find(auth()->user()->branch_id);
         $branch->update(['force_auto_override' => false]);
         $this->enabled = false;
+
+        // Emit event to sync other toggle instances
+        $this->emit('forceAutoOverrideChanged', false);
 
         $this->dialog()->info(
             $title = 'Auto-Override Disabled',

@@ -134,6 +134,12 @@ class PointOfSale extends Component
 
         $room = $guest->checkInDetail->room ?? null;
 
+        // Only allow charging to rooms that are Occupied
+        if (!$room || $room->status !== 'Occupied') {
+            $this->notification()->error('Room not occupied', 'Cannot charge to this room - it is not currently occupied.');
+            return;
+        }
+
         // Open POS balance: sum POS line totals (transaction_type_id=9)
         // attached to this guest where the parent pos_order is not voided.
         // Each check-in creates a new Guest record, so guest_id naturally
@@ -216,6 +222,8 @@ class PointOfSale extends Component
 
         return Guest::where('branch_id', auth()->user()->branch_id)
             ->whereHas('checkInDetail', fn ($q) => $q->where('is_check_out', false))
+            // Only show guests in Occupied rooms (not Available/Maintenance/etc)
+            ->whereHas('checkInDetail.room', fn ($q) => $q->where('status', 'Occupied'))
             ->with(['checkInDetail.room.floor', 'checkInDetail.room.type'])
             ->where(function ($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
