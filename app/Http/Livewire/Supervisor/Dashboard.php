@@ -73,6 +73,7 @@ class Dashboard extends Component
     public function getApprovedCountProperty()
     {
         return OverrideRequest::forBranch(auth()->user()->branch_id)
+            ->where('supervisor_id', auth()->id())
             ->whereDate('created_at', today())
             ->approved()
             ->count();
@@ -81,6 +82,7 @@ class Dashboard extends Component
     public function getDeclinedCountProperty()
     {
         return OverrideRequest::forBranch(auth()->user()->branch_id)
+            ->where('supervisor_id', auth()->id())
             ->whereDate('created_at', today())
             ->declined()
             ->count();
@@ -89,6 +91,7 @@ class Dashboard extends Component
     public function getAutoApprovedCountProperty()
     {
         return OverrideRequest::forBranch(auth()->user()->branch_id)
+            ->where('supervisor_id', auth()->id())
             ->whereDate('created_at', today())
             ->where('status', 'auto_approved')
             ->count();
@@ -277,12 +280,13 @@ class Dashboard extends Component
     }
 
     /**
-     * Get Override Summary Data
+     * Get Override Summary Data - filtered to show only this supervisor's records
      */
     public function getSummaryRequestsProperty()
     {
         $query = OverrideRequest::with(['requester', 'guest', 'fromRoom', 'toRoom', 'transferReason'])
             ->forBranch(auth()->user()->branch_id)
+            ->where('supervisor_id', auth()->id())
             ->whereDate('created_at', $this->summaryDate);
 
         // Filter by status

@@ -58,8 +58,7 @@
                 </select>
             </div>
 
-            {{-- Supervisor (hide for supervisor role - they only see their own) --}}
-            @if (!$isSupervisor)
+            {{-- Supervisor --}}
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
                 <select wire:model.defer="supervisor_id"
@@ -70,7 +69,6 @@
                     @endforeach
                 </select>
             </div>
-            @endif
 
             {{-- Buttons --}}
             <div class="flex items-end gap-2">

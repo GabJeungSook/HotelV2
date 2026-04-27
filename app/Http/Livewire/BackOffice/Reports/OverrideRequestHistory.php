@@ -63,18 +63,14 @@ class OverrideRequestHistory extends Component
             $weekEnd = $this->date_to ? Carbon::parse($this->date_to)->endOfDay() : now()->endOfDay();
         }
 
-        // If user is supervisor role, only show their own records
-        $isSupervisor = auth()->user()->hasRole('supervisor');
-
         $query = OverrideRequest::query()
             ->forBranch($branchId)
             ->with(['requester', 'supervisor', 'guest', 'fromRoom', 'toRoom', 'checkinDetail', 'transferReason'])
             ->whereBetween('created_at', [$weekStart, $weekEnd])
-            ->when($isSupervisor, fn($q) => $q->where('supervisor_id', auth()->id()))
             ->when($this->status, fn($q) => $q->where('status', $this->status))
             ->when($this->transaction_type, fn($q) => $q->where('transaction_type', $this->transaction_type))
             ->when($this->requester_id, fn($q) => $q->where('requester_id', $this->requester_id))
-            ->when(!$isSupervisor && $this->supervisor_id, fn($q) => $q->where('supervisor_id', $this->supervisor_id))
+            ->when($this->supervisor_id, fn($q) => $q->where('supervisor_id', $this->supervisor_id))
             ->orderByDesc('created_at');
 
         $totalCount = $query->count();
@@ -96,7 +92,6 @@ class OverrideRequestHistory extends Component
             'totalCount' => $totalCount,
             'requesters' => $requesters,
             'supervisors' => $supervisors,
-            'isSupervisor' => $isSupervisor,
         ]);
     }
 

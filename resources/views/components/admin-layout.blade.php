@@ -371,7 +371,7 @@
                 Roomboy Designation
               </a>
               @php
-                $ghostCount = \App\Models\CheckInDetail::where('is_check_out', 0)
+                $ghostCount = \App\Models\CheckinDetail::where('is_check_out', 0)
                     ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [now()->subDays(1)])
                     ->count();
               @endphp
@@ -902,7 +902,7 @@
                 Reservation
               </a>
               @php
-                $ghostCountDesktop = \App\Models\CheckInDetail::where('is_check_out', 0)
+                $ghostCountDesktop = \App\Models\CheckinDetail::where('is_check_out', 0)
                     ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [now()->subDays(1)])
                     ->count();
               @endphp
