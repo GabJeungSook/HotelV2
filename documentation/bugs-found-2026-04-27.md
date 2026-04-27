@@ -8,6 +8,9 @@
 | Missing Branch ID Filters | ALL FIXED | Was Critical |
 | Room Status Validation | FIXED | Was Medium |
 | Duplicate Inventory Records | FIXED | Was High |
+| POS Charge to Room Shows Available Rooms | FIXED | Was Medium |
+| Manual Occupied Status Change | FIXED (Blocked) | Was High |
+| Ghost Rooms (Occupied with No Guest) | FIXED + Feature Added | Was High |
 | Null Pointer Exceptions | Potential only | Low |
 | Race Conditions | Theoretical | Low |
 
@@ -61,6 +64,61 @@
 
 ---
 
+### 5. POS Charge to Room Shows Available Rooms (FIXED)
+
+**Location:** `app/Http/Livewire/Frontdesk/PointOfSale.php`
+
+**Problem:** When using "Charge to Room" in POS, guests in Available rooms were appearing in search results.
+
+**Fix Applied:**
+- Added filter `->whereHas('checkInDetail.room', fn ($q) => $q->where('status', 'Occupied'))` to guest search
+- Added validation in `selectGuest()` to block non-Occupied rooms with error message
+
+---
+
+### 6. Manual Occupied Status Change (FIXED - Blocked)
+
+**Location:** `app/Http/Livewire/Admin/Manage/Room.php`
+
+**Problem:** Frontdesk/Admin could manually set room status to "Occupied" without a guest, causing data inconsistency (ghost rooms).
+
+**Fix Applied:**
+- Added blocker that prevents setting room to Occupied manually
+- Rooms can ONLY become Occupied through the check-in process
+- Error message: "Room status can only be set to Occupied through the check-in process."
+
+---
+
+### 7. Ghost Rooms Detection & Fix Feature (NEW)
+
+**Problem:** Room 100 was discovered showing "Occupied" status but had no active guest in `checkin_details` table. This was caused by past manual status changes.
+
+**Solution - Multi-layered approach:**
+
+1. **Prevention:** Added blocker for manual Occupied status (Issue #6 above)
+
+2. **Detection:** Created Ghost Rooms admin feature
+   - `app/Http/Livewire/Admin/GhostRooms.php` - Livewire component
+   - `resources/views/livewire/admin/ghost-rooms.blade.php` - View
+   - `app/Console/Commands/FixGhostRooms.php` - CLI command
+
+3. **Admin Sidebar:** Purple "Ghost Rooms" badge appears only when ghost rooms exist
+   - Location: `resources/views/components/admin-layout.blade.php`
+
+4. **Fix Actions:**
+   - "Fix Room" button - fixes individual room
+   - "Fix All" button - fixes all ghost rooms at once
+   - Changes room status from Occupied → Available
+   - Logs action to ActivityLog
+
+**CLI Usage:**
+```bash
+php artisan rooms:fix-ghost          # Report only
+php artisan rooms:fix-ghost --fix    # Actually fix
+```
+
+---
+
 ## Potential Issues (Low Priority - Not Active Bugs)
 
 ### Null Pointer Exceptions
@@ -87,8 +145,14 @@
 - [x] Fix branch_id filters
 - [x] Fix room status validation
 - [x] Clean up duplicate inventory records
+- [x] Fix POS charge to room showing Available rooms
+- [x] Add blocker for manual Occupied status change
+- [x] Create Ghost Rooms detection feature
+- [x] Add Ghost Rooms sidebar item (purple badge)
+- [x] Create Ghost Rooms CLI command
 - [ ] Run `php artisan migrate` on production
 - [ ] Test Force Auto-Override end-to-end
+- [ ] Test Ghost Rooms feature on production
 
 ---
 
