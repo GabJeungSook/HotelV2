@@ -493,3 +493,156 @@ case 9:
 | How to verify totals? | Big Boss POS ROOM = Sales FOOD |
 | Where to see voided? | Big Boss POS Report |
 | How inventory works? | OUT on sale, IN on void |
+
+---
+
+## Part 9: How to Test POS
+
+### Pre-Test Setup
+
+1. **Login as Frontdesk** with an active shift
+2. **Have at least one checked-in guest** (for room charge testing)
+3. **Have inventory items** with stock available
+
+---
+
+### Test 1: Walk-In Cash Sale
+
+**Steps**:
+1. Go to **Frontdesk → POS**
+2. Add items to cart
+3. **DO NOT** select a guest (leave as walk-in)
+4. Enter cash amount and click **Checkout**
+5. Confirm the sale
+
+**Verify**:
+| Check | Where | Expected |
+|-------|-------|----------|
+| Order created | Big Boss POS Report | Type = CASH |
+| In Sales Report? | Sales Report → FOOD | **NO** (walk-in not included) |
+| Inventory deducted | Big Boss POS → Inventory | OUT = quantity sold |
+
+---
+
+### Test 2: Room Charge Sale
+
+**Steps**:
+1. Go to **Frontdesk → POS**
+2. Add items to cart
+3. Toggle **"Charge to Room"**
+4. **Select a checked-in guest**
+5. Click **Checkout** (no cash needed)
+6. Confirm the sale
+
+**Verify**:
+| Check | Where | Expected |
+|-------|-------|----------|
+| Order created | Big Boss POS Report | Type = ROOM |
+| Guest name shown | Big Boss POS Report | Correct guest |
+| In Sales Report? | Sales Report → FOOD | **YES** - should appear |
+| In Big Boss Report? | Big Boss → FOODS row | **YES** - amount per floor |
+| Guest folio | Guest checkout screen | POS charges listed |
+| Inventory deducted | Big Boss POS → Inventory | OUT = quantity sold |
+
+---
+
+### Test 3: Void an Order
+
+**Steps**:
+1. Complete a POS sale (cash or room)
+2. Click **Void** on the order (same shift, same user)
+3. Enter reason and confirm
+
+**Verify**:
+| Check | Where | Expected |
+|-------|-------|----------|
+| Order marked voided | Big Boss POS Report | Strikethrough, not in totals |
+| Transaction voided | Database | `voided_at` is set |
+| Inventory restored | Big Boss POS → Inventory | IN = voided quantity |
+| Removed from totals | All reports | Voided amount excluded |
+
+---
+
+### Test 4: Verify Sales Report Includes POS
+
+**This is the critical test after the bug fix.**
+
+**Steps**:
+1. Do a **Room Charge** POS sale (Test 2)
+2. Go to **Back Office → Report Hub → Sales Report**
+3. Select the current shift
+4. Check the **FOOD** card
+
+**Verify**:
+| Check | Expected |
+|-------|----------|
+| FOOD amount | Includes your POS sale |
+| Click FOOD card | Shows POS transaction details |
+| Guest name | Shows correct guest |
+| Room number | Shows correct room |
+
+**If FOOD is ₱0 but you made a room charge POS**:
+- Check database: `SELECT checkin_detail_id FROM transactions WHERE order_id = [your_order_id]`
+- Should NOT be NULL for room charges
+- If NULL, the bug fix is not applied
+
+---
+
+### Test 5: Compare Big Boss POS vs Sales Report
+
+**Steps**:
+1. Make several POS sales:
+   - 2 walk-in cash (e.g., ₱500 each = ₱1,000)
+   - 2 room charge (e.g., ₱300 each = ₱600)
+2. Go to **Big Boss POS Report**
+3. Note totals: CASH = ₱1,000, ROOM = ₱600, GROSS = ₱1,600
+4. Go to **Sales Report**
+5. Check FOOD total
+
+**Verify**:
+| Report | Expected |
+|--------|----------|
+| Big Boss POS CASH | ₱1,000 |
+| Big Boss POS ROOM | ₱600 |
+| Big Boss POS GROSS | ₱1,600 |
+| Sales Report FOOD | **₱600** (room only) |
+| Difference | ₱1,000 = walk-in (correct) |
+
+---
+
+### Test Checklist
+
+```
+□ Walk-in cash sale works
+□ Walk-in NOT in Sales Report (correct)
+□ Room charge sale works
+□ Room charge IN Sales Report (FOOD)
+□ Room charge IN Big Boss Report (FOODS)
+□ Guest folio shows POS charges
+□ Void removes from totals
+□ Void restores inventory
+□ Big Boss POS ROOM = Sales Report FOOD
+```
+
+---
+
+### Quick Database Verification
+
+After making a room charge POS:
+
+```sql
+-- Verify checkin_detail_id is set (critical for Sales Report)
+SELECT
+    t.id,
+    t.order_id,
+    t.guest_id,
+    t.room_id,
+    t.checkin_detail_id,  -- Should NOT be NULL
+    t.payable_amount
+FROM transactions t
+WHERE t.transaction_type_id = 9
+  AND t.created_at > NOW() - INTERVAL 1 HOUR
+ORDER BY t.id DESC;
+```
+
+If `checkin_detail_id` is NULL for room charges, the fix needs to be verified.
