@@ -161,7 +161,11 @@
                                 {{ $request->requester?->name ?? '' }}
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
-                                {{ $request->supervisor?->name ?? '' }}
+                                @if ($request->status === 'auto_approved')
+                                    <span class="text-purple-600 font-medium">{{ $request->supervisor_name }}</span>
+                                @else
+                                    {{ $request->supervisor?->name ?? '' }}
+                                @endif
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
                                 {{ $request->guest_name ?? '' }}

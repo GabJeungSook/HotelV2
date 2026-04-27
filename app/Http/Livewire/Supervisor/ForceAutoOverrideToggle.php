@@ -61,7 +61,10 @@ class ForceAutoOverrideToggle extends Component
     public function confirmEnable()
     {
         $branch = Branch::find(auth()->user()->branch_id);
-        $branch->update(['force_auto_override' => true]);
+        $branch->update([
+            'force_auto_override' => true,
+            'force_auto_override_by' => auth()->id(),
+        ]);
         $this->enabled = true;
 
         // Emit event to sync other toggle instances
@@ -76,7 +79,10 @@ class ForceAutoOverrideToggle extends Component
     public function confirmDisable()
     {
         $branch = Branch::find(auth()->user()->branch_id);
-        $branch->update(['force_auto_override' => false]);
+        $branch->update([
+            'force_auto_override' => false,
+            'force_auto_override_by' => null,
+        ]);
         $this->enabled = false;
 
         // Emit event to sync other toggle instances

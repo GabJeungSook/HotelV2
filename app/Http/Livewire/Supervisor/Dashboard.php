@@ -90,8 +90,8 @@ class Dashboard extends Component
 
     public function getAutoApprovedCountProperty()
     {
+        // Auto-approved requests have null supervisor_id, so don't filter by supervisor
         return OverrideRequest::forBranch(auth()->user()->branch_id)
-            ->where('supervisor_id', auth()->id())
             ->whereDate('created_at', today())
             ->where('status', 'auto_approved')
             ->count();
@@ -280,31 +280,37 @@ class Dashboard extends Component
     }
 
     /**
-     * Get Override Summary Data - filtered to show only this supervisor's records
+     * Get Override Summary Data - filtered to show this supervisor's records + auto-approved
      */
     public function getSummaryRequestsProperty()
     {
         $query = OverrideRequest::with(['requester', 'guest', 'fromRoom', 'toRoom', 'transferReason'])
             ->forBranch(auth()->user()->branch_id)
-            ->where('supervisor_id', auth()->id())
             ->whereDate('created_at', $this->summaryDate);
 
-        // Filter by status
-        $statuses = [];
-        if ($this->showOverride) {
-            $statuses[] = 'approved';
-        }
-        if ($this->showAutoOverride) {
-            $statuses[] = 'auto_approved';
-        }
-        if ($this->showDeclined) {
-            $statuses[] = 'declined';
-        }
+        // Filter by status with special handling for auto_approved (no supervisor_id)
+        $query->where(function ($q) {
+            // Supervisor's own approved/declined requests
+            if ($this->showOverride || $this->showDeclined) {
+                $q->where(function ($sub) {
+                    $sub->where('supervisor_id', auth()->id());
+                    $statuses = [];
+                    if ($this->showOverride) $statuses[] = 'approved';
+                    if ($this->showDeclined) $statuses[] = 'declined';
+                    if (!empty($statuses)) {
+                        $sub->whereIn('status', $statuses);
+                    }
+                });
+            }
 
-        if (!empty($statuses)) {
-            $query->whereIn('status', $statuses);
-        } else {
-            // If no filter selected, show none
+            // Auto-approved requests (have null supervisor_id)
+            if ($this->showAutoOverride) {
+                $q->orWhere('status', 'auto_approved');
+            }
+        });
+
+        // If no filter selected, show none
+        if (!$this->showOverride && !$this->showAutoOverride && !$this->showDeclined) {
             $query->whereRaw('1 = 0');
         }
 
@@ -342,6 +348,7 @@ class Dashboard extends Component
     {
         Branch::where('id', auth()->user()->branch_id)->update([
             'force_auto_override' => true,
+            'force_auto_override_by' => auth()->id(),
         ]);
         $this->forceAutoOverride = true;
 
@@ -355,6 +362,7 @@ class Dashboard extends Component
     {
         Branch::where('id', auth()->user()->branch_id)->update([
             'force_auto_override' => false,
+            'force_auto_override_by' => null,
         ]);
         $this->forceAutoOverride = false;
 

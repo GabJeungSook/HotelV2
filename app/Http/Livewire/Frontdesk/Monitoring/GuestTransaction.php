@@ -2715,12 +2715,13 @@ class GuestTransaction extends Component
     {
         $check_in_detail = CheckinDetail::where('guest_id', $this->guest_id)->first();
         $guest = Guest::find($this->guest_id);
+        $branch = auth()->user()->branch;
 
         // Create auto-approved override request for record
         OverrideRequest::create([
             'branch_id' => auth()->user()->branch_id,
             'requester_id' => auth()->user()->id,
-            'supervisor_id' => null,
+            'supervisor_id' => $branch->force_auto_override_by, // Supervisor who enabled auto-override
             'guest_id' => $this->guest_id,
             'checkin_detail_id' => $check_in_detail->id,
             'transfer_reason_id' => null,

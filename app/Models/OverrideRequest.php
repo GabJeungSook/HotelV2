@@ -234,6 +234,21 @@ class OverrideRequest extends Model
     }
 
     /**
+     * Get supervisor name (from relation, with Auto suffix for auto-approved)
+     */
+    public function getSupervisorNameAttribute()
+    {
+        $name = $this->supervisor?->name ?? $this->getRequestDataValue('supervisor_name');
+
+        if ($this->status === 'auto_approved') {
+            // Show supervisor name with Auto indicator, or just "System (Auto)" if no supervisor
+            return $name ? $name . ' (Auto)' : 'System (Auto)';
+        }
+
+        return $name ?? '';
+    }
+
+    /**
      * Get cancel reason from request_data
      */
     public function getCancelReasonAttribute()

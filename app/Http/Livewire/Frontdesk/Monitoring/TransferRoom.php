@@ -304,11 +304,12 @@ class TransferRoom extends Component
     private function createAutoApprovedOverrideRequest()
     {
         $check_in_detail = CheckinDetail::where('guest_id', $this->guest->id)->first();
+        $branch = auth()->user()->branch;
 
         OverrideRequest::create([
             'branch_id' => auth()->user()->branch_id,
             'requester_id' => auth()->user()->id,
-            'supervisor_id' => null,
+            'supervisor_id' => $branch->force_auto_override_by, // Supervisor who enabled auto-override
             'guest_id' => $this->guest->id,
             'checkin_detail_id' => $check_in_detail->id,
             'transfer_reason_id' => $this->selected_reason,

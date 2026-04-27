@@ -43,4 +43,12 @@ class Branch extends Model
     {
         return $this->hasMany(OverrideRequest::class);
     }
+
+    /**
+     * The supervisor who enabled force auto-override
+     */
+    public function forceAutoOverrideByUser()
+    {
+        return $this->belongsTo(User::class, 'force_auto_override_by');
+    }
 }
