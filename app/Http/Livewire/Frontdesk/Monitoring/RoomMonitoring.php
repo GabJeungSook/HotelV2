@@ -335,7 +335,7 @@ class RoomMonitoring extends Component
         return view('livewire.frontdesk.monitoring.room-monitoring', [
              'rooms' => $this->searchRooms(),
             'kiosks' => $this->searchKiosk(),
-            // 'checkOutKiosks' =>$this->searchCheckOutKiosk(), // section commented out in Blade
+            'checkOutKiosks' => $this->searchCheckOutKiosk(),
             'foods' => $this->food_beverages_modal
                 ? Menu::where('branch_id', auth()->user()->branch_id)->get()
                 : collect(),
