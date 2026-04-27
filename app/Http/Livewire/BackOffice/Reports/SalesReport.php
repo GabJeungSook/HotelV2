@@ -10,7 +10,8 @@ class SalesReport extends Component
     public $type = 'Overall Sales';
     public function render()
     {
-        $transactions = Transaction::query();
+        $transactions = Transaction::query()
+            ->where('branch_id', auth()->user()->branch_id);
 
         switch ($this->type) {
             case 'Daily':
