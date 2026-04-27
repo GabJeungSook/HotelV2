@@ -1,11 +1,12 @@
 <div>
   {{--
-    SUPERVISOR MODULE ON HOLD — the <option value="supervisor"> entries
+    SUPERVISOR MODULE ON HOLD — the supervisor option entries
     were removed from every role dropdown in this view. To re-enable
-    the supervisor role: add `<option value="supervisor">Supervisor</option>`
-    after the Admin option in each <x-native-select label="Role"> block.
-    Do NOT use Blade {{-- --}} comments inside the existing big commented
-    blocks (lines 67-120, 180-205) — they break the parser.
+    the supervisor role: add the supervisor option after the Admin option
+    in each x-native-select Role block.
+    NOTE: do not place Blade comment markers inside the existing big
+    commented blocks (lines 67-120, 180-205) — nested comment markers
+    break the parser. Use HTML comment markers if a sub-comment is needed.
   --}}
   {{-- <div class="mt-5">
     <div class="flex items-end">
