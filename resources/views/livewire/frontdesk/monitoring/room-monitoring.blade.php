@@ -432,65 +432,6 @@
         </div>
       </div>
 
-{{-- OVER TIME Section --}}
-      <div>
-        <div wire:poll.10s>
-          <div class="flex items-center justify-between">
-            <h1 class="font-bold text-xl text-gray-700 flex items-center">
-              <span class="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>
-              OVER TIME
-              <span class="ml-2 bg-red-100 text-red-700 text-sm font-semibold px-2 py-0.5 rounded-full">{{ $overTimeCount }}</span>
-            </h1>
-          </div>
-        </div>
-
-        <div class="overflow-y-auto h-[200px] bg-white shadow-sm rounded-lg mt-3 border border-gray-200"
-             style="scrollbar-width: thin; scrollbar-color: #d1d5db transparent;">
-          <ul role="list" class="divide-y divide-gray-100">
-            @forelse($overTimeRooms as $room)
-              @php
-                $cd = $room->latestCheckInDetail;
-                $guest = $cd ? $cd->guest : null;
-              @endphp
-              @if($cd && $guest)
-              <li class="transition duration-200 ease-in-out hover:bg-red-50">
-                <div class="flex items-center justify-between px-4 py-3">
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-semibold text-red-600 uppercase">
-                      {{ $guest->name }}
-                      <span class="text-gray-400 font-normal">(RM #{{ $room->number }})</span>
-                    </p>
-                    <p class="flex items-center text-xs text-red-500 mt-0.5">
-                      <svg class="mr-1 w-3.5 h-3.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Over by {{ \Carbon\Carbon::parse($cd->check_out_at)->diffForHumans(\Carbon\Carbon::now(), ['parts' => 2, 'short' => true]) }}
-                    </p>
-                  </div>
-                  <div class="flex items-center">
-                    <a href="{{ route('frontdesk.guest-transaction', ['id' => $cd->guest_id]) }}"
-                       class="p-1.5 rounded-full hover:bg-red-100 focus:outline-none transition" title="Process Checkout">
-                      <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                      </svg>
-                    </a>
-                  </div>
-                </div>
-              </li>
-              @endif
-            @empty
-              <div class="flex justify-center items-center py-8 text-gray-400">
-                <div class="text-center">
-                  <svg class="mx-auto h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <p class="mt-1 text-sm">No over-time rooms</p>
-                </div>
-              </div>
-            @endforelse
-          </ul>
-        </div>
-      </div>
     </div>
     @endif
 
