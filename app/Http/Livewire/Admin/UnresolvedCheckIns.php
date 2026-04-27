@@ -68,8 +68,10 @@ class UnresolvedCheckIns extends Component
         // 2026-04-28 — query rewritten. Old query used `number_of_hours` which
         // is 0 for long-stay/extension guests, falsely flagging active guests
         // (with future check_out_at) as ghosts. New query uses check_out_at
-        // (the authoritative planned-checkout column) with a 2 h grace window.
-        $cutoff = now()->subHours(2);
+        // (the authoritative planned-checkout column) with a 48-hour (2-day) grace window.
+        // 48 hours ensures only true abandoned guests are flagged, not overstays.
+        // See: docs/incidents/2026-04-28-fix-all-unresolved-incident-report.md
+        $cutoff = now()->subHours(48);
 
         return CheckinDetail::where('is_check_out', 0)
             ->whereNotNull('check_out_at')
@@ -133,7 +135,7 @@ class UnresolvedCheckIns extends Component
      * Detection criteria (corrected 2026-04-28):
      *   - is_check_out = 0 (record still flagged active)
      *   - check_out_at IS NOT NULL
-     *   - check_out_at < now() - 2 hours (real planned-checkout is past)
+     *   - check_out_at < now() - 48 hours (real planned-checkout is past by 2 days)
      *
      * Action behaviour (corrected 2026-04-28):
      *   - is_check_out: set to TRUE
@@ -158,7 +160,7 @@ class UnresolvedCheckIns extends Component
             return;
         }
 
-        $cutoff = now()->subHours(2);
+        $cutoff = now()->subHours(48);
 
         $ghosts = CheckinDetail::where('is_check_out', 0)
             ->whereNotNull('check_out_at')
