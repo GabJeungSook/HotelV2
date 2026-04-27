@@ -375,6 +375,34 @@ class RoomMonitoring extends Component
             ->count();
     }
 
+    // Kept commented for quick re-enable of the OVER TIME sidebar section.
+    // public function getOverTimeCountProperty()
+    // {
+    //     $graceCutoff = now()->subMinutes(15);
+    //
+    //     return Room::where('branch_id', auth()->user()->branch_id)
+    //         ->where('status', 'Occupied')
+    //         ->whereHas('latestCheckInDetail', function ($q) use ($graceCutoff) {
+    //             $q->where('is_check_out', false)
+    //               ->where('check_out_at', '<', $graceCutoff);
+    //         })
+    //         ->count();
+    // }
+    //
+    // public function getOverTimeRoomsProperty()
+    // {
+    //     $graceCutoff = now()->subMinutes(15);
+    //
+    //     return Room::where('branch_id', auth()->user()->branch_id)
+    //         ->where('status', 'Occupied')
+    //         ->whereHas('latestCheckInDetail', function ($q) use ($graceCutoff) {
+    //             $q->where('is_check_out', false)
+    //               ->where('check_out_at', '<', $graceCutoff);
+    //         })
+    //         ->with(['latestCheckInDetail.guest', 'floor', 'type'])
+    //         ->get();
+    // }
+
     public function render()
     {
         return view('livewire.frontdesk.monitoring.room-monitoring', [
@@ -387,6 +415,8 @@ class RoomMonitoring extends Component
             'kioskBatchData' => $this->kioskBatchData,
             'kioskBatchTotals' => $this->kioskBatchTotals,
             'gracePeriodCount' => $this->gracePeriodCount,
+            // 'overTimeCount' => $this->overTimeCount,
+            // 'overTimeRooms' => $this->overTimeRooms,
         ]);
     }
 
