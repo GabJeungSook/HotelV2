@@ -26,6 +26,64 @@
 
   <!-- Scripts -->
   @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+  <style>
+    /* Continuous drift on the gradient polygon — keeps the page breathing */
+    .polygon-drift {
+      animation: polygonDrift 22s ease-in-out infinite;
+      transform-origin: center;
+      will-change: transform;
+    }
+    @keyframes polygonDrift {
+      0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+      33%      { transform: translate(30px, -20px) rotate(6deg) scale(1.04); }
+      66%      { transform: translate(-20px, 25px) rotate(-4deg) scale(0.98); }
+    }
+
+    /* Giant HOMI watermark — replaces the faded logo image */
+    .homi-watermark {
+      position: absolute;
+      right: -1.5rem;
+      bottom: -3rem;
+      font-family: 'Alkatra', system-ui, sans-serif;
+      font-weight: 700;
+      font-size: clamp(10rem, 22vw, 22rem);
+      line-height: 0.82;
+      letter-spacing: -0.04em;
+      background: linear-gradient(180deg, rgba(0, 158, 245, 0.22) 0%, rgba(0, 158, 245, 0.05) 70%, transparent 100%);
+      -webkit-background-clip: text;
+              background-clip: text;
+      -webkit-text-fill-color: transparent;
+      pointer-events: none;
+      user-select: none;
+      z-index: 0;
+    }
+
+    /* LOGIN button — bigger, brand glow, animated chevron */
+    .btn-login {
+      background: #009EF5;
+      color: #fff;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow:
+        0 10px 28px -8px rgba(0, 158, 245, 0.55),
+        0 2px 6px rgba(0, 158, 245, 0.18);
+      transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+    }
+    .btn-login:hover {
+      transform: translateY(-2px);
+      background: #0091e0;
+      box-shadow:
+        0 16px 36px -8px rgba(0, 158, 245, 0.72),
+        0 4px 10px rgba(0, 158, 245, 0.25);
+    }
+  </style>
 </head>
 @if(app()->environment('staging'))
    <div class="fixed top-0 left-0 w-full bg-red-600 text-white text-center py-1 text-sm font-semibold z-50 animate-pulse">
@@ -37,9 +95,7 @@
 
 <body class="font-sans antialiased overflow-hidden">
 
-  <div class="absolute bottom-0 right-0">
-    <img src="{{ asset('images/homiLogo.png') }}" class="h-96 opacity-10" alt="">
-  </div>
+  <div class="homi-watermark" aria-hidden="true">HOMI</div>
   <div class="bg-white">
     <header class="absolute inset-x-0 top-0 z-50">
       <nav class="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8" aria-label="Global">
@@ -104,7 +160,7 @@
         <div
           class="absolute left-1/2 right-0 top-0 -z-10 -ml-24 transform-gpu overflow-hidden blur-3xl lg:ml-24 xl:ml-48"
           aria-hidden="true">
-          <div class="aspect-[801/1036] w-[50.0625rem] bg-gradient-to-tr from-[#009EF5] to-gray-300 opacity-30"
+          <div class="polygon-drift aspect-[801/1036] w-[50.0625rem] bg-gradient-to-tr from-[#009EF5] to-gray-300 opacity-30"
             style="clip-path: polygon(63.1% 29.5%, 100% 17.1%, 76.6% 3%, 48.4% 0%, 44.6% 4.7%, 54.5% 25.3%, 59.8% 49%, 55.2% 57.8%, 44.4% 57.2%, 27.8% 47.9%, 35.1% 81.5%, 0% 97.7%, 39.2% 100%, 35.2% 81.4%, 97.2% 52.8%, 63.1% 29.5%)">
           </div>
         </div>
@@ -124,13 +180,15 @@
                   Powered By: J7 IT SOLUTION & SERVICES</p> --}}
                 <div class="mt-10 flex items-center gap-x-6">
                   <a href="{{ route('login') }}"
-                    class="animate__animated animate__slideInUp rounded-md  bg-dlogo px-3.5 py-2 text-sm font-semibold flex space-x-1 items-center text-white shadow-sm hover:bg-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-                    <span> LOGIN</span> <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-                      class="fill-white h-6 w-6 rotate-180">
+                    class="animate__animated animate__slideInUp btn-login group">
+                    <span>LOGIN</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                      class="fill-white h-5 w-5 rotate-180 transition-transform duration-300 group-hover:translate-x-1">
                       <path
                         d="M11 20L1 12L11 4V9C16.5228 9 21 13.4772 21 19C21 19.2729 20.9891 19.5433 20.9676 19.8107C19.4605 16.9502 16.458 15 13 15H11V20Z">
                       </path>
-                    </svg></a>
+                    </svg>
+                  </a>
                 </div>
               </div>
 

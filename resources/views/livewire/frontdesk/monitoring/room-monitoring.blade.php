@@ -39,33 +39,28 @@
     <div class="mt-5 flex flex-wrap gap-2 items-center justify-between bg-white rounded-lg px-4 py-3 shadow-sm border border-gray-100">
       <div class="flex flex-wrap gap-2 items-center">
         <span class="text-xs text-gray-500 font-medium uppercase tracking-wide mr-1">Status:</span>
-        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700 border border-green-200">
-          <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>Occupied
-        </span>
-        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-700 text-white">
-          <span class="w-1.5 h-1.5 bg-gray-300 rounded-full mr-1.5"></span>Reserved
-        </span>
-        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">
-          <span class="w-1.5 h-1.5 bg-violet-500 rounded-full mr-1.5"></span>Maintenance
-        </span>
-        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-white">
-          <span class="w-1.5 h-1.5 bg-gray-400 rounded-full mr-1.5"></span>Unavailable
-        </span>
-        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-          <span class="w-1.5 h-1.5 bg-slate-500 rounded-full mr-1.5"></span>Uncleaned
-        </span>
-        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-red-100 text-red-700 border border-red-200">
-          <span class="w-1.5 h-1.5 bg-red-500 rounded-full mr-1.5"></span>Cleaning
-        </span>
-        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
-          <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5"></span>Cleaned
-        </span>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700 border border-green-200">Occupied</span>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-700 text-white">Reserved</span>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">Maintenance</span>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-white">Unavailable</span>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">Uncleaned</span>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-red-100 text-red-700 border border-red-200">Cleaning</span>
+        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">Cleaned</span>
+
+        {{-- Grace Period count chip (yellow) --}}
+        @if($gracePeriodCount > 0)
+          <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300 ml-2 animate-pulse">
+            Grace Period: {{ $gracePeriodCount }}
+          </span>
+        @endif
+
       </div>
       <div class="flex items-center bg-gray-50 px-3 py-1.5 rounded-md">
         <span class="text-xs text-gray-500 font-medium">Total Rooms:</span>
         <span class="ml-1.5 text-sm font-bold text-gray-800">{{ $rooms->count() }}</span>
       </div>
     </div>
+
     <div class="overflow-auto max-h-[70vh] p-2 border mt-2 md:rounded-lg">
       {{-- <table class="min-w-full divide-y divide-gray-300">
         <thead class="bg-gray-50">
@@ -201,12 +196,18 @@
               </td>
               <td class="whitespace-nowrap px-3 py-3 text-sm ">
 
-                @php
-                //   $check_out_date = Carbon\Carbon::parse($room->checkInDetails->first()->check_out_at ?? null);
-                  $check_out_date = Carbon\Carbon::parse($room->latestCheckInDetail->check_out_at ?? null);
-                @endphp
-
-                @if ($room->status == 'Occupied')
+                @if ($room->status == 'Occupied' && $room->latestCheckInDetail == null)
+                  {{-- Ghost room: Occupied but no active guest --}}
+                  <span class="inline-flex items-center gap-1 rounded-md bg-purple-100 text-purple-800 border border-purple-300 px-2 py-1 text-xs font-semibold">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    </svg>
+                    Ghost Room — no guest
+                  </span>
+                @elseif ($room->status == 'Occupied' && $room->latestCheckInDetail != null)
+                  @php
+                    $check_out_date = Carbon\Carbon::parse($room->latestCheckInDetail->check_out_at);
+                  @endphp
                   <div class="flex space-x-1">
                    @php
                     $now = Carbon\Carbon::now();
@@ -269,6 +270,16 @@
                         <x-button wire:click="addTransaction({{$room->latestCheckInDetail->guest_id}})" label="Add Transaction" slate sm right-icon="arrow-narrow-right" />
                         @endif
                   </div>
+                @elseif ($room->status == 'Occupied' && $room->latestCheckInDetail == null)
+                  {{-- Ghost room: show Fix button --}}
+                  <button wire:click="fixGhostRoom({{ $room->id }})"
+                          wire:confirm="This room is marked Occupied but has no active guest. Fix it (set to Available)?"
+                          class="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow-sm transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="w-3.5 h-3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" />
+                    </svg>
+                    Fix Ghost Room
+                  </button>
                 @elseif($room->status == 'Reserved')
                 <x-button
                 label="Check-in" wire:click="checkInReserve({{ $room->id }})" positive sm right-icon="arrow-narrow-right" />
@@ -290,7 +301,7 @@
     <div class="col-span-1 space-y-4">
       {{-- CHECK-IN GUEST Section --}}
       <div>
-        <div wire:poll.1s>
+        <div wire:poll.10s>
           <div class="flex items-center justify-between">
             <h1 class="font-bold text-xl text-gray-700 flex items-center">
               <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
@@ -360,7 +371,7 @@
 
 {{-- CHECKOUT GUEST Section --}}
       <div>
-        <div wire:poll.1s>
+        <div wire:poll.10s>
           <div class="flex items-center justify-between">
             <h1 class="font-bold text-xl text-gray-700 flex items-center">
               <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
@@ -414,6 +425,66 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
                   <p class="mt-1 text-sm">No checkout guests</p>
+                </div>
+              </div>
+            @endforelse
+          </ul>
+        </div>
+      </div>
+
+{{-- OVER TIME Section --}}
+      <div>
+        <div wire:poll.10s>
+          <div class="flex items-center justify-between">
+            <h1 class="font-bold text-xl text-gray-700 flex items-center">
+              <span class="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>
+              OVER TIME
+              <span class="ml-2 bg-red-100 text-red-700 text-sm font-semibold px-2 py-0.5 rounded-full">{{ $overTimeCount }}</span>
+            </h1>
+          </div>
+        </div>
+
+        <div class="overflow-y-auto h-[200px] bg-white shadow-sm rounded-lg mt-3 border border-gray-200"
+             style="scrollbar-width: thin; scrollbar-color: #d1d5db transparent;">
+          <ul role="list" class="divide-y divide-gray-100">
+            @forelse($overTimeRooms as $room)
+              @php
+                $cd = $room->latestCheckInDetail;
+                $guest = $cd ? $cd->guest : null;
+              @endphp
+              @if($cd && $guest)
+              <li class="transition duration-200 ease-in-out hover:bg-red-50">
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-semibold text-red-600 uppercase">
+                      {{ $guest->name }}
+                      <span class="text-gray-400 font-normal">(RM #{{ $room->number }})</span>
+                    </p>
+                    <p class="flex items-center text-xs text-red-500 mt-0.5">
+                      <svg class="mr-1 w-3.5 h-3.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Over by {{ \Carbon\Carbon::parse($cd->check_out_at)->diffForHumans(\Carbon\Carbon::now(), ['parts' => 2, 'short' => true]) }}
+                    </p>
+                  </div>
+                  <div class="flex items-center">
+                    <a href="{{ route('frontdesk.guest-transaction', ['id' => $cd->guest_id]) }}"
+                       class="p-1.5 rounded-full hover:bg-red-100 focus:outline-none transition" title="Process Checkout">
+                      <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+              </li>
+              @endif
+            @empty
+              <div class="flex justify-center items-center py-8 text-gray-400">
+                <div class="text-center">
+                  <svg class="mx-auto h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p class="mt-1 text-sm">No over-time rooms</p>
                 </div>
               </div>
             @endforelse

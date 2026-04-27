@@ -330,6 +330,71 @@ class RoomMonitoring extends Component
         // return redirect()->route('kitchen.transactions');
     }
 
+    public function fixGhostRoom($roomId)
+    {
+        $room = Room::find($roomId);
+
+        if (!$room) {
+            $this->dialog()->error('Error', 'Room not found.');
+            return;
+        }
+
+        $hasActiveGuest = CheckinDetail::where('room_id', $room->id)
+            ->where('is_check_out', false)
+            ->exists();
+
+        if ($hasActiveGuest) {
+            $this->dialog()->error('Error', 'This room has an active guest. Cannot fix.');
+            return;
+        }
+
+        $room->update(['status' => 'Available']);
+
+        \App\Models\ActivityLog::create([
+            'branch_id' => $room->branch_id,
+            'user_id' => auth()->user()->id,
+            'activity' => 'Fix Ghost Room',
+            'description' => 'Fixed ghost room #' . $room->number . ' - changed from Occupied to Available (frontdesk)',
+        ]);
+
+        $this->dialog()->success('Fixed', 'Room #' . $room->number . ' is now Available.');
+    }
+
+    public function getOverTimeCountProperty()
+    {
+        return Room::where('branch_id', auth()->user()->branch_id)
+            ->where('status', 'Occupied')
+            ->whereHas('latestCheckInDetail', function ($q) {
+                $q->where('is_check_out', false)
+                  ->whereRaw('DATE_ADD(check_out_at, INTERVAL 15 MINUTE) < NOW()');
+            })
+            ->count();
+    }
+
+    public function getOverTimeRoomsProperty()
+    {
+        return Room::where('branch_id', auth()->user()->branch_id)
+            ->where('status', 'Occupied')
+            ->whereHas('latestCheckInDetail', function ($q) {
+                $q->where('is_check_out', false)
+                  ->whereRaw('DATE_ADD(check_out_at, INTERVAL 15 MINUTE) < NOW()');
+            })
+            ->with(['latestCheckInDetail.guest', 'floor', 'type'])
+            ->get();
+    }
+
+    public function getGracePeriodCountProperty()
+    {
+        return Room::where('branch_id', auth()->user()->branch_id)
+            ->where('status', 'Occupied')
+            ->whereHas('latestCheckInDetail', function ($q) {
+                $q->where('is_check_out', false)
+                  ->whereRaw('NOW() > check_out_at')
+                  ->whereRaw('NOW() <= DATE_ADD(check_out_at, INTERVAL 15 MINUTE)');
+            })
+            ->count();
+    }
+
     public function render()
     {
         return view('livewire.frontdesk.monitoring.room-monitoring', [
@@ -341,6 +406,9 @@ class RoomMonitoring extends Component
                 : collect(),
             'kioskBatchData' => $this->kioskBatchData,
             'kioskBatchTotals' => $this->kioskBatchTotals,
+            'overTimeCount' => $this->overTimeCount,
+            'gracePeriodCount' => $this->gracePeriodCount,
+            'overTimeRooms' => $this->overTimeRooms,
         ]);
     }
 
