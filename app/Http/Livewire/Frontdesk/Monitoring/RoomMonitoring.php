@@ -360,33 +360,6 @@ class RoomMonitoring extends Component
         $this->dialog()->success('Fixed', 'Room #' . $room->number . ' is now Available.');
     }
 
-    public function getOverTimeCountProperty()
-    {
-        $graceCutoff = now()->subMinutes(15);
-
-        return Room::where('branch_id', auth()->user()->branch_id)
-            ->where('status', 'Occupied')
-            ->whereHas('latestCheckInDetail', function ($q) use ($graceCutoff) {
-                $q->where('is_check_out', false)
-                  ->where('check_out_at', '<', $graceCutoff);
-            })
-            ->count();
-    }
-
-    public function getOverTimeRoomsProperty()
-    {
-        $graceCutoff = now()->subMinutes(15);
-
-        return Room::where('branch_id', auth()->user()->branch_id)
-            ->where('status', 'Occupied')
-            ->whereHas('latestCheckInDetail', function ($q) use ($graceCutoff) {
-                $q->where('is_check_out', false)
-                  ->where('check_out_at', '<', $graceCutoff);
-            })
-            ->with(['latestCheckInDetail.guest', 'floor', 'type'])
-            ->get();
-    }
-
     public function getGracePeriodCountProperty()
     {
         $now = now();
@@ -413,9 +386,7 @@ class RoomMonitoring extends Component
                 : collect(),
             'kioskBatchData' => $this->kioskBatchData,
             'kioskBatchTotals' => $this->kioskBatchTotals,
-            'overTimeCount' => $this->overTimeCount,
             'gracePeriodCount' => $this->gracePeriodCount,
-            'overTimeRooms' => $this->overTimeRooms,
         ]);
     }
 
