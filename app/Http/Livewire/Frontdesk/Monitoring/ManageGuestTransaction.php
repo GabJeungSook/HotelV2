@@ -810,15 +810,6 @@ class ManageGuestTransaction extends Component
             'reason' => 'required',
         ]);
 
-        // Block setting vacated room directly to "Available" - must go through cleaning cycle
-        if ($this->old_status === 'Available') {
-            $this->dialog()->error(
-                $title = 'Cannot Set to Available',
-                $description = 'The vacated room must go through cleaning process first. Please select "Uncleaned" instead.'
-            );
-            return;
-        }
-
         $this->autorization_modal = true;
     }
 

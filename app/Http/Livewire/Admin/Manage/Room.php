@@ -206,14 +206,19 @@ class Room extends Component implements Tables\Contracts\HasTable
                     $newStatus = $data['status'] ?? $record->status;
                     $oldStatus = $record->status;
 
-                    // Prevent changing from Maintenance directly to Available
-                    // Room should go through cleaning cycle first (Uncleaned -> Cleaning -> Cleaned -> Available)
-                    if ($oldStatus === 'Maintenance' && $newStatus === 'Available') {
-                        $this->dialog()->error(
-                            $title = 'Cannot Set to Available',
-                            $description = 'Room is currently in Maintenance. Please set the status to "Uncleaned" first so it can go through the cleaning process before becoming Available.'
-                        );
-                        return;
+                    // Prevent changing to Available if room has an active guest
+                    if ($newStatus === 'Available') {
+                        $hasActiveGuest = CheckinDetail::where('room_id', $record->id)
+                            ->where('is_check_out', false)
+                            ->exists();
+
+                        if ($hasActiveGuest) {
+                            $this->dialog()->error(
+                                $title = 'Cannot Set to Available',
+                                $description = 'This room has an active guest checked in. Please check out the guest first before setting to Available.'
+                            );
+                            return;
+                        }
                     }
 
                     // Prevent changing to Maintenance if room has ongoing cleaning
