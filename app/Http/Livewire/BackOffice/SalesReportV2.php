@@ -932,7 +932,7 @@ class SalesReportV2 extends Component
         }
 
         // Find checked-out guests before this shift with unclaimed guest deposits
-        // Limit to last 14 days to prevent memory issues on old archived weeks
+        // Limit to guests who checked out in last 14 days to prevent memory issues
         // Uses checkoutBoundary to also capture overlap guests (checked out between shift.time_in and prevShift.time_out)
         {
             $lookbackLimit = $shiftLog->time_in->copy()->subDays(14);
@@ -940,8 +940,8 @@ class SalesReportV2 extends Component
                 ->with(['guest', 'room.type'])
                 ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
                 ->where('check_in_at', '<', $shiftLog->time_in)
-                ->where('check_in_at', '>=', $lookbackLimit) // Limit lookback to 14 days
                 ->whereNotNull('check_out_at')
+                ->where('check_out_at', '>=', $lookbackLimit) // Only guests who checked out in last 14 days
                 ->where('check_out_at', '<=', $checkoutBoundary)
                 ->get();
 
