@@ -42,6 +42,7 @@ class CheckoutService
         $guestId           = $context['guest_id']            ?? null;
         $roomId            = $context['room_id']             ?? null;
         $floorId           = $context['floor_id']            ?? null;
+        $checkinDetailId   = $context['checkin_detail_id']   ?? null;
         $discountAmount    = (int) ($context['discount_amount'] ?? 0);
         $discountReason    = $context['discount_reason']     ?? null;
         $paidAmount        = (int) ($context['paid_amount']  ?? 0);
@@ -87,8 +88,8 @@ class CheckoutService
 
         return DB::transaction(function () use (
             $cart, $branchId, $userId, $shiftLogId, $guestId, $roomId, $floorId,
-            $discountAmount, $discountReason, $subtotal, $total, $paymentMethod,
-            $paidAmount, $changeAmount, $sourceType, $assignedFrontdesk, $description
+            $checkinDetailId, $discountAmount, $discountReason, $subtotal, $total,
+            $paymentMethod, $paidAmount, $changeAmount, $sourceType, $assignedFrontdesk, $description
         ) {
             $order = PosOrder::create([
                 'branch_id'         => $branchId,
@@ -114,6 +115,7 @@ class CheckoutService
                     'room_id'               => $roomId,
                     'guest_id'              => $guestId,
                     'floor_id'              => $floorId,
+                    'checkin_detail_id'     => $checkinDetailId,
                     'shift_log_id'          => $shiftLogId,
                     'transaction_type_id'   => 9,
                     // transactions.assigned_frontdesk_id is NOT NULL in the legacy schema.

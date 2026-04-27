@@ -150,14 +150,15 @@ class PointOfSale extends Component
 
         $this->selectedGuestId = $guest->id;
         $this->selectedGuestData = [
-            'id'             => $guest->id,
-            'name'           => $guest->name ?: ('Guest #' . $guest->id),
-            'room_number'    => $room?->number,
-            'room_id'        => $room?->id,
-            'floor_id'       => $room?->floor_id,
-            'floor_number'   => $room?->floor?->number,
-            'type_name'      => $room?->type?->name,
-            'open_pos_total' => $openTotal,
+            'id'                 => $guest->id,
+            'name'               => $guest->name ?: ('Guest #' . $guest->id),
+            'room_number'        => $room?->number,
+            'room_id'            => $room?->id,
+            'floor_id'           => $room?->floor_id,
+            'floor_number'       => $room?->floor?->number,
+            'type_name'          => $room?->type?->name,
+            'open_pos_total'     => $openTotal,
+            'checkin_detail_id'  => $guest->checkInDetail?->id,
         ];
     }
 
@@ -472,9 +473,10 @@ class PointOfSale extends Component
         ];
 
         if ($this->attachToRoom && $this->selectedGuestId !== null && $this->selectedGuestData !== null) {
-            $context['guest_id'] = $this->selectedGuestId;
-            $context['room_id']  = $this->selectedGuestData['room_id']  ?? null;
-            $context['floor_id'] = $this->selectedGuestData['floor_id'] ?? null;
+            $context['guest_id']           = $this->selectedGuestId;
+            $context['room_id']            = $this->selectedGuestData['room_id']  ?? null;
+            $context['floor_id']           = $this->selectedGuestData['floor_id'] ?? null;
+            $context['checkin_detail_id']  = $this->selectedGuestData['checkin_detail_id'] ?? null;
             // Room-charge: no cash collected.
             $context['paid_amount']   = 0;
             $context['change_amount'] = 0;
