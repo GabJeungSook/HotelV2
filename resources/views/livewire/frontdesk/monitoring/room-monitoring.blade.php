@@ -300,7 +300,7 @@
     @if(auth()->user()->hasRole('frontdesk'))
     <div class="col-span-1 space-y-4">
       {{-- CHECK-IN GUEST Section --}}
-      <div class="min-h-[220px]">
+      <div>
         <div wire:poll.1s>
           <div class="flex items-center justify-between">
             <h1 class="font-bold text-xl text-gray-700 flex items-center">
@@ -311,7 +311,8 @@
           </div>
         </div>
 
-        <div class="overflow-auto min-h-[180px] max-h-52 bg-white shadow-sm rounded-lg mt-3 border border-gray-200">
+        <div class="overflow-y-auto h-[200px] bg-white shadow-sm rounded-lg mt-3 border border-gray-200"
+             style="scrollbar-width: thin; scrollbar-color: #d1d5db transparent;">
           <ul role="list" class="divide-y divide-gray-100" x-animate>
             @forelse($kiosks as $kiosk)
               @if (! $kiosk->guest)
@@ -369,7 +370,7 @@
       </div>
 
 {{-- CHECKOUT GUEST Section --}}
-      <div class="min-h-[220px]">
+      <div>
         <div wire:poll.1s>
           <div class="flex items-center justify-between">
             <h1 class="font-bold text-xl text-gray-700 flex items-center">
@@ -380,7 +381,8 @@
           </div>
         </div>
 
-        <div class="overflow-auto min-h-[180px] max-h-52 bg-white shadow-sm rounded-lg mt-3 border border-gray-200">
+        <div class="overflow-y-auto h-[200px] bg-white shadow-sm rounded-lg mt-3 border border-gray-200"
+             style="scrollbar-width: thin; scrollbar-color: #d1d5db transparent;">
           <ul role="list" class="divide-y divide-gray-100">
             @forelse($checkOutKiosks as $room)
               @php

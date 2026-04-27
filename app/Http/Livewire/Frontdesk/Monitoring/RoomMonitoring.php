@@ -422,15 +422,16 @@ class RoomMonitoring extends Component
 
     public function searchCheckOutKiosk()
     {
-          return Room::with('guest')
+        return Room::with(['latestCheckInDetail.guest'])
             ->where('branch_id', auth()->user()->branch_id)
-            ->whereHas('guest', function ($query) {
-                $query->where('has_kiosk_check_out', true);
-            })
-            ->whereHas('guest.checkInDetail', function ($query) {
+            ->where('status', 'Occupied')
+            ->whereHas('latestCheckInDetail', function ($query) {
                 $query->where('is_check_out', false);
             })
-            ->orderBy('created_at', 'desc')
+            ->whereHas('latestCheckInDetail.guest', function ($query) {
+                $query->where('has_kiosk_check_out', true);
+            })
+            ->orderBy('updated_at', 'desc')
             ->get();
     }
 
