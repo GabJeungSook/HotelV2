@@ -1,4 +1,12 @@
 <div>
+  {{--
+    SUPERVISOR MODULE ON HOLD — the <option value="supervisor"> entries
+    were removed from every role dropdown in this view. To re-enable
+    the supervisor role: add `<option value="supervisor">Supervisor</option>`
+    after the Admin option in each <x-native-select label="Role"> block.
+    Do NOT use Blade {{-- --}} comments inside the existing big commented
+    blocks (lines 67-120, 180-205) — they break the parser.
+  --}}
   {{-- <div class="mt-5">
     <div class="flex items-end">
       <div class="sm:flex-auto">
@@ -74,8 +82,6 @@
         <x-native-select label="Role" wire:model="role">
           <option selected hidden>Select Role</option>
           <option value="admin">Admin</option>
-          {{-- SUPERVISOR MODULE ON HOLD — option hidden from admin user create/edit forms. Uncomment to restore. --}}
-          {{-- <option value="supervisor">Supervisor</option> --}}
           <option value="frontdesk">Frontdesk</option>
           <option value="kiosk">Kiosk</option>
           <option value="kitchen">Kitchen</option>
@@ -101,8 +107,6 @@
         <x-native-select label="Role" wire:model="role">
           <option selected hidden>Select Role</option>
           <option value="admin">Admin</option>
-          {{-- SUPERVISOR MODULE ON HOLD — option hidden from admin user create/edit forms. Uncomment to restore. --}}
-          {{-- <option value="supervisor">Supervisor</option> --}}
           <option value="frontdesk">Frontdesk</option>
           <option value="kiosk">Kiosk</option>
           <option value="kitchen">Kitchen</option>
@@ -186,8 +190,6 @@
         <x-native-select label="Role" wire:model="role">
           <option selected hidden>Select Role</option>
           <option value="admin">Admin</option>
-          {{-- SUPERVISOR MODULE ON HOLD — option hidden from admin user create/edit forms. Uncomment to restore. --}}
-          {{-- <option value="supervisor">Supervisor</option> --}}
           <option value="frontdesk">Frontdesk</option>
           <option value="kiosk">Kiosk</option>
           <option value="kitchen">Kitchen</option>
@@ -231,8 +233,6 @@
         <x-native-select label="Role" wire:model="role">
           <option selected hidden>Select Role</option>
           <option value="admin">Admin</option>
-          {{-- SUPERVISOR MODULE ON HOLD — option hidden from admin user create/edit forms. Uncomment to restore. --}}
-          {{-- <option value="supervisor">Supervisor</option> --}}
           <option value="frontdesk">Frontdesk</option>
           <option value="kiosk">Kiosk</option>
           <option value="kitchen">Kitchen</option>
