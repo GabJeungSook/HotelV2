@@ -105,6 +105,7 @@
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">DATE</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">TYPE</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">STATUS</th>
+                        <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">MODE</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">REQUESTER</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">SUPERVISOR</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">GUEST</th>
@@ -136,8 +137,8 @@
                                         Declined
                                     </span>
                                 @elseif ($request->status === 'auto_approved')
-                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                        Auto-Approved
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        Approved
                                     </span>
                                 @else
                                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -145,29 +146,38 @@
                                     </span>
                                 @endif
                             </td>
-                            <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
-                                {{ $request->requester?->name ?? '—' }}
+                            <td class="border border-gray-300 px-3 py-3 text-sm text-center">
+                                @if ($request->status === 'auto_approved')
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                        Auto
+                                    </span>
+                                @elseif ($request->status !== 'pending')
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        Manual
+                                    </span>
+                                @endif
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
-                                {{ $request->supervisor?->name ?? '—' }}
+                                {{ $request->requester?->name ?? '' }}
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
-                                {{ $request->guest_name ?? '—' }}
+                                {{ $request->supervisor?->name ?? '' }}
+                            </td>
+                            <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
+                                {{ $request->guest_name ?? '' }}
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
                                 @if ($request->transaction_type === 'transfer')
-                                    {{ $request->from_room_number ?? '—' }} &rarr; {{ $request->to_room_number ?? '—' }}
+                                    {{ $request->from_room_number ?? '' }} &rarr; {{ $request->to_room_number ?? '' }}
                                 @else
-                                    {{ $request->from_room_number ?? '—' }}
+                                    {{ $request->from_room_number ?? '' }}
                                 @endif
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
                                 @if ($request->status === 'declined')
-                                    {{ $request->decline_reason ?? '—' }}
+                                    {{ $request->decline_reason ?? '' }}
                                 @elseif ($request->transaction_type === 'cancel')
-                                    {{ $request->cancel_reason ?? '—' }}
-                                @else
-                                    —
+                                    {{ $request->cancel_reason ?? '' }}
                                 @endif
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
@@ -176,7 +186,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="border border-gray-300 px-3 py-6 text-sm text-center text-gray-500">
+                            <td colspan="10" class="border border-gray-300 px-3 py-6 text-sm text-center text-gray-500">
                                 No override requests found for the selected filters.
                             </td>
                         </tr>

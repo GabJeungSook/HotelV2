@@ -108,20 +108,21 @@ class OverrideRequestHistory extends Component
     public function getResponseTime($request): string
     {
         if (!$request->responded_at) {
-            return '—';
+            return '';
         }
 
         $created = Carbon::parse($request->created_at);
         $responded = Carbon::parse($request->responded_at);
-        $diffMinutes = $created->diffInMinutes($responded);
+        $diffSeconds = $created->diffInSeconds($responded);
 
-        if ($diffMinutes < 1) {
-            return '< 1 min';
-        } elseif ($diffMinutes < 60) {
-            return $diffMinutes . ' min';
+        if ($diffSeconds < 60) {
+            return $diffSeconds . ' sec';
+        } elseif ($diffSeconds < 3600) {
+            $mins = intdiv($diffSeconds, 60);
+            return $mins . ' min';
         } else {
-            $hours = intdiv($diffMinutes, 60);
-            $mins = $diffMinutes % 60;
+            $hours = intdiv($diffSeconds, 3600);
+            $mins = intdiv($diffSeconds % 3600, 60);
             return $hours . 'h ' . $mins . 'm';
         }
     }
