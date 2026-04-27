@@ -58,7 +58,8 @@
                 </select>
             </div>
 
-            {{-- Supervisor --}}
+            {{-- Supervisor (hide for supervisor role - they only see their own) --}}
+            @if (!$isSupervisor)
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
                 <select wire:model.defer="supervisor_id"
@@ -69,6 +70,7 @@
                     @endforeach
                 </select>
             </div>
+            @endif
 
             {{-- Buttons --}}
             <div class="flex items-end gap-2">
@@ -175,7 +177,9 @@
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
                                 @if ($request->status === 'declined')
-                                    {{ $request->decline_reason ?? '' }}
+                                    <span class="text-red-600">{{ $request->decline_reason ?? '' }}</span>
+                                @elseif ($request->transaction_type === 'transfer')
+                                    {{ $request->transferReason?->reason ?? '' }}
                                 @elseif ($request->transaction_type === 'cancel')
                                     {{ $request->cancel_reason ?? '' }}
                                 @endif
