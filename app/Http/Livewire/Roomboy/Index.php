@@ -149,29 +149,23 @@ class Index extends Component
     {
         $room = Room::where('id', $room_id)->first();
 
-        /* TEMPORARILY DISABLED 2026-04-24 — unresolved-previous-guest guard.
-         * Blocked 4 existing stuck rooms; disabled to unblock operations while
-         * POS upgrade work is in progress. Re-enable after those stuck records
-         * are resolved AND POS work is shipped.
-         * See docs/bugs/2026-04-23-ghost-checkin-races-room-reuse.md
-         *
-         * $openCheckin = CheckinDetail::where('room_id', $room->id)
-         *     ->where('is_check_out', false)
-         *     ->with('guest:id,name')
-         *     ->first();
-         *
-         * if ($openCheckin) {
-         *     $ghostName = $openCheckin->guest->name ?? 'Unknown';
-         *     $ghostDate = $openCheckin->check_in_at
-         *         ? \Carbon\Carbon::parse($openCheckin->check_in_at)->format('M d, Y g:i A')
-         *         : 'unknown date';
-         *     $this->dialog()->error(
-         *         'Cannot Finish Cleaning',
-         *         "Room has unresolved previous guest: {$ghostName} (checked in {$ghostDate}). Front desk must check out first."
-         *     );
-         *     return;
-         * }
-         */
+        // Guard: Block finish cleaning if room has unresolved previous guest
+        $openCheckin = CheckinDetail::where('room_id', $room->id)
+            ->where('is_check_out', false)
+            ->with('guest:id,name')
+            ->first();
+
+        if ($openCheckin) {
+            $ghostName = $openCheckin->guest->name ?? 'Unknown';
+            $ghostDate = $openCheckin->check_in_at
+                ? \Carbon\Carbon::parse($openCheckin->check_in_at)->format('M d, Y g:i A')
+                : 'unknown date';
+            $this->dialog()->error(
+                'Cannot Finish Cleaning',
+                "Room has unresolved previous guest: {$ghostName} (checked in {$ghostDate}). Front desk must check out first."
+            );
+            return;
+        }
 
         $getlastRecord = RoomBoyReport::where('room_id', $room->id)
             ->where('roomboy_id', auth()->user()->id)

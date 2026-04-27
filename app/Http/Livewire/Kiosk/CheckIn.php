@@ -330,31 +330,25 @@ class CheckIn extends Component
                     return;
                 }
 
-                /* TEMPORARILY DISABLED 2026-04-24 — unresolved-previous-guest guard.
-                 * Blocked 4 existing stuck rooms; disabled to unblock operations
-                 * while POS upgrade work is in progress. Re-enable after those stuck
-                 * records are resolved AND POS work is shipped.
-                 * See docs/bugs/2026-04-23-ghost-checkin-races-room-reuse.md
-                 *
-                 * $openCheckin = CheckinDetail::where('room_id', $this->room_id)
-                 *     ->where('is_check_out', false)
-                 *     ->with('guest:id,name')
-                 *     ->lockForUpdate()
-                 *     ->first();
-                 *
-                 * if ($openCheckin) {
-                 *     DB::rollBack();
-                 *     $ghostName = $openCheckin->guest->name ?? 'Unknown';
-                 *     $ghostDate = $openCheckin->check_in_at
-                 *         ? Carbon::parse($openCheckin->check_in_at)->format('M d, Y g:i A')
-                 *         : 'unknown date';
-                 *     $this->dialog()->error(
-                 *         'SORRY',
-                 *         "Room has unresolved previous guest: {$ghostName} (checked in {$ghostDate}). Please contact the front desk."
-                 *     );
-                 *     return;
-                 * }
-                 */
+                // Guard: Block check-in if room has unresolved previous guest
+                $openCheckin = CheckinDetail::where('room_id', $this->room_id)
+                    ->where('is_check_out', false)
+                    ->with('guest:id,name')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($openCheckin) {
+                    DB::rollBack();
+                    $ghostName = $openCheckin->guest->name ?? 'Unknown';
+                    $ghostDate = $openCheckin->check_in_at
+                        ? Carbon::parse($openCheckin->check_in_at)->format('M d, Y g:i A')
+                        : 'unknown date';
+                    $this->dialog()->error(
+                        'SORRY',
+                        "Room has unresolved previous guest: {$ghostName} (checked in {$ghostDate}). Please contact the front desk."
+                    );
+                    return;
+                }
 
               $transaction = Guest::whereYear('created_at', now()->year)
                     ->lockForUpdate()

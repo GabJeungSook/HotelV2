@@ -75,4 +75,7 @@ Route::prefix('admin')
          Route::get('/manage-cash-drawers', function () {
             return view('admin.manage.cash-drawers');
         })->name('admin.cash-drawers');
+
+        Route::get('/unresolved-check-ins', \App\Http\Livewire\Admin\UnresolvedCheckIns::class)
+            ->name('admin.unresolved-check-ins');
     });

@@ -370,6 +370,25 @@
                 </svg>
                 Roomboy Designation
               </a>
+              @php
+                $ghostCount = \App\Models\CheckInDetail::where('is_check_out', 0)
+                    ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [now()->subDays(1)])
+                    ->count();
+              @endphp
+              @if($ghostCount > 0)
+              <a href="{{ route('admin.unresolved-check-ins') }}"
+                class="bg-gradient-to-r from-red-500 via-orange-500 to-red-500 animate-gradient text-white font-semibold group flex items-center justify-between px-2 py-2 text-sm leading-6 rounded-md shadow-sm">
+                <span class="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                    class="mr-3 h-6 w-6 fill-current flex-shrink-0" fill="none">
+                    <path fill="none" d="M0 0h24v24H0z" />
+                    <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z" />
+                  </svg>
+                  Unresolved
+                </span>
+                <span class="bg-white text-red-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostCount }}</span>
+              </a>
+              @endif
             </div>
           </div>
         </nav>
@@ -882,6 +901,34 @@
                 </svg>
                 Reservation
               </a>
+              @php
+                $ghostCountDesktop = \App\Models\CheckInDetail::where('is_check_out', 0)
+                    ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [now()->subDays(1)])
+                    ->count();
+              @endphp
+              @if($ghostCountDesktop > 0)
+              <style>
+                @keyframes gradient-x {
+                  0%, 100% { background-position: 0% 50%; }
+                  50% { background-position: 100% 50%; }
+                }
+                .animate-gradient {
+                  background-size: 200% 200%;
+                  animation: gradient-x 2s ease infinite;
+                }
+              </style>
+              <a href="{{ route('admin.unresolved-check-ins') }}"
+                class="bg-gradient-to-r from-red-500 via-orange-500 to-red-500 animate-gradient text-white font-semibold group flex items-center justify-between px-4 py-2 text-md rounded-md mx-1 my-1 shadow-sm">
+                <span class="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="mr-3 h-6 w-6 flex-shrink-0 fill-current">
+                    <path fill="none" d="M0 0h24v24H0z" />
+                    <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm-1-5h2v2h-2v-2zm0-8h2v6h-2V7z" />
+                  </svg>
+                  Unresolved
+                </span>
+                <span class="bg-white text-red-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostCountDesktop }}</span>
+              </a>
+              @endif
                 @if (auth()->user()->hasRole('superadmin'))
                 <a href="{{ route('superadmin.reports') }}"
                 class="{{ request()->routeIs('superadmin.reports') ? 'bg-gray-100 text-[#009ff4] font-semibold text-md border-l-4 border-[#009ff4]' : 'bg-white text-gray-400 font-normal text-md' }} hover:border-l-4 hover:border-[#009ff4] hover:bg-gray-100 hover:text-[#009ff4] hover:font-semibold hover:text-md group flex items-center px-4 py-2 text-md">
