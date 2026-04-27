@@ -260,32 +260,30 @@ class TransferRoom extends Component
             'selected_reason.required' => 'Please select a reason for transfer.',
         ]);
 
-        // Check if supervisor override system should be used
-        if ($this->useSupervisorOverride()) {
-            // Check if force auto-override is enabled
-            if ($this->isForceAutoOverrideEnabled()) {
-                // Show confirmation before auto-approve
-                $this->dialog()->confirm([
-                    'title' => 'Confirm Auto Override',
-                    'description' => 'Force auto-override is enabled. Are you sure you want to proceed with this transfer?',
-                    'icon' => 'question',
-                    'accept' => [
-                        'label' => 'Yes, Proceed',
-                        'method' => 'confirmAutoOverrideTransfer',
-                    ],
-                    'reject' => [
-                        'label' => 'Cancel',
-                    ],
-                ]);
-            } else {
-                // Show supervisor selection modal
-                $this->override_request_modal = true;
-            }
-        } else {
-            // Use legacy authorization code system
+        // SUPERVISOR MODULE ON HOLD — falling through to legacy authorization flow.
+        // To re-enable, uncomment the block below and remove the two lines after it.
+        // ----------------------------------------------------------------------
+        // if ($this->useSupervisorOverride()) {
+        //     if ($this->isForceAutoOverrideEnabled()) {
+        //         $this->dialog()->confirm([
+        //             'title' => 'Confirm Auto Override',
+        //             'description' => 'Force auto-override is enabled. Are you sure you want to proceed with this transfer?',
+        //             'icon' => 'question',
+        //             'accept' => [
+        //                 'label' => 'Yes, Proceed',
+        //                 'method' => 'confirmAutoOverrideTransfer',
+        //             ],
+        //             'reject' => [
+        //                 'label' => 'Cancel',
+        //             ],
+        //         ]);
+        //     } else {
+        //         $this->override_request_modal = true;
+        //     }
+        // } else {
             $this->authorization_modal = true;
             $this->is_override = true;
-        }
+        // }
     }
 
     /**

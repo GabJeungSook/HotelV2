@@ -48,10 +48,11 @@ class Archives extends Component
                 'label' => 'Room Boy Report',
                 'component' => 'back-office.reports.room-boy-report',
             ],
-            'override-history' => [
-                'label' => 'Supervisor\'s Report',
-                'component' => 'back-office.reports.override-request-history',
-            ],
+            // SUPERVISOR MODULE ON HOLD — Supervisor's Report hidden. Uncomment to restore.
+            // 'override-history' => [
+            //     'label' => 'Supervisor\'s Report',
+            //     'component' => 'back-office.reports.override-request-history',
+            // ],
         ];
     }
 

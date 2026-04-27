@@ -61,10 +61,11 @@ class ReportHub extends Component
                 'label' => 'Frontdesk Logs',
                 'component' => 'back-office.reports.frontdesk-logs',
             ],
-            'override-history' => [
-                'label' => 'Supervisor\'s Report',
-                'component' => 'back-office.reports.override-request-history',
-            ],
+            // SUPERVISOR MODULE ON HOLD — Supervisor's Report hidden. Uncomment to restore.
+            // 'override-history' => [
+            //     'label' => 'Supervisor\'s Report',
+            //     'component' => 'back-office.reports.override-request-history',
+            // ],
         ];
     }
 

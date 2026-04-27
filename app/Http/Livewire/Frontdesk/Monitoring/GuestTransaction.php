@@ -2656,27 +2656,29 @@ class GuestTransaction extends Component
     {
         $this->deposit_summary_modal = false;
 
-        // Check if auto_approve_enabled is enabled
-        if (auth()->user()->branch->auto_approve_enabled) {
-            // Show confirmation before auto-approve
-            $this->dialog()->confirm([
-                'title' => 'Confirm Auto Override',
-                'description' => 'Auto-approve is enabled. Are you sure you want to cancel this transaction? This will permanently delete the guest record.',
-                'icon' => 'warning',
-                'accept' => [
-                    'label' => 'Yes, Cancel Transaction',
-                    'method' => 'confirmAutoOverrideCancel',
-                ],
-                'reject' => [
-                    'label' => 'No',
-                ],
-            ]);
-        } else {
-            // Show the cancel override request modal
-            $this->cancel_reason = '';
-            $this->selected_cancel_supervisor_id = null;
-            $this->cancel_override_modal = true;
-        }
+        // SUPERVISOR MODULE ON HOLD — falling through to legacy authorization-cancel flow.
+        // To re-enable, restore the if/else block below and remove the legacy line.
+        // ----------------------------------------------------------------------
+        // if (auth()->user()->branch->auto_approve_enabled) {
+        //     $this->dialog()->confirm([
+        //         'title' => 'Confirm Auto Override',
+        //         'description' => 'Auto-approve is enabled. Are you sure you want to cancel this transaction? This will permanently delete the guest record.',
+        //         'icon' => 'warning',
+        //         'accept' => [
+        //             'label' => 'Yes, Cancel Transaction',
+        //             'method' => 'confirmAutoOverrideCancel',
+        //         ],
+        //         'reject' => [
+        //             'label' => 'No',
+        //         ],
+        //     ]);
+        // } else {
+        //     $this->cancel_reason = '';
+        //     $this->selected_cancel_supervisor_id = null;
+        //     $this->cancel_override_modal = true;
+        // }
+
+        $this->autorization_cancel_modal = true;
     }
 
     /**

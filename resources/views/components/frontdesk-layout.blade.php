@@ -241,6 +241,8 @@
                 <span>POS</span>
               </a>
 
+              {{-- SUPERVISOR MODULE ON HOLD — Override Requests menu hidden.
+                   Uncomment the block below to restore.
               @php
                 $pendingOverrideCount = \App\Models\OverrideRequest::where('requester_id', auth()->user()->id)
                     ->where('status', 'pending')
@@ -257,6 +259,7 @@
                   <span class="ml-1 bg-red-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $pendingOverrideCount }}</span>
                 @endif
               </a>
+              --}}
 
               {{-- <a href="{{ route('frontdesk.food-inventory') }}"
               class="text-gray-500 fill-gray-400 group inline-flex items-center rounded-md bg-white text-base font-medium hover:text-gray-800 "
