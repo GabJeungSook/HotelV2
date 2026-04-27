@@ -45,8 +45,16 @@ class KitchenInventory extends Component
         }else{
             $this->categories = FrontdeskCategory::where('branch_id', auth()->user()->branch_id)->get();
         }
-        $this->selectedCategoryId = $this->categories->first()->id ?? null;
-        $this->selectedCategory = $this->categories->first() ?? null;
+
+        // Check for category parameter from URL (for returning from Manage Inventory)
+        $categoryParam = request()->query('category');
+        if ($categoryParam && $this->categories->contains('id', $categoryParam)) {
+            $this->selectedCategoryId = (int) $categoryParam;
+            $this->selectedCategory = $this->categories->firstWhere('id', $categoryParam);
+        } else {
+            $this->selectedCategoryId = $this->categories->first()->id ?? null;
+            $this->selectedCategory = $this->categories->first() ?? null;
+        }
     }
 
     public function updatedBranchId($value)

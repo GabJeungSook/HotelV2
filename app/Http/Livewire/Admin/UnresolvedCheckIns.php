@@ -2,7 +2,7 @@
 
 namespace App\Http\Livewire\Admin;
 
-use App\Models\CheckInDetail;
+use App\Models\CheckinDetail;
 use App\Models\Room;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +42,7 @@ class UnresolvedCheckIns extends Component
     {
         $cutoff1day = now()->subDays(1);
 
-        return CheckInDetail::where('is_check_out', 0)
+        return CheckinDetail::where('is_check_out', 0)
             ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [$cutoff1day])
             ->with(['room:id,number,status,type_id,floor_id', 'room.type:id,name', 'room.floor:id,number', 'guest:id,name'])
             ->orderBy('check_in_at', 'asc')
@@ -93,7 +93,7 @@ class UnresolvedCheckIns extends Component
     {
         $cutoff1day = now()->subDays(1);
 
-        $ghosts = CheckInDetail::where('is_check_out', 0)
+        $ghosts = CheckinDetail::where('is_check_out', 0)
             ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [$cutoff1day])
             ->get();
 

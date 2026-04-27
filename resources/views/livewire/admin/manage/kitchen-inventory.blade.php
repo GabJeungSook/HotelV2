@@ -97,9 +97,11 @@
                         <span class="text-white text-base font-semibold">Update Menu</span>
                     </div>
                 </div>
-                <div class="flex justify-between items-center px-4 py-2">
-                    <h3 class="text-sm font-semibold text-gray-800 text-left">{{$item->name}}</h3>
-                    <p class="text-xs text-[#009ff4] mt-1 text-left">{{$item->frontdeskInventory?->number_of_serving ?? 0}} serving(s)</p>
+                <div class="px-4 py-2">
+                    <div class="flex justify-between items-start gap-2">
+                        <h3 class="text-sm font-semibold text-gray-800 text-left leading-tight">{{$item->name}}</h3>
+                        <span class="text-xs text-[#009ff4] whitespace-nowrap flex-shrink-0">{{ rtrim(rtrim(number_format((float)($item->frontdeskInventory?->number_of_serving ?? 0), 2), '0'), '.') }} serving(s)</span>
+                    </div>
                 </div>
             </button>
         @endforeach

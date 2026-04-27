@@ -4,8 +4,8 @@
             Manage Inventory
         </div>
         <div>
-            <a href="{{route('admin.food-inventory')}}">
-            <x-button icon="arrow-left" slate label="Return" />
+            <a href="{{ route('admin.food-inventory', ['category' => $record->id]) }}">
+                <x-button icon="arrow-left" slate label="Return" />
             </a>
         </div>
     </div>
