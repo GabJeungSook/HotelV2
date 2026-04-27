@@ -47,26 +47,32 @@
 
             {{-- Requester --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Requester</label>
-                <select wire:model.defer="requester_id"
-                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                    <option value="">All</option>
+                <x-select
+                    label="Requester"
+                    placeholder="All"
+                    wire:model.defer="requester_id"
+                    :searchable="true"
+                    :clearable="true"
+                >
                     @foreach ($requesters as $user)
-                        <option value="{{ $user->id }}">{{ $user->name }}</option>
+                        <x-select.option label="{{ $user->name }}" value="{{ $user->id }}" />
                     @endforeach
-                </select>
+                </x-select>
             </div>
 
             {{-- Supervisor --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
-                <select wire:model.defer="supervisor_id"
-                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                    <option value="">All</option>
+                <x-select
+                    label="Supervisor"
+                    placeholder="All"
+                    wire:model.defer="supervisor_id"
+                    :searchable="true"
+                    :clearable="true"
+                >
                     @foreach ($supervisors as $user)
-                        <option value="{{ $user->id }}">{{ $user->name }}</option>
+                        <x-select.option label="{{ $user->name }}" value="{{ $user->id }}" />
                     @endforeach
-                </select>
+                </x-select>
             </div>
 
             {{-- Buttons --}}
