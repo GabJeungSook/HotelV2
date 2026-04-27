@@ -221,6 +221,15 @@ class Room extends Component implements Tables\Contracts\HasTable
                         }
                     }
 
+                    // Prevent manually setting room to Occupied - should only happen via check-in
+                    if ($newStatus === 'Occupied' && $oldStatus !== 'Occupied') {
+                        $this->dialog()->error(
+                            $title = 'Cannot Set to Occupied',
+                            $description = 'Room status can only be set to Occupied through the check-in process. Please use the Check-In function instead.'
+                        );
+                        return;
+                    }
+
                     // Prevent changing to Maintenance if room has ongoing cleaning
                     if ($newStatus === 'Maintenance') {
                         $hasOngoingCleaning = $record->status === 'Cleaning' || $record->cleaning_by_user_id !== null;
