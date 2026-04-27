@@ -65,18 +65,6 @@ class ReportHub extends Component
                 'label' => 'Override Request History',
                 'component' => 'back-office.reports.override-request-history',
             ],
-            'supervisor-approvals' => [
-                'label' => 'Supervisor Approvals',
-                'component' => 'back-office.reports.supervisor-approvals-report',
-            ],
-            'decline-reasons' => [
-                'label' => 'Decline Reasons Report',
-                'component' => 'back-office.reports.decline-reasons-report',
-            ],
-            'auto-override-stats' => [
-                'label' => 'Auto-Override Statistics',
-                'component' => 'back-office.reports.auto-override-statistics',
-            ],
         ];
     }
 
