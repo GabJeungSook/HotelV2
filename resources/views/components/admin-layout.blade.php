@@ -389,6 +389,26 @@
                 <span class="bg-white text-red-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostCount }}</span>
               </a>
               @endif
+              @php
+                $ghostRoomCount = \App\Models\Room::where('status', 'Occupied')
+                    ->whereNotIn('id', \App\Models\CheckinDetail::where('is_check_out', false)->pluck('room_id'))
+                    ->when(!auth()->user()->hasRole('superadmin'), fn($q) => $q->where('branch_id', auth()->user()->branch_id))
+                    ->count();
+              @endphp
+              @if($ghostRoomCount > 0)
+              <a href="{{ route('admin.ghost-rooms') }}"
+                class="bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-500 animate-gradient text-white font-semibold group flex items-center justify-between px-2 py-2 text-sm leading-6 rounded-md shadow-sm">
+                <span class="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                    class="mr-3 h-6 w-6 fill-current flex-shrink-0" fill="none">
+                    <path fill="none" d="M0 0h24v24H0z" />
+                    <path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 3a1 1 0 0 1 1 1v4a1 1 0 0 1-2 0V8a1 1 0 0 1 1-1zm0 10a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+                  </svg>
+                  Ghost Rooms
+                </span>
+                <span class="bg-white text-purple-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostRoomCount }}</span>
+              </a>
+              @endif
             </div>
           </div>
         </nav>
@@ -927,6 +947,25 @@
                   Unresolved
                 </span>
                 <span class="bg-white text-red-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostCountDesktop }}</span>
+              </a>
+              @endif
+              @php
+                $ghostRoomCountDesktop = \App\Models\Room::where('status', 'Occupied')
+                    ->whereNotIn('id', \App\Models\CheckinDetail::where('is_check_out', false)->pluck('room_id'))
+                    ->when(!auth()->user()->hasRole('superadmin'), fn($q) => $q->where('branch_id', auth()->user()->branch_id))
+                    ->count();
+              @endphp
+              @if($ghostRoomCountDesktop > 0)
+              <a href="{{ route('admin.ghost-rooms') }}"
+                class="bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-500 animate-gradient text-white font-semibold group flex items-center justify-between px-4 py-2 text-md rounded-md mx-1 my-1 shadow-sm">
+                <span class="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="mr-3 h-6 w-6 flex-shrink-0 fill-current">
+                    <path fill="none" d="M0 0h24v24H0z" />
+                    <path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 3a1 1 0 0 1 1 1v4a1 1 0 0 1-2 0V8a1 1 0 0 1 1-1zm0 10a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+                  </svg>
+                  Ghost Rooms
+                </span>
+                <span class="bg-white text-purple-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostRoomCountDesktop }}</span>
               </a>
               @endif
                 @if (auth()->user()->hasRole('superadmin'))

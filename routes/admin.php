@@ -78,4 +78,7 @@ Route::prefix('admin')
 
         Route::get('/unresolved-check-ins', \App\Http\Livewire\Admin\UnresolvedCheckIns::class)
             ->name('admin.unresolved-check-ins');
+
+        Route::get('/ghost-rooms', \App\Http\Livewire\Admin\GhostRooms::class)
+            ->name('admin.ghost-rooms');
     });
