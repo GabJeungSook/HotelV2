@@ -142,6 +142,7 @@
                     @endphp
                     <button
                         type="button"
+                        wire:key="menu-{{ $menu->id }}-{{ $stock }}"
                         wire:click="addToCart({{ $menu->id }})"
                         @if($outOfStock) disabled @endif
                         class="group relative bg-white rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] transition text-left flex flex-col overflow-hidden

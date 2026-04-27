@@ -18,7 +18,16 @@ class FrontdeskMenu extends Model
 
     public function frontdeskInventory()
     {
-        return $this->belongsTo(FrontdeskInventory::class,'id', 'frontdesk_menu_id');
+        return $this->hasOne(FrontdeskInventory::class, 'frontdesk_menu_id');
+    }
+
+    /**
+     * Alias for frontdeskInventory - used by Food\Inventory component
+     */
+    public function inventory()
+    {
+        return $this->hasOne(FrontdeskInventory::class, 'frontdesk_menu_id')
+            ->where('branch_id', auth()->user()->branch_id ?? 0);
     }
 
     protected static function booted(): void

@@ -261,7 +261,7 @@
     </x-modal>
 
     {{-- Override Summary Modal --}}
-    <x-modal wire:model.defer="summaryModal" align="center" max-width="4xl">
+    <x-modal wire:model.defer="summaryModal" align="center" max-width="6xl">
         <x-card>
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg sm:text-xl font-bold text-gray-700">Override Summary</h2>
