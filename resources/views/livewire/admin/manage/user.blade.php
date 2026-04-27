@@ -74,7 +74,8 @@
         <x-native-select label="Role" wire:model="role">
           <option selected hidden>Select Role</option>
           <option value="admin">Admin</option>
-          <option value="supervisor">Supervisor</option>
+          {{-- SUPERVISOR MODULE ON HOLD — option hidden from admin user create/edit forms. Uncomment to restore. --}}
+          {{-- <option value="supervisor">Supervisor</option> --}}
           <option value="frontdesk">Frontdesk</option>
           <option value="kiosk">Kiosk</option>
           <option value="kitchen">Kitchen</option>
@@ -100,7 +101,8 @@
         <x-native-select label="Role" wire:model="role">
           <option selected hidden>Select Role</option>
           <option value="admin">Admin</option>
-          <option value="supervisor">Supervisor</option>
+          {{-- SUPERVISOR MODULE ON HOLD — option hidden from admin user create/edit forms. Uncomment to restore. --}}
+          {{-- <option value="supervisor">Supervisor</option> --}}
           <option value="frontdesk">Frontdesk</option>
           <option value="kiosk">Kiosk</option>
           <option value="kitchen">Kitchen</option>
@@ -184,7 +186,8 @@
         <x-native-select label="Role" wire:model="role">
           <option selected hidden>Select Role</option>
           <option value="admin">Admin</option>
-          <option value="supervisor">Supervisor</option>
+          {{-- SUPERVISOR MODULE ON HOLD — option hidden from admin user create/edit forms. Uncomment to restore. --}}
+          {{-- <option value="supervisor">Supervisor</option> --}}
           <option value="frontdesk">Frontdesk</option>
           <option value="kiosk">Kiosk</option>
           <option value="kitchen">Kitchen</option>
@@ -228,7 +231,8 @@
         <x-native-select label="Role" wire:model="role">
           <option selected hidden>Select Role</option>
           <option value="admin">Admin</option>
-          <option value="supervisor">Supervisor</option>
+          {{-- SUPERVISOR MODULE ON HOLD — option hidden from admin user create/edit forms. Uncomment to restore. --}}
+          {{-- <option value="supervisor">Supervisor</option> --}}
           <option value="frontdesk">Frontdesk</option>
           <option value="kiosk">Kiosk</option>
           <option value="kitchen">Kitchen</option>

@@ -227,7 +227,8 @@ private function isUserOnline($user, $threshold)
                             Select::make('role')
                                 ->options([
                                     'admin' => 'Admin',
-                                    'supervisor' => 'Supervisor',
+                                    // SUPERVISOR MODULE ON HOLD — option hidden. Uncomment to restore.
+                                    // 'supervisor' => 'Supervisor',
                                     'frontdesk' => 'Frontdesk',
                                     'kiosk' => 'Kiosk',
                                     'kitchen' => 'Kitchen',
