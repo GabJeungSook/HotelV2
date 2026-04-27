@@ -284,7 +284,7 @@
                         <span class="text-sm text-gray-600">Override</span>
                     </label>
                     <label class="flex items-center space-x-2">
-                        <input type="checkbox" wire:model="showAutoOverride" class="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500">
+                        <input type="checkbox" wire:model="showAutoApprove" class="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500">
                         <span class="text-sm text-gray-600">Auto-Approve</span>
                     </label>
                     <label class="flex items-center space-x-2">
