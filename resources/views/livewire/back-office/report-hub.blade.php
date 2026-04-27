@@ -43,7 +43,7 @@
         <div class="p-4 sm:p-6">
             @if($this->activeComponent)
                 {{-- resets state per report switch --}}
-                <livewire:is :component="$this->activeComponent" :key="$report" />
+                @livewire($this->activeComponent, [], key($report))
             @else
                 <div class="text-sm text-gray-500">No report selected.</div>
             @endif

@@ -62,7 +62,7 @@
 
         <div class="p-4 sm:p-6">
             @if($this->activeComponent)
-                <livewire:is :component="$this->activeComponent" :weekStart="$selectedWeek" :key="$report . '_' . $selectedWeek" />
+                @livewire($this->activeComponent, ['weekStart' => $selectedWeek], key($report . '_' . $selectedWeek))
             @else
                 <div class="text-sm text-gray-500">No report selected.</div>
             @endif
