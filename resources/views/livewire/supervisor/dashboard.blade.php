@@ -57,9 +57,9 @@
                             <p class="text-2xl sm:text-3xl font-bold text-white">{{ $this->approvedCount }}</p>
                         </div>
 
-                        {{-- Auto Override Requests - Yellow --}}
+                        {{-- Auto-Approve Requests - Yellow --}}
                         <div class="bg-yellow-500 rounded-lg px-3 sm:px-5 py-3">
-                            <p class="text-xs text-yellow-100 font-medium">Auto Override(s)</p>
+                            <p class="text-xs text-yellow-100 font-medium">Auto-Approve(s)</p>
                             <p class="text-2xl sm:text-3xl font-bold text-white">{{ $this->autoApprovedCount }}</p>
                         </div>
 
@@ -285,7 +285,7 @@
                     </label>
                     <label class="flex items-center space-x-2">
                         <input type="checkbox" wire:model="showAutoOverride" class="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500">
-                        <span class="text-sm text-gray-600">Auto Override</span>
+                        <span class="text-sm text-gray-600">Auto-Approve</span>
                     </label>
                     <label class="flex items-center space-x-2">
                         <input type="checkbox" wire:model="showDeclined" class="rounded border-gray-300 text-red-500 focus:ring-red-500">
@@ -335,7 +335,7 @@
                                 @if($request->status === 'declined')
                                     <span class="text-red-600 font-medium">Declined</span>
                                 @elseif($request->status === 'auto_approved')
-                                    <span class="text-yellow-600 font-medium">Auto Override</span>
+                                    <span class="text-yellow-600 font-medium">Auto-Approve</span>
                                 @else
                                     <span class="text-green-600 font-medium">Override</span>
                                 @endif
@@ -362,7 +362,7 @@
                         @if($request->status === 'declined')
                             <span class="bg-red-100 text-red-600 text-xs font-medium px-2 py-0.5 rounded">Declined</span>
                         @elseif($request->status === 'auto_approved')
-                            <span class="bg-yellow-100 text-yellow-600 text-xs font-medium px-2 py-0.5 rounded">Auto Override</span>
+                            <span class="bg-yellow-100 text-yellow-600 text-xs font-medium px-2 py-0.5 rounded">Auto-Approve</span>
                         @else
                             <span class="bg-green-100 text-green-600 text-xs font-medium px-2 py-0.5 rounded">Override</span>
                         @endif

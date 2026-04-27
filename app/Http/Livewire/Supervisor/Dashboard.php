@@ -23,18 +23,18 @@ class Dashboard extends Component
     public $summaryModal = false;
     public $summaryDate;
     public $showOverride = true;
-    public $showAutoOverride = true;
+    public $showAutoApprove = true;
     public $showDeclined = true;
 
     // Force Auto-override
-    public $forceAutoOverride = false;
+    public $autoApproveEnabled = false;
 
     protected $listeners = ['refreshDashboard' => '$refresh'];
 
     public function mount()
     {
         $this->summaryDate = now()->format('Y-m-d');
-        $this->forceAutoOverride = auth()->user()->branch->force_auto_override ?? false;
+        $this->autoApproveEnabled = auth()->user()->branch->auto_approve_enabled ?? false;
     }
 
     public function getOverrideRequestsProperty()
@@ -274,7 +274,7 @@ class Dashboard extends Component
     {
         $this->summaryDate = now()->format('Y-m-d');
         $this->showOverride = true;
-        $this->showAutoOverride = true;
+        $this->showAutoApprove = true;
         $this->showDeclined = true;
         $this->summaryModal = true;
     }
@@ -304,13 +304,13 @@ class Dashboard extends Component
             }
 
             // Auto-approved requests (have null supervisor_id)
-            if ($this->showAutoOverride) {
+            if ($this->showAutoApprove) {
                 $q->orWhere('status', 'auto_approved');
             }
         });
 
         // If no filter selected, show none
-        if (!$this->showOverride && !$this->showAutoOverride && !$this->showDeclined) {
+        if (!$this->showOverride && !$this->showAutoApprove && !$this->showDeclined) {
             $query->whereRaw('1 = 0');
         }
 
@@ -320,9 +320,9 @@ class Dashboard extends Component
     /**
      * Toggle Force Auto-override with confirmation
      */
-    public function toggleForceAutoOverride()
+    public function toggleForceAutoApprove()
     {
-        $newValue = !$this->forceAutoOverride;
+        $newValue = !$this->autoApproveEnabled;
 
         if ($newValue) {
             // Turning ON - show confirmation
@@ -332,7 +332,7 @@ class Dashboard extends Component
                 'icon' => 'warning',
                 'accept' => [
                     'label' => 'Yes, Enable',
-                    'method' => 'confirmEnableAutoOverride',
+                    'method' => 'confirmEnableAutoApprove',
                 ],
                 'reject' => [
                     'label' => 'Cancel',
@@ -340,17 +340,17 @@ class Dashboard extends Component
             ]);
         } else {
             // Turning OFF - no confirmation needed
-            $this->confirmDisableAutoOverride();
+            $this->confirmDisableAutoApprove();
         }
     }
 
-    public function confirmEnableAutoOverride()
+    public function confirmEnableAutoApprove()
     {
         Branch::where('id', auth()->user()->branch_id)->update([
-            'force_auto_override' => true,
-            'force_auto_override_by' => auth()->id(),
+            'auto_approve_enabled' => true,
+            'auto_approve_enabled_by' => auth()->id(),
         ]);
-        $this->forceAutoOverride = true;
+        $this->autoApproveEnabled = true;
 
         $this->dialog()->success(
             $title = 'Enabled',
@@ -358,13 +358,13 @@ class Dashboard extends Component
         );
     }
 
-    public function confirmDisableAutoOverride()
+    public function confirmDisableAutoApprove()
     {
         Branch::where('id', auth()->user()->branch_id)->update([
-            'force_auto_override' => false,
-            'force_auto_override_by' => null,
+            'auto_approve_enabled' => false,
+            'auto_approve_enabled_by' => null,
         ]);
-        $this->forceAutoOverride = false;
+        $this->autoApproveEnabled = false;
 
         $this->dialog()->success(
             $title = 'Disabled',

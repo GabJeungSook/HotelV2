@@ -129,11 +129,11 @@
           </a>
         </nav>
 
-        {{-- Mobile Force Auto-Override Toggle --}}
+        {{-- Mobile Auto-Approve Toggle --}}
         <div class="px-4 py-4 border-t border-gray-700">
           <div class="flex items-center justify-between">
-            <span class="text-gray-300 text-sm font-medium">Force Auto-override</span>
-            <livewire:supervisor.force-auto-override-toggle wire:key="mobile-toggle" />
+            <span class="text-gray-300 text-sm font-medium">Auto-Approve</span>
+            <livewire:supervisor.auto-approve-toggle wire:key="mobile-toggle" />
           </div>
         </div>
 
@@ -194,11 +194,11 @@
           </nav>
         </div>
 
-        {{-- Force Auto-Override Toggle --}}
+        {{-- Auto-Approve Toggle --}}
         <div class="px-4 py-4 border-t border-gray-700">
           <div class="flex items-center justify-between">
-            <span class="text-gray-300 text-xs font-medium">Force Auto-override</span>
-            <livewire:supervisor.force-auto-override-toggle wire:key="desktop-toggle" />
+            <span class="text-gray-300 text-xs font-medium">Auto-Approve</span>
+            <livewire:supervisor.auto-approve-toggle wire:key="desktop-toggle" />
           </div>
         </div>
 

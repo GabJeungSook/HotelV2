@@ -120,7 +120,7 @@ class TransferRoom extends Component
     private function isForceAutoOverrideEnabled(): bool
     {
         $branch = Branch::find(auth()->user()->branch_id);
-        return $branch->force_auto_override ?? false;
+        return $branch->auto_approve_enabled ?? false;
     }
 
      public function updatedSelectedTypeId()
@@ -299,7 +299,7 @@ class TransferRoom extends Component
     }
 
     /**
-     * Create an auto-approved override request (when force_auto_override is enabled)
+     * Create an auto-approved override request (when auto_approve_enabled is enabled)
      */
     private function createAutoApprovedOverrideRequest()
     {
@@ -309,7 +309,7 @@ class TransferRoom extends Component
         OverrideRequest::create([
             'branch_id' => auth()->user()->branch_id,
             'requester_id' => auth()->user()->id,
-            'supervisor_id' => $branch->force_auto_override_by, // Supervisor who enabled auto-override
+            'supervisor_id' => $branch->auto_approve_enabled_by, // Supervisor who enabled auto-approve
             'guest_id' => $this->guest->id,
             'checkin_detail_id' => $check_in_detail->id,
             'transfer_reason_id' => $this->selected_reason,

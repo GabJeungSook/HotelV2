@@ -11,7 +11,7 @@ class Branch extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'force_auto_override' => 'boolean',
+        'auto_approve_enabled' => 'boolean',
     ];
 
     public function users()
@@ -45,10 +45,10 @@ class Branch extends Model
     }
 
     /**
-     * The supervisor who enabled force auto-override
+     * The supervisor who enabled auto-approve
      */
-    public function forceAutoOverrideByUser()
+    public function autoApproveEnabledByUser()
     {
-        return $this->belongsTo(User::class, 'force_auto_override_by');
+        return $this->belongsTo(User::class, 'auto_approve_enabled_by');
     }
 }
