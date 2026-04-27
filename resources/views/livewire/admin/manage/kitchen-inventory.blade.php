@@ -98,10 +98,8 @@
                     </div>
                 </div>
                 <div class="px-4 py-2">
-                    <div class="flex justify-between items-start gap-2">
-                        <h3 class="text-sm font-semibold text-gray-800 text-left leading-tight">{{$item->name}}</h3>
-                        <span class="text-xs text-[#009ff4] whitespace-nowrap flex-shrink-0">{{ rtrim(rtrim(number_format((float)($item->frontdeskInventory?->number_of_serving ?? 0), 2), '0'), '.') }} serving(s)</span>
-                    </div>
+                    <h3 class="text-sm font-semibold text-gray-800 text-left leading-tight truncate" title="{{ $item->name }}">{{ $item->name }}</h3>
+                    <p class="text-xs text-[#009ff4] mt-1 text-left">{{ rtrim(rtrim(number_format((float)($item->frontdeskInventory?->number_of_serving ?? 0), 2), '0'), '.') }} serving(s)</p>
                 </div>
             </button>
         @endforeach
