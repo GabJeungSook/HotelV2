@@ -62,7 +62,7 @@ class ReportHub extends Component
                 'component' => 'back-office.reports.frontdesk-logs',
             ],
             'override-history' => [
-                'label' => 'Override Request History',
+                'label' => 'Supervisor\'s Report',
                 'component' => 'back-office.reports.override-request-history',
             ],
         ];

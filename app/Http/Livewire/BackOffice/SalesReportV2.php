@@ -941,7 +941,7 @@ class SalesReportV2 extends Component
                 ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
                 ->where('check_in_at', '<', $shiftLog->time_in)
                 ->whereNotNull('check_out_at')
-                ->where('check_out_at', '>=', $lookbackLimit) // Only guests who checked out in last 14 days
+                ->where('check_out_at', '>=', $lookbackLimit) // Only guests who checked out in last 7 days
                 ->where('check_out_at', '<=', $checkoutBoundary)
                 ->get();
 
