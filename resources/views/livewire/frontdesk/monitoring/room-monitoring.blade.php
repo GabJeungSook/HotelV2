@@ -298,9 +298,9 @@
       </div>
     </div>
     @if(auth()->user()->hasRole('frontdesk'))
-    <div class="col-span-1 space-y-6">
+    <div class="col-span-1 space-y-4">
       {{-- CHECK-IN GUEST Section --}}
-      <div>
+      <div class="min-h-[220px]">
         <div wire:poll.1s>
           <div class="flex items-center justify-between">
             <h1 class="font-bold text-xl text-gray-700 flex items-center">
@@ -369,7 +369,7 @@
       </div>
 
 {{-- CHECKOUT GUEST Section --}}
-      <div>
+      <div class="min-h-[220px]">
         <div wire:poll.1s>
           <div class="flex items-center justify-between">
             <h1 class="font-bold text-xl text-gray-700 flex items-center">
