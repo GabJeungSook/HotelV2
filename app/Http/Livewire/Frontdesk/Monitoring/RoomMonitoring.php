@@ -362,22 +362,26 @@ class RoomMonitoring extends Component
 
     public function getOverTimeCountProperty()
     {
+        $graceCutoff = now()->subMinutes(15);
+
         return Room::where('branch_id', auth()->user()->branch_id)
             ->where('status', 'Occupied')
-            ->whereHas('latestCheckInDetail', function ($q) {
+            ->whereHas('latestCheckInDetail', function ($q) use ($graceCutoff) {
                 $q->where('is_check_out', false)
-                  ->whereRaw('DATE_ADD(check_out_at, INTERVAL 15 MINUTE) < NOW()');
+                  ->where('check_out_at', '<', $graceCutoff);
             })
             ->count();
     }
 
     public function getOverTimeRoomsProperty()
     {
+        $graceCutoff = now()->subMinutes(15);
+
         return Room::where('branch_id', auth()->user()->branch_id)
             ->where('status', 'Occupied')
-            ->whereHas('latestCheckInDetail', function ($q) {
+            ->whereHas('latestCheckInDetail', function ($q) use ($graceCutoff) {
                 $q->where('is_check_out', false)
-                  ->whereRaw('DATE_ADD(check_out_at, INTERVAL 15 MINUTE) < NOW()');
+                  ->where('check_out_at', '<', $graceCutoff);
             })
             ->with(['latestCheckInDetail.guest', 'floor', 'type'])
             ->get();
@@ -385,12 +389,15 @@ class RoomMonitoring extends Component
 
     public function getGracePeriodCountProperty()
     {
+        $now = now();
+        $graceCutoff = now()->subMinutes(15);
+
         return Room::where('branch_id', auth()->user()->branch_id)
             ->where('status', 'Occupied')
-            ->whereHas('latestCheckInDetail', function ($q) {
+            ->whereHas('latestCheckInDetail', function ($q) use ($now, $graceCutoff) {
                 $q->where('is_check_out', false)
-                  ->whereRaw('NOW() > check_out_at')
-                  ->whereRaw('NOW() <= DATE_ADD(check_out_at, INTERVAL 15 MINUTE)');
+                  ->where('check_out_at', '<', $now)
+                  ->where('check_out_at', '>=', $graceCutoff);
             })
             ->count();
     }
