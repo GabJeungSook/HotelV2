@@ -199,9 +199,12 @@ class GuestTransaction extends Component
             'guest_id',
             $this->guest_id
         )->first();
+        // Null-safe: $check_in_detail is null briefly between cancel-delete and the
+        // redirect to room-monitoring; without the ?? 0 we'd hit "Attempt to read
+        // property total_deduction on null" during that intermediate render.
         $this->total_deposit =
             $this->deposit_except_remote_and_key -
-            $check_in_detail->total_deduction;
+            ($check_in_detail->total_deduction ?? 0);
 
         $this->deposit_remote_and_key = Transaction::where(
             'branch_id',
