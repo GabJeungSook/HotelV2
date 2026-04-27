@@ -105,7 +105,7 @@
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">DATE</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">TYPE</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">STATUS</th>
-                        <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">MODE</th>
+                        <th class="border border-gray-300 px-3 py-2 text-center text-sm font-semibold text-gray-800">MODE</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">REQUESTER</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">SUPERVISOR</th>
                         <th class="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-800">GUEST</th>
