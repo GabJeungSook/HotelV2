@@ -170,12 +170,26 @@
             @error('price')@enderror
           </div>
             <div class="grid grid-cols-1 mt-5">
-                 @if ($image)
-                    <div class="mt-3 mb-5">
-                        <img src="{{ $image->temporaryUrl() }}" alt="Preview" class="h-32 rounded-md object-cover">
+                {{-- Current image preview --}}
+                @if ($selectedMenu && $selectedMenu->image && !$image)
+                    <div class="mb-3">
+                        <p class="text-sm text-gray-600 mb-2">Current Image:</p>
+                        <div class="flex items-center gap-3">
+                            <img src="{{ asset('storage/' . $selectedMenu->image) }}" alt="Current" class="h-24 rounded-md object-cover">
+                            <button type="button" wire:click="removeImage" class="text-red-500 hover:text-red-700 text-sm underline">
+                                Remove Image
+                            </button>
+                        </div>
                     </div>
                 @endif
-                <x-input label="Image" type="file" wire:model="image" />
+                {{-- New image preview --}}
+                @if ($image)
+                    <div class="mb-3">
+                        <p class="text-sm text-gray-600 mb-2">New Image:</p>
+                        <img src="{{ $image->temporaryUrl() }}" alt="Preview" class="h-24 rounded-md object-cover">
+                    </div>
+                @endif
+                <x-input label="{{ $selectedMenu && $selectedMenu->image ? 'Change Image' : 'Add Image' }}" type="file" wire:model="image" />
                 @error('image') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
           <x-slot name="footer">
             <div class="flex justify-end gap-x-4">

@@ -231,6 +231,33 @@ class KitchenInventory extends Component
         );
     }
 
+    public function removeImage()
+    {
+        if ($this->selectedMenu && $this->selectedMenu->image) {
+            // Delete the file from storage
+            $imagePath = $this->selectedMenu->image;
+            if (\Storage::disk('public')->exists($imagePath)) {
+                \Storage::disk('public')->delete($imagePath);
+            }
+
+            // Update the database
+            $this->selectedMenu->image = null;
+            $this->selectedMenu->save();
+
+            ActivityLog::create([
+                'branch_id' => auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,
+                'user_id' => auth()->user()->id,
+                'activity' => 'Remove Menu Image',
+                'description' => 'Removed image from menu ' . $this->selectedMenu->name,
+            ]);
+
+            $this->dialog()->success(
+                $title = 'Image Removed',
+                $description = 'Menu image has been removed'
+            );
+        }
+    }
+
     public function render()
     {
 
