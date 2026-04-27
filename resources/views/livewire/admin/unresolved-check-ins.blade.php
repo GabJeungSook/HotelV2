@@ -49,38 +49,46 @@
     </div>
     @endif
 
-    {{-- What happens when fixed --}}
-    @if($summary['total_ghosts'] > 0)
-    <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-        <h2 class="font-semibold text-gray-700 mb-3">What happens when fixed?</h2>
-        <div class="grid md:grid-cols-2 gap-4 text-sm">
+    {{-- MAINTENANCE NOTICE — 2026-04-28 --}}
+    {{-- The "Fix All" action and detection logic have a bug that flags ACTIVE   --}}
+    {{-- guests with future check_out_at as ghosts (because the query uses       --}}
+    {{-- number_of_hours, which is 0 for long-stay/extension guests, instead of --}}
+    {{-- check_out_at). Clicking Fix All on 2026-04-27 23:19 force-closed 20    --}}
+    {{-- active guests; recovered from backup. Button disabled until query is   --}}
+    {{-- fixed. See docs/bugs/2026-04-28-fixall-unresolved-flips-active-extension-checkins.md --}}
+    <div class="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-6">
+        <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
             <div>
-                <p class="font-medium text-gray-700 mb-2">Changes to records:</p>
-                <ul class="text-gray-600 space-y-1">
-                    <li>• <code class="bg-gray-100 px-1">is_check_out</code> set to <strong>TRUE</strong></li>
-                    <li>• <code class="bg-gray-100 px-1">check_out_at</code> set to expected checkout + 30 mins</li>
-                    <li>• Checkout time is <strong>backdated</strong> (not today's date)</li>
-                </ul>
-            </div>
-            <div>
-                <p class="font-medium text-gray-700 mb-2">Effect on reports:</p>
-                <ul class="text-gray-600 space-y-1">
-                    <li>• Guest counts will be <strong>accurate</strong></li>
-                    <li>• Deposits marked as <strong>forfeited/resolved</strong></li>
-                    <li>• Room history will be <strong>clean</strong></li>
-                    <li>• New check-ins <strong>not affected</strong></li>
-                </ul>
+                <h2 class="font-semibold text-yellow-800 mb-1">Feature Under Maintenance — Do Not Use</h2>
+                <p class="text-yellow-700 text-sm mb-2">
+                    The "Fix All Records" action is <strong>temporarily disabled</strong> due to a detection bug
+                    that flags ACTIVE guests (with future check-out dates) as ghost records.
+                </p>
+                <p class="text-yellow-700 text-sm mb-2">
+                    The records listed below may include real, paying guests who are still inside their rooms.
+                    <strong>Do not assume they are ghosts.</strong>
+                </p>
+                <p class="text-yellow-700 text-sm">
+                    For each suspected ghost, verify manually with frontdesk (key card slot, physical room check)
+                    before any action. A proper fix is being prepared.
+                </p>
             </div>
         </div>
     </div>
-    @endif
 
-    {{-- Fix Button --}}
+    {{-- Fix Button — DISABLED 2026-04-28 due to false-positive bug. --}}
+    {{-- Original button removed. Detection logic still runs (read-only). --}}
     @if($summary['total_ghosts'] > 0)
     <div class="mb-6">
-        <x-button wire:click="confirmFix" negative class="px-6">
-            Fix All {{ $summary['total_ghosts'] }} Records
-        </x-button>
+        <button disabled class="bg-gray-300 text-gray-500 px-6 py-2 rounded cursor-not-allowed font-medium">
+            Fix All Records — Disabled (Under Maintenance)
+        </button>
+        <p class="text-xs text-gray-500 mt-2">
+            This action is disabled until the detection query is corrected. Listing below is read-only.
+        </p>
     </div>
     @else
     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">

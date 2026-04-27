@@ -40,15 +40,20 @@ class UnresolvedCheckIns extends Component
 
     public function getGhostRecordsProperty()
     {
-        $cutoff1day = now()->subDays(1);
+        // 2026-04-28 — query rewritten. Old query used `number_of_hours` which
+        // is 0 for long-stay/extension guests, falsely flagging active guests
+        // (with future check_out_at) as ghosts. New query uses check_out_at
+        // (the authoritative planned-checkout column) with a 2 h grace window.
+        $cutoff = now()->subHours(2);
 
         return CheckinDetail::where('is_check_out', 0)
-            ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [$cutoff1day])
+            ->whereNotNull('check_out_at')
+            ->where('check_out_at', '<', $cutoff)
             ->with(['room:id,number,status,type_id,floor_id', 'room.type:id,name', 'room.floor:id,number', 'guest:id,name'])
-            ->orderBy('check_in_at', 'asc')
+            ->orderBy('check_out_at', 'asc')
             ->get()
             ->map(function ($record) {
-                $expectedOut = Carbon::parse($record->check_in_at)->addHours($record->number_of_hours);
+                $expectedOut = Carbon::parse($record->check_out_at);
                 $daysOverdue = round(now()->diffInHours($expectedOut) / 24, 1);
 
                 return [
@@ -86,53 +91,24 @@ class UnresolvedCheckIns extends Component
 
     public function confirmFix()
     {
-        $this->showConfirmModal = true;
+        // 2026-04-28 — disabled. The Fix-All workflow caused an incident on
+        // 2026-04-27 23:19 where 20 active guests were force-closed. UI button
+        // is hidden; this guard blocks any direct/programmatic invocation.
+        $this->dialog()->error(
+            'Action Disabled',
+            'The Fix All Records feature is under maintenance. Resolve ghost records manually with frontdesk verification. See docs/bugs/2026-04-28-fixall-unresolved-flips-active-extension-checkins.md.'
+        );
     }
 
     public function fixAllGhostRecords()
     {
-        $cutoff1day = now()->subDays(1);
-
-        $ghosts = CheckinDetail::where('is_check_out', 0)
-            ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [$cutoff1day])
-            ->get();
-
-        $fixedCount = 0;
-
-        DB::beginTransaction();
-        try {
-            foreach ($ghosts as $record) {
-                // Calculate expected checkout time
-                $expectedOut = Carbon::parse($record->check_in_at)->addHours($record->number_of_hours);
-                // Add 30 minutes buffer for checkout time
-                $checkoutTime = $expectedOut->copy()->addMinutes(30);
-
-                // Update the checkin_detail record
-                $record->update([
-                    'is_check_out' => true,
-                    'check_out_at' => $checkoutTime,
-                ]);
-
-                $fixedCount++;
-            }
-
-            DB::commit();
-
-            $this->showConfirmModal = false;
-
-            $this->dialog()->success(
-                'Ghost Records Fixed',
-                "Successfully resolved {$fixedCount} ghost check-in records. Checkout times have been backdated to their expected checkout time + 30 minutes."
-            );
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            $this->dialog()->error(
-                'Error',
-                'Failed to fix ghost records: ' . $e->getMessage()
-            );
-        }
+        // 2026-04-28 — disabled. Hard guard at the top so even direct Livewire
+        // calls (bypassing the hidden UI button) cannot trigger the action.
+        $this->dialog()->error(
+            'Action Disabled',
+            'The Fix All Records feature is under maintenance. This action cannot run until the detection query is corrected and per-record safety guards are added. See docs/bugs/2026-04-28-fixall-unresolved-flips-active-extension-checkins.md.'
+        );
+        return;
     }
 
     public function render()

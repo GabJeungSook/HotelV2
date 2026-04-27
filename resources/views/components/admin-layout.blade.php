@@ -370,7 +370,13 @@
                 </svg>
                 Roomboy Designation
               </a>
-              @php
+              {{-- 2026-04-28 — Unresolved sidebar item HIDDEN. The detection query
+                   uses `number_of_hours` which is 0 for long-stay/extension guests,
+                   falsely flagging active guests with future check_out_at. The
+                   "Fix All" action caused the 2026-04-28 incident (20 active guests
+                   force-closed, recovered from backup). Hide entire item until
+                   query is corrected. See docs/bugs/2026-04-28-fixall-unresolved-flips-active-extension-checkins.md. --}}
+              {{-- @php
                 $ghostCount = \App\Models\CheckinDetail::where('is_check_out', 0)
                     ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [now()->subDays(1)])
                     ->count();
@@ -388,7 +394,7 @@
                 </span>
                 <span class="bg-white text-red-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostCount }}</span>
               </a>
-              @endif
+              @endif --}}
               @php
                 $ghostRoomCount = \App\Models\Room::where('status', 'Occupied')
                     ->whereNotIn('id', \App\Models\CheckinDetail::where('is_check_out', false)->pluck('room_id'))
@@ -921,7 +927,10 @@
                 </svg>
                 Reservation
               </a>
-              @php
+              {{-- 2026-04-28 — Unresolved sidebar item HIDDEN (desktop nav). Same reason
+                   as mobile sidebar above — buggy detection query falsely flags active
+                   guests as ghosts. Hide entire item until query is corrected. --}}
+              {{-- @php
                 $ghostCountDesktop = \App\Models\CheckinDetail::where('is_check_out', 0)
                     ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [now()->subDays(1)])
                     ->count();
@@ -948,7 +957,7 @@
                 </span>
                 <span class="bg-white text-red-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostCountDesktop }}</span>
               </a>
-              @endif
+              @endif --}}
               @php
                 $ghostRoomCountDesktop = \App\Models\Room::where('status', 'Occupied')
                     ->whereNotIn('id', \App\Models\CheckinDetail::where('is_check_out', false)->pluck('room_id'))
