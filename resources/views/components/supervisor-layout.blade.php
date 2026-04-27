@@ -28,7 +28,7 @@
     </div>
     <div style="height: 20px;"></div>
 @endif
-<body class="h-full font-sans antialiased" x-data="{ logout: false }">
+<body class="h-full font-sans antialiased" x-data="{ logout: false, mobileMenu: false }">
   @php
     $pendingCount = \App\Models\OverrideRequest::where('branch_id', auth()->user()->branch_id)
         ->where('status', 'pending')
@@ -36,6 +36,110 @@
   @endphp
 
   <div class="min-h-full">
+    <!-- Mobile Header -->
+    <div class="md:hidden fixed top-0 left-0 right-0 z-20 bg-[#0f172a] px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <div class="bg-white p-1.5 rounded">
+          <x-svg.hotel class="w-5 h-5 text-gray-800" />
+        </div>
+        <div>
+          <div class="text-white text-sm font-bold">HIMS</div>
+          <div class="text-gray-400 text-xs leading-tight truncate max-w-[120px]">
+            {{ auth()->user()->branch_name }}
+          </div>
+        </div>
+      </div>
+      <button @click="mobileMenu = !mobileMenu" class="text-white p-2">
+        <svg x-show="!mobileMenu" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+        <svg x-show="mobileMenu" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Menu Overlay -->
+    <div x-show="mobileMenu" x-cloak
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      @click="mobileMenu = false"
+      class="md:hidden fixed inset-0 z-30 bg-black bg-opacity-50">
+    </div>
+
+    <!-- Mobile Slide-out Menu -->
+    <div x-show="mobileMenu" x-cloak
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="-translate-x-full"
+      x-transition:enter-end="translate-x-0"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="translate-x-0"
+      x-transition:leave-end="-translate-x-full"
+      class="md:hidden fixed top-0 left-0 bottom-0 z-40 w-64 bg-[#0f172a] transform">
+      <div class="flex flex-col h-full">
+        {{-- Mobile Menu Header --}}
+        <div class="flex items-center justify-between px-4 py-4 border-b border-gray-700">
+          <div class="flex items-center space-x-2">
+            <div class="bg-white p-2 rounded">
+              <x-svg.hotel class="w-5 h-5 text-gray-800" />
+            </div>
+            <div>
+              <div class="text-white text-base font-bold">HIMS</div>
+              <div class="text-gray-400 text-xs">{{ auth()->user()->branch_name }}</div>
+            </div>
+          </div>
+          <button @click="mobileMenu = false" class="text-gray-400 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {{-- Mobile Nav Links --}}
+        <nav class="flex-1 px-4 py-4 space-y-2">
+          <a href="{{ route('supervisor.report-hub') }}" @click="mobileMenu = false"
+            class="{{ request()->routeIs('supervisor.report-hub') ? 'bg-[#1e293b] text-white' : 'text-gray-300 hover:bg-[#1e293b] hover:text-white' }} flex items-center px-3 py-3 text-sm font-medium rounded-md">
+            REPORTS
+          </a>
+          <a href="{{ route('supervisor.archives') }}" @click="mobileMenu = false"
+            class="{{ request()->routeIs('supervisor.archives') ? 'bg-[#1e293b] text-white' : 'text-gray-300 hover:bg-[#1e293b] hover:text-white' }} flex items-center px-3 py-3 text-sm font-medium rounded-md">
+            ARCHIVES
+          </a>
+          <a href="{{ route('supervisor.dashboard') }}" @click="mobileMenu = false"
+            class="{{ request()->routeIs('supervisor.dashboard') ? 'bg-[#1e293b] text-white' : 'text-gray-300 hover:bg-[#1e293b] hover:text-white' }} flex items-center justify-between px-3 py-3 text-sm font-medium rounded-md">
+            <span>OVERRIDE</span>
+            @if($pendingCount > 0)
+            <span class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              {{ $pendingCount }}
+            </span>
+            @endif
+          </a>
+        </nav>
+
+        {{-- Mobile Force Auto-Override Toggle --}}
+        <div class="px-4 py-4 border-t border-gray-700">
+          <div class="flex items-center justify-between">
+            <span class="text-gray-300 text-sm font-medium">Force Auto-override</span>
+            <livewire:supervisor.force-auto-override-toggle />
+          </div>
+        </div>
+
+        {{-- Mobile Logout Button --}}
+        <div class="px-4 py-4 border-t border-gray-700">
+          <button x-on:click="logout = true; mobileMenu = false" class="flex items-center space-x-2 text-gray-300 hover:text-white w-full py-2">
+            <span class="text-sm font-medium">Logout</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Static sidebar for desktop - Dark Blue Design -->
     <div class="hidden md:fixed md:inset-y-0 md:flex md:w-56 md:flex-col z-10">
       <div class="flex min-h-0 flex-1 flex-col relative bg-[#0f172a]">
@@ -102,7 +206,7 @@
     </div>
 
     {{-- Main Content Area --}}
-    <div class="md:pl-56 min-h-screen bg-gray-100">
+    <div class="pt-14 md:pt-0 md:pl-56 min-h-screen bg-gray-100">
       {{ $slot }}
     </div>
   </div>

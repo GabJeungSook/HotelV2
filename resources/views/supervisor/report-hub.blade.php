@@ -4,11 +4,11 @@
     @endsection
 
     {{-- HOMI Logo --}}
-    <div class="flex justify-start px-8 py-4">
-        <img src="{{ asset('images/homiLogo.png') }}" class="h-10" alt="HOMI">
+    <div class="flex justify-start px-4 sm:px-8 py-4">
+        <img src="{{ asset('images/homiLogo.png') }}" class="h-8 sm:h-10" alt="HOMI">
     </div>
 
-    <div class="px-8 pb-8">
+    <div class="px-4 sm:px-8 pb-8">
         <livewire:back-office.report-hub />
 
         <script>
