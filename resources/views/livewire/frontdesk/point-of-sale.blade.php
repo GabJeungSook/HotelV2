@@ -128,13 +128,12 @@
         <div class="flex-1 overflow-y-auto p-4">
             <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 @php
-                    $stockLevels = \App\Models\FrontdeskInventory::where('branch_id', auth()->user()->branch_id)
-                        ->pluck('number_of_serving', 'frontdesk_menu_id');
                     $cartQuantities = collect($cart)->keyBy('menu_id')->map(fn($r) => $r['quantity']);
                 @endphp
                 @forelse ($menus as $menu)
                     @php
-                        $stock = (float) ($stockLevels[$menu->id] ?? 0);
+                        // Use the relationship (already filtered by branch_id) for consistency with admin
+                        $stock = (float) ($menu->frontdeskInventory?->number_of_serving ?? 0);
                         $outOfStock = $stock <= 0;
                         $lowStock   = $stock > 0 && $stock < 5;
                         $inCartQty  = (int) ($cartQuantities[$menu->id] ?? 0);

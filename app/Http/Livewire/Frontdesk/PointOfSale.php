@@ -303,14 +303,13 @@ class PointOfSale extends Component
 
     /**
      * Available stock for a frontdesk menu in the current branch.
+     * Uses the frontdeskInventory relationship which filters by branch_id.
      * Returns 0 if the inventory row doesn't exist.
      */
     private function stockFor(int $menuId): float
     {
-        $row = FrontdeskInventory::where('branch_id', auth()->user()->branch_id)
-            ->where('frontdesk_menu_id', $menuId)
-            ->first();
-        return $row ? (float) $row->number_of_serving : 0.0;
+        $menu = FrontdeskMenu::with('frontdeskInventory')->find($menuId);
+        return $menu ? (float) ($menu->frontdeskInventory?->number_of_serving ?? 0) : 0.0;
     }
 
     public function addToCart($menuId)
@@ -636,7 +635,8 @@ class PointOfSale extends Component
 
     public function render()
     {
-        $menuQuery = FrontdeskMenu::where('branch_id', auth()->user()->branch_id);
+        $menuQuery = FrontdeskMenu::with('frontdeskInventory')
+            ->where('branch_id', auth()->user()->branch_id);
 
         if ($this->selectedCategory) {
             $menuQuery->where('frontdesk_category_id', $this->selectedCategory);
