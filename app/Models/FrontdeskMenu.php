@@ -16,9 +16,13 @@ class FrontdeskMenu extends Model
         return $this->belongsTo(FrontdeskCategory::class);
     }
 
+    /**
+     * Get inventory for this menu item filtered by current user's branch
+     */
     public function frontdeskInventory()
     {
-        return $this->hasOne(FrontdeskInventory::class, 'frontdesk_menu_id');
+        return $this->hasOne(FrontdeskInventory::class, 'frontdesk_menu_id')
+            ->where('branch_id', auth()->user()->branch_id ?? 0);
     }
 
     /**
