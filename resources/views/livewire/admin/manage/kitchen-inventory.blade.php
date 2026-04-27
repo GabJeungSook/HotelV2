@@ -99,7 +99,14 @@
                 </div>
                 <div class="px-4 py-2">
                     <h3 class="text-sm font-semibold text-gray-800 text-left leading-tight truncate" title="{{ $item->name }}">{{ $item->name }}</h3>
-                    <p class="text-xs text-[#009ff4] mt-1 text-left">{{ rtrim(rtrim(number_format((float)($item->frontdeskInventory?->number_of_serving ?? 0), 2), '0'), '.') }} serving(s)</p>
+                    @php $stock = (float)($item->frontdeskInventory?->number_of_serving ?? 0); @endphp
+                    <p class="text-xs {{ $stock <= 0 ? 'text-red-500' : ($stock < 5 ? 'text-amber-600' : 'text-[#009ff4]') }} mt-1 text-left">
+                        @if($stock <= 0)
+                            out of stock
+                        @else
+                            {{ rtrim(rtrim(number_format($stock, 2), '0'), '.') }} left
+                        @endif
+                    </p>
                 </div>
             </button>
         @endforeach
