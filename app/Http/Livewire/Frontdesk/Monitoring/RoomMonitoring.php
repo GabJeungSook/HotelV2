@@ -339,6 +339,8 @@ class RoomMonitoring extends Component
             'foods' => $this->food_beverages_modal
                 ? Menu::where('branch_id', auth()->user()->branch_id)->get()
                 : collect(),
+            'kioskBatchData' => $this->kioskBatchData,
+            'kioskBatchTotals' => $this->kioskBatchTotals,
         ]);
     }
 

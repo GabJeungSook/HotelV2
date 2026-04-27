@@ -116,8 +116,12 @@ class KioskBatchService
      *
      * @param  \Illuminate\Support\Collection<int, Room>  $candidates
      */
-    private static function pickPreferredRoom($candidates): Room
+    private static function pickPreferredRoom($candidates): ?Room
     {
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
         $unused = $candidates->whereNull('last_checkin_at');
 
         if ($unused->isNotEmpty()) {
@@ -129,11 +133,15 @@ class KioskBatchService
             $pool = $candidates->filter(fn ($r) => $r->last_checkin_at == $oldestTimestamp);
         }
 
+        if ($pool->isEmpty()) {
+            return $candidates->first(); // Fallback to any room
+        }
+
         $numbers = $pool->pluck('number')->toArray();
         natsort($numbers);
         $lowest = reset($numbers);
 
-        return $pool->firstWhere('number', $lowest);
+        return $pool->firstWhere('number', $lowest) ?? $pool->first();
     }
 
     /**
@@ -319,8 +327,14 @@ class KioskBatchService
 
             $queue = [];
             $remaining = $rooms;
-            while ($remaining->isNotEmpty()) {
+            $maxIterations = $rooms->count() + 1; // Safety limit
+            $iterations = 0;
+            while ($remaining->isNotEmpty() && $iterations < $maxIterations) {
+                $iterations++;
                 $next = self::pickPreferredRoom($remaining);
+                if (! $next) {
+                    break; // No valid room found, exit loop
+                }
                 $queue[] = $next->number;
                 $remaining = $remaining->reject(fn ($r) => $r->id === $next->id);
             }

@@ -114,7 +114,6 @@
         <tbody class="divide-y divide-gray-200">
           @forelse ($rooms as $room)
             @php
-            $has_check_out = $room->latestCheckInDetail?->guest?->has_kiosk_check_out;
             // if($room->checkInDetails->first() != null)
             if($room->latestCheckInDetail != null)
             {
@@ -136,11 +135,7 @@
                 $date_now = Carbon\Carbon::now();
                 $is_true = $date_now->equalTo($one_hour_before); // Check if the current time is exactly equal to 1 hour before the checkout time
             @endphp --}}
-            <tr class="rounded-md
-                {{ $is_true
-                    ? 'bg-red-100'
-                    : ($has_check_out ? 'bg-blue-200' : 'bg-gray-100')
-                }}">
+            <tr class="rounded-md {{ $is_true ? 'bg-red-100' : 'bg-gray-100' }}">
               <td class="whitespace-nowrap rounded-l-lg py-3 pl-4  text-sm font-bold text-green-600 sm:pl-6">
                 {{ $room->numberWithFormat() }}
                 {{-- <p class="text-sm text-gray-500 font-normal">{{$room->type->name}}</p> --}}
@@ -236,12 +231,6 @@
                                 <span x-text="timer.seconds">{{ $component->seconds() }}</span>s
                             </x-countdown>
                         </div>
-
-                    @elseif ($has_check_out)
-
-                        <span class="inline-flex items-center rounded-md bg-blue-500 px-2 py-1 text-sm font-medium text-white">
-                            Checked-out in Kiosk
-                        </span>
 
                     @else
 
@@ -432,14 +421,9 @@
         </div>
       </div>
     </div>
-
-      {{-- FOR RESERVATIONS --}}
-
-
-
-
-    </div>
     @endif
+
+    {{-- FOR RESERVATIONS --}}
 
     <x-modal wire:model.defer="guest_details_modal" align="center">
       <x-card>
