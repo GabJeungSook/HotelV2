@@ -31,6 +31,7 @@
                     <option value="pending">Pending</option>
                     <option value="approved">Approved</option>
                     <option value="declined">Declined</option>
+                    <option value="auto_approved">Auto-Approved</option>
                 </select>
             </div>
 
@@ -133,6 +134,10 @@
                                 @elseif ($request->status === 'declined')
                                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                         Declined
+                                    </span>
+                                @elseif ($request->status === 'auto_approved')
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                        Auto-Approved
                                     </span>
                                 @else
                                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
