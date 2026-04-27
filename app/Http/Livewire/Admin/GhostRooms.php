@@ -82,6 +82,7 @@ class GhostRooms extends Component
 
     public function render()
     {
-        return view('livewire.admin.ghost-rooms');
+        return view('livewire.admin.ghost-rooms')
+            ->layout('components.admin-layout');
     }
 }
