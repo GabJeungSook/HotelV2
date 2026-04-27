@@ -101,7 +101,46 @@ php artisan db:seed --class=SupervisorRoleSeeder
 # php artisan db:seed  ← This creates test accounts!
 ```
 
-### Step 5: Update .env for Redis (Session Driver)
+### Step 5: Install & Verify PHP Redis Client (REQUIRED before .env change)
+
+Redis being installed at the OS level (`redis-server`) is **not enough**. Laravel/PHP needs its own Redis client to talk to the daemon. Without this, the moment you set `SESSION_DRIVER=redis` the app will crash with `Class 'Redis' not found`.
+
+**5a. Install the PhpRedis extension (recommended — native C, faster)**
+```bash
+sudo apt install php8.2-redis
+sudo systemctl restart php8.2-fpm
+
+# Verify the extension loaded
+php -m | grep redis
+# Expected output: redis
+```
+
+**Alternative — Predis (pure PHP, slower but no apt needed)**
+```bash
+cd /var/www/HotelV2
+composer require predis/predis
+```
+
+**5b. Verify Laravel can talk to Redis (BEFORE flipping the SESSION_DRIVER)**
+```bash
+cd /var/www/HotelV2
+php artisan tinker
+```
+
+In the tinker shell:
+```php
+>>> Redis::set('homi:smoketest', 'hello');
+>>> Redis::get('homi:smoketest');   // must return "hello"
+>>> Redis::del('homi:smoketest');
+>>> exit
+```
+
+If any of those fail, **STOP** — do not change `SESSION_DRIVER` yet. Common fixes:
+- Extension not loaded: rerun `sudo systemctl restart php8.2-fpm` after `apt install`
+- Connection refused: check `sudo systemctl status redis-server`
+- Auth failed: align `.env` `REDIS_PASSWORD` with `/etc/redis/redis.conf` `requirepass`
+
+### Step 6: Update .env for Redis (Session Driver)
 ```bash
 nano /var/www/HotelV2/.env
 ```
@@ -118,6 +157,10 @@ SESSION_DRIVER=redis
 CACHE_DRIVER=redis
 QUEUE_CONNECTION=redis
 
+# Pick the client you installed in Step 5a
+REDIS_CLIENT=phpredis        # if you installed php8.2-redis
+# REDIS_CLIENT=predis        # if you installed predis/predis via composer
+
 # Redis connection (usually default)
 REDIS_HOST=127.0.0.1
 REDIS_PASSWORD=null
@@ -126,7 +169,7 @@ REDIS_PORT=6379
 
 **WARNING:** Changing `SESSION_DRIVER` will logout ALL currently logged-in users. Deploy during low-traffic hours.
 
-### Step 6: Clear All Caches (Including Redis)
+### Step 7: Clear All Caches (Including Redis)
 ```bash
 # Clear Laravel caches
 php artisan config:clear
@@ -141,7 +184,7 @@ redis-cli FLUSHALL
 php artisan optimize
 ```
 
-### Step 7: Restart Services
+### Step 8: Restart Services
 ```bash
 # Restart PHP-FPM
 sudo systemctl restart php8.2-fpm
