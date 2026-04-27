@@ -260,9 +260,14 @@ class KitchenInventory extends Component
 
     public function render()
     {
+        $branchId = auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id;
 
         return view('livewire.admin.manage.kitchen-inventory', [
-            'menus' => $this->selectedCategoryId ? FrontdeskMenu::where('frontdesk_category_id', $this->selectedCategoryId)->get() : [],
+            'menus' => $this->selectedCategoryId
+                ? FrontdeskMenu::where('frontdesk_category_id', $this->selectedCategoryId)
+                    ->where('branch_id', $branchId)
+                    ->get()
+                : [],
             'branches' => \App\Models\Branch::all(),
         ]);
     }

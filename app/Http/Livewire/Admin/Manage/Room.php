@@ -204,6 +204,17 @@ class Room extends Component implements Tables\Contracts\HasTable
                 ->color('success')
                 ->action(function ($record, $data) {
                     $newStatus = $data['status'] ?? $record->status;
+                    $oldStatus = $record->status;
+
+                    // Prevent changing from Maintenance directly to Available
+                    // Room should go through cleaning cycle first (Uncleaned -> Cleaning -> Cleaned -> Available)
+                    if ($oldStatus === 'Maintenance' && $newStatus === 'Available') {
+                        $this->dialog()->error(
+                            $title = 'Cannot Set to Available',
+                            $description = 'Room is currently in Maintenance. Please set the status to "Uncleaned" first so it can go through the cleaning process before becoming Available.'
+                        );
+                        return;
+                    }
 
                     // Prevent changing to Maintenance if room has ongoing cleaning
                     if ($newStatus === 'Maintenance') {

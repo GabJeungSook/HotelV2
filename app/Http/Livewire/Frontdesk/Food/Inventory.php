@@ -86,7 +86,11 @@ class Inventory extends Component
     public function render()
     {
         return view('livewire.frontdesk.food.inventory', [
-            'menus' => $this->record ? FrontdeskMenu::where('frontdesk_category_id', $this->record->id)->get() : [],
+            'menus' => $this->record
+                ? FrontdeskMenu::where('frontdesk_category_id', $this->record->id)
+                    ->where('branch_id', auth()->user()->branch_id)
+                    ->get()
+                : [],
         ]);
     }
 }
