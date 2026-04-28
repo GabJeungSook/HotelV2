@@ -81,6 +81,10 @@ class RoomMonitoring extends Component
     public $kioskBatchData = [];
     public $kioskBatchTotals = [];
 
+    // Ghost records modal (show frontdesk which rooms have unresolved check-ins)
+    public $ghostRecordsModal = false;
+    public $ghostRecordsData = [];
+
     public function getListeners()
     {
         return [
@@ -98,6 +102,38 @@ class RoomMonitoring extends Component
             ->get();
         $this->assigned_frontdesk = auth()->user()->assigned_frontdesks;
         $this->food_price = 0;
+    }
+
+    /**
+     * Show modal with ghost records (rooms with unresolved check-ins).
+     * Frontdesk can see which rooms need Admin attention.
+     */
+    public function showGhostRecords()
+    {
+        $branchId = auth()->user()->branch_id;
+
+        $this->ghostRecordsData = CheckinDetail::where('is_check_out', false)
+            ->whereHas('room', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            })
+            ->with(['room:id,number,status,floor_id', 'room.floor:id,number', 'guest:id,name'])
+            ->orderBy('check_in_at', 'asc')
+            ->get()
+            ->map(function ($record) {
+                return [
+                    'room_number' => $record->room->number ?? 'N/A',
+                    'floor_number' => $record->room->floor->number ?? 'N/A',
+                    'room_status' => $record->room->status ?? 'N/A',
+                    'guest_name' => $record->guest->name ?? 'Unknown',
+                    'check_in_at' => Carbon::parse($record->check_in_at)->format('M d, Y H:i'),
+                    'check_out_at' => $record->check_out_at
+                        ? Carbon::parse($record->check_out_at)->format('M d, Y H:i')
+                        : 'Not set',
+                ];
+            })
+            ->toArray();
+
+        $this->ghostRecordsModal = true;
     }
 
     public function redirectToScanning()

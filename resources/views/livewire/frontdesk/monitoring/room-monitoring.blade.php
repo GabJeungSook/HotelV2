@@ -54,14 +54,14 @@
           </span>
         @endif
 
-        {{-- Ghost Records count chip (orange) - notify frontdesk to report to Admin --}}
+        {{-- Ghost Records count chip (orange) - clickable to show modal --}}
         @if(($ghostCount ?? 0) > 0)
-          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-100 text-orange-800 border border-orange-300 ml-2" title="Rooms with unresolved check-ins. Report to Admin.">
+          <button wire:click="showGhostRecords" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-100 text-orange-800 border border-orange-300 ml-2 hover:bg-orange-200 transition-colors cursor-pointer" title="Click to view ghost records">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             Ghost Records: {{ $ghostCount }}
-          </span>
+          </button>
         @endif
 
       </div>
@@ -926,6 +926,65 @@
           <div class="flex justify-end gap-x-2">
             <x-button flat label="Close" wire:click="closeKioskBatchModal" />
             <x-button primary icon="refresh" label="Refresh" wire:click="showKioskBatch" spinner="showKioskBatch" />
+          </div>
+        </x-slot>
+      </x-modal.card>
+
+      {{-- Ghost Records Modal - show frontdesk which rooms have unresolved check-ins --}}
+      <x-modal.card title="Ghost Records" blur wire:model.defer="ghostRecordsModal" max-width="3xl">
+        <div class="space-y-4">
+          {{-- Explanation --}}
+          <div class="rounded-md bg-orange-50 border border-orange-200 p-3 text-sm text-orange-800">
+            <p class="font-semibold mb-1">What are Ghost Records?</p>
+            <p>Rooms with guests who left without proper checkout. These rooms cannot be used until Admin fixes them via the <strong>Unresolved Check-ins</strong> page.</p>
+          </div>
+
+          @if (empty($ghostRecordsData))
+            <p class="text-sm text-gray-500 text-center py-4">No ghost records found.</p>
+          @else
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
+                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Floor</th>
+                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Guest</th>
+                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Check-In</th>
+                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Expected Out</th>
+                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  @foreach ($ghostRecordsData as $ghost)
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-3 py-2 font-semibold text-gray-900">#{{ $ghost['room_number'] }}</td>
+                      <td class="px-3 py-2 text-gray-600">{{ $ghost['floor_number'] }}</td>
+                      <td class="px-3 py-2 text-gray-600">{{ $ghost['guest_name'] }}</td>
+                      <td class="px-3 py-2 text-gray-600">{{ $ghost['check_in_at'] }}</td>
+                      <td class="px-3 py-2 text-gray-600">{{ $ghost['check_out_at'] }}</td>
+                      <td class="px-3 py-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                          @if($ghost['room_status'] === 'Available') bg-blue-100 text-blue-800
+                          @elseif($ghost['room_status'] === 'Occupied') bg-green-100 text-green-800
+                          @else bg-gray-100 text-gray-800 @endif">
+                          {{ $ghost['room_status'] }}
+                        </span>
+                      </td>
+                    </tr>
+                  @endforeach
+                </tbody>
+              </table>
+            </div>
+
+            <div class="bg-gray-50 rounded-md p-3 text-sm text-gray-600">
+              <p><strong>Action Required:</strong> Inform Admin about these ghost records. Admin can fix them from the sidebar menu → Unresolved Check-ins.</p>
+            </div>
+          @endif
+        </div>
+
+        <x-slot name="footer">
+          <div class="flex justify-end">
+            <x-button flat label="Close" x-on:click="close" />
           </div>
         </x-slot>
       </x-modal.card>
