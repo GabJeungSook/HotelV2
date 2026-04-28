@@ -49,50 +49,47 @@
     </div>
     @endif
 
-    {{-- MAINTENANCE NOTICE — 2026-04-28 --}}
-    {{-- The "Fix All" action and detection logic have a bug that flags ACTIVE   --}}
-    {{-- guests with future check_out_at as ghosts (because the query uses       --}}
-    {{-- number_of_hours, which is 0 for long-stay/extension guests, instead of --}}
-    {{-- check_out_at). Clicking Fix All on 2026-04-27 23:19 force-closed 20    --}}
-    {{-- active guests; recovered from backup. Button disabled until query is   --}}
-    {{-- fixed. See docs/bugs/2026-04-28-fixall-unresolved-flips-active-extension-checkins.md --}}
-    <div class="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-6">
+    {{-- INFO NOTICE — 2026-04-28 --}}
+    {{-- Detection query FIXED: Now uses check_out_at (correct) with 48-hour threshold. --}}
+    {{-- Fix-All button disabled until per-row confirmation UI is built.                --}}
+    {{-- See: docs/incidents/2026-04-28-fix-all-unresolved-incident-report.md           --}}
+    <div class="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-6">
         <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            <svg class="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-                <h2 class="font-semibold text-yellow-800 mb-1">Feature Under Maintenance — Do Not Use</h2>
-                <p class="text-yellow-700 text-sm mb-2">
-                    The "Fix All Records" action is <strong>temporarily disabled</strong> due to a detection bug
-                    that flags ACTIVE guests (with future check-out dates) as ghost records.
+                <h2 class="font-semibold text-blue-800 mb-1">Ghost Record Detection</h2>
+                <p class="text-blue-700 text-sm mb-2">
+                    Records shown below are guests whose <strong>expected checkout was 2+ days ago</strong>
+                    and have not been formally checked out.
                 </p>
-                <p class="text-yellow-700 text-sm mb-2">
-                    The records listed below may include real, paying guests who are still inside their rooms.
-                    <strong>Do not assume they are ghosts.</strong>
+                <p class="text-blue-700 text-sm mb-2">
+                    <strong>These are likely true ghosts</strong> — guests who left without checkout.
+                    Verify with frontdesk before taking action.
                 </p>
-                <p class="text-yellow-700 text-sm">
-                    For each suspected ghost, verify manually with frontdesk (key card slot, physical room check)
-                    before any action. A proper fix is being prepared.
+                <p class="text-blue-700 text-sm">
+                    The "Fix All" button is temporarily disabled. To resolve ghost records,
+                    process each checkout manually via frontdesk.
                 </p>
             </div>
         </div>
     </div>
 
-    {{-- Fix Button — DISABLED 2026-04-28 due to false-positive bug. --}}
-    {{-- Original button removed. Detection logic still runs (read-only). --}}
+    {{-- Fix Button — DISABLED until per-row confirmation UI is built --}}
+    {{-- Detection query is fixed. Button disabled for safety (requires manual checkout). --}}
     @if($summary['total_ghosts'] > 0)
     <div class="mb-6">
         <button disabled class="bg-gray-300 text-gray-500 px-6 py-2 rounded cursor-not-allowed font-medium">
-            Fix All Records — Disabled (Under Maintenance)
+            Fix All Records — Disabled
         </button>
         <p class="text-xs text-gray-500 mt-2">
-            This action is disabled until the detection query is corrected. Listing below is read-only.
+            Bulk action disabled for safety. Process each ghost record manually via frontdesk checkout.
         </p>
     </div>
     @else
-    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-        <p class="text-gray-600 font-medium">All clear. No ghost records found.</p>
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+        <p class="text-green-700 font-medium">✓ All clear — No ghost records found (2+ days overdue).</p>
     </div>
     @endif
 
