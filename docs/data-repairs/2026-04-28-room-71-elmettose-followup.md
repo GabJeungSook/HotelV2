@@ -1,11 +1,22 @@
-# Data Repair: Room #71 (Elmettose rivera) — incident addendum
+# Data Repair: Room #71 (Elmettose Rivera) — incident addendum
 
 **Date:** 2026-04-28
-**Trigger:** Frontdesk message from Niño at 09:20 AM on Telegram group "Alma system upgrade"
-**Database:** `hotelv2` (production)
+**Trigger:** Frontdesk message from Niño at 09:20 AM on Telegram group "Alma system upgrade"; later confirmed at ~6 PM that the guest was still physically in the room
+**Database:** `homi_app` (production)
 **Affected guest:** Elmettose rivera (`guest_id = 14336`)
 **Affected check-in:** `cid = 12086`, Room #71 (`room_id = 54`)
 **Parent incident:** `docs/incidents/2026-04-28-fix-all-unresolved-incident-report.md`
+**Recovery script:** `docs/data-repairs/2026-04-28-room-71-elmettose-RECOVERY-SCRIPT.md`
+
+---
+
+## ⚠ CORRECTION — earlier version of this doc was wrong
+
+An earlier version of this doc (committed at `aaeb743`) assumed Elmettose had physically left the room by mid-morning Apr 28 (because the room status had flipped to `Cleaned` at 08:43 AM). It recommended a cosmetic-only fix (just `check_out_at`).
+
+That assumption was incorrect. By 6 PM on Apr 28, frontdesk confirmed via Telegram that **Elmettose was still physically in Room #71** — she never left. The room had been cycled through `Cleaned` ↔ `Occupied` ↔ `Cleaned` 16 times during the day because kiosk kept assigning Room #71 to walk-ins (since the system showed it empty), and frontdesk kept rescue-transferring those walk-ins out.
+
+**This revised doc reflects the corrected understanding and the proper full recovery (not just cosmetic).**
 
 ---
 
@@ -13,32 +24,40 @@
 
 Room #71 was the **21st** room affected by the 2026-04-27 23:19:54 Fix-All incident. It was deliberately left out of the initial 5:30 AM recovery because the guest's last paid extension expired ~4 hours before the bug fired, making it ambiguous whether she was a real overstaying guest or a real abandoned ghost.
 
-A frontdesk message at 09:20 AM confirmed she was a real guest and resolved the ambiguity. By the time the message arrived (and by the time the next forensic snapshot was taken at 09:31), she had already physically left and the room had been cleaned. The remaining recovery work is therefore reduced to:
+Through the day on Apr 28:
+- A frontdesk Telegram message at 09:20 AM confirmed her presence
+- A list of "21 affected rooms" was independently confirmed by frontdesk
+- 16 walk-in guests were briefly assigned to Room #71 by kiosk and rescue-transferred to other rooms
+- Frontdesk re-confirmed at ~6 PM that she was still physically inside
 
-1. A **one-line cosmetic SQL fix** to restore her `check_out_at` from the bogus bug-overwritten value to her last legitimate planned-checkout date
-2. An **operational decision** about her ₱200 deposit (forfeit / refund / partial)
-
-There is no urgent data-loss risk. The fix can be applied any time.
+The remaining recovery work is therefore a **full restoration** (not cosmetic):
+1. Reactivate her check-in record (`is_check_out: 1 → 0`)
+2. Restore Room #71 status (`Cleaned → Occupied`)
+3. Frontdesk then bills her overdue extensions through the normal UI
 
 ---
 
-## 2. Niño's report (frontdesk evidence)
+## 2. Niño's report (frontdesk evidence — confirmed correct)
 
 Two messages from Niño on the "Alma system upgrade" Telegram group:
 
 ### Message 1 (the financial concern)
 > *"Extnded guest Ana sir, elmettose revira. Nawala ang iyng payment sa rm 400 tanan 7am, now ang guest naa PA sa room. Thank you"*
 
-**Translation:** *"Extended guest Ana sir, Elmettose Rivera. Her ₱400 payment from 7am is missing. The guest is still in the room. Thank you."*
+**Translation:** Extended guest Ana sir, Elmettose Rivera. Her ₱400 payment from 7am is missing. The guest is still in the room.
 
-**Interpretation:** Niño observed that Elmettose's expected ₱400 extension payment around 7am Apr 28 (her normal 12-hour cycle) was not recorded in the system, and that she was still physically inside Room #71 at the time he wrote the message.
+**Interpretation:** Niño reported that her expected ~7 AM extension never landed in the system (because the bug had hidden her record), and that she was still physically inside the room.
 
 ### Message 2 (the affected-room list)
 > *"4, 5, 6, 11, 51, 52, 60, 62, 63, 65, 71, 74, 92, 100, 151, 166, 171, 205, 211, 215, 286 — Mao ni ang affected na rooms gabii pag update ya"*
 
-**Translation:** *"These are the affected rooms last night during the update."*
+**Translation:** These are the affected rooms last night during the update.
 
-**Interpretation:** Frontdesk independently identified all 21 affected rooms — matching the data analysis exactly. Confirms Room #71 was part of the same incident.
+**Interpretation:** 21 rooms affected, including #71. Matches the data analysis exactly.
+
+### Confirmation at 6 PM Apr 28
+
+Frontdesk confirmed in chat that the physical guest in Room #71 is **Elmettose Revira** (matches database `Elmettose rivera`, spelling variant). She had not left. The 16 walk-in transfers throughout the day were unrelated rescues, not her.
 
 ---
 
@@ -46,178 +65,167 @@ Two messages from Niño on the "Alma system upgrade" Telegram group:
 
 | Time (Asia/Manila) | Event | Amount | Transaction |
 |---|---|---:|---:|
-| 2026-04-25 19:07:42 | Check-in to Room #71 (12-hour rate, ₱600) | ₱400 paid + ₱200 deposit | tid 33003, 33004 |
+| 2026-04-25 19:07:42 | Check-in to Room #71 (12-hour rate, ₱600 total) | ₱400 paid + ₱200 deposit | tid 33003, 33004 |
 | 2026-04-26 06:44:06 | Extension #1 (+12h, valid until 18:44 Apr 26) | ₱400 paid | tid 33378 |
 | 2026-04-26 18:45:51 | Extension #2 (+12h, valid until 06:45 Apr 27) | ₱400 paid | tid 33796 |
 | 2026-04-27 06:33:06 | Extension #3 (+12h, valid until **19:07 Apr 27**) | ₱400 paid | tid 34210 |
 | 2026-04-27 19:07 | **Last paid extension expires** — she should leave or extend | — | — |
-| 2026-04-27 23:17:30 | DB backup taken (BEFORE bug). Her `check_out_at` = `2026-04-27 19:07:42`, `is_check_out` = 0. **Already 4 h overdue at this point.** | — | — |
-| 2026-04-27 23:19:54 | **Bug fires.** Her record force-closed: `is_check_out: 0→1`, `check_out_at` overwritten to `2026-04-25 19:37:42` (fake — `check_in_at + 30 min`). | — | — |
-| 2026-04-27 23:20 → 2026-04-28 08:43 | She physically remained in the room. Frontdesk could not see her record (system showed her as already checked out). No extension transactions could be processed. | — | — |
-| 2026-04-28 08:43:57 | Room #71 marked `Cleaned` — strong signal she had left and roomboy cleaned the room. | — | — |
-| 2026-04-28 09:20 | Niño's first message. (At time of writing, his info may have been a few minutes stale.) | — | — |
-| 2026-04-28 09:31 | Latest forensic dump confirms: Room #71 = `Cleaned`, no active check-in for Room #71, Elmettose's record still has bogus `check_out_at`. | — | — |
+| 2026-04-27 23:17:30 | DB backup taken (`homi_app_producoot_lastest_now.sql`) — already 4 h overdue at this point | — | — |
+| 2026-04-27 23:19:54 | **Bug fires.** Force-closed: `is_check_out: 0→1`, `check_out_at` overwritten to fake `'2026-04-25 19:37:42'` | — | — |
+| 2026-04-27 23:20:03 | Room #71 status flipped Occupied → Available | — | — |
+| 2026-04-27 23:20 → 2026-04-28 ~now | She remained physically in the room. Frontdesk could not see her record (system showed her as already checked out). No extension transactions could be processed for her. | — | — |
+| 2026-04-28 ~07:01 → ~18:06 | 16 walk-ins assigned to Room #71 by kiosk; each rescue-transferred out by frontdesk. Elmettose remained physically inside throughout. | — | — |
+| 2026-04-28 ~08:25 | Cosmetic fix landed: `check_out_at` restored to real value `'2026-04-27 19:07:42'`. **`is_check_out` was NOT restored — still equals 1.** | — | — |
+| 2026-04-28 18:00 onward | Frontdesk reports issue, recovery prepared | — | — |
 
 ### Total received from Elmettose
 
 ```
-4 × ₱400  (check-in + 3 extensions)  = ₱1,600
-1 × ₱200  (deposit, still held)      = ₱  200
-                                        ──────
-                                        ₱1,800  total
+1 × ₱400  (check-in)                    = ₱400
+1 × ₱200  (deposit, still held)         = ₱200
+3 × ₱400  (extensions)                  = ₱1,200
+                                          ──────
+                                          ₱1,800  total received
 ```
 
-### Lost revenue (estimate)
+### Estimated unpaid overstay
 
-From last paid extension expiry (`2026-04-27 19:07`) to room cleaning (`2026-04-28 08:43`) = **~13 h 36 min** of overstay.
+From last paid extension expiry (`2026-04-27 19:07`) to time of recovery (~6 PM Apr 28) = **~23-24 hours** of overstay.
 
 At 12-hour-rate × ₱400 per period:
-- 1 missed extension covering 19:07 Apr 27 → 07:07 Apr 28 = **₱400**
-- Partial overstay 07:07 → 08:43 (1.5 h) = small partial extension or hourly charge per hotel policy
+- 1 missed extension `19:07 Apr 27 → 07:07 Apr 28` = **₱400**
+- Partial overstay `07:07 → ~19:00 Apr 28` (~12 h) = potentially another **₱400**
 
-**Estimate: ₱400-800 in lost extension revenue**, partially recoverable by forfeiting her ₱200 deposit.
-
-This is a **business loss caused by the bug**, not a data corruption. The transactions that should have happened never happened because the system hid her record.
+**Estimate: ~₱600-800 in unpaid extensions.** Recoverable through frontdesk Check Out + Deposit Deduction (Option B in Section 5).
 
 ---
 
-## 4. Current data state (as of 2026-04-28 09:31 dump)
+## 4. Current data state (as of 2026-04-28 6 PM dump, before recovery)
 
 ```sql
--- Room #71 (room_id=54)
-status:        'Cleaned'
-last_checkin:  '2026-04-25 13:22:49'
-last_checkout: '2026-04-25 17:18:51'
-updated_at:    '2026-04-28 08:43:57'
-
 -- Elmettose's check-in record (cid=12086)
 guest_id:        14336  (Elmettose rivera)
 room_id:         54     (Room #71)
 check_in_at:     '2026-04-25 19:07:42'
-check_out_at:    '2026-04-25 19:37:42'   ⚠ BOGUS — bug-overwritten
-is_check_out:    1                        ✓ correct (she's actually gone)
+check_out_at:    '2026-04-27 19:07:42'   ✓ real value (already restored at 08:25 today)
+is_check_out:    1                        ⚠ wrong — she's actually still in the room
 total_deposit:   200                      ✓ still held
-total_deduction: 0
-updated_at:      '2026-04-27 23:19:54'   ⚠ shows the bug timestamp
+total_deduction: 0                        ✓
+updated_at:      '2026-04-28 08:25:08'    (cosmetic fix moment)
+
+-- Room #71 (room_id=54)
+status:          'Cleaned'   ⚠ wrong — should be 'Occupied'
+last_checkin_at: stale
+last_checkout_at: stale
+updated_at:      '2026-04-28 18:06:35'  (last walk-in rescue transfer time)
 ```
 
-### What's correct (no action needed)
-- ✅ `is_check_out = 1` — she's actually gone, the field's value is right
-- ✅ `total_deposit = 200` — deposit held, recoverable for forfeit/refund
-- ✅ `total_deduction = 0` — no charges deducted
-- ✅ Room status `Cleaned` — physically empty, ready for next guest
-- ✅ All her transactions (4 × ₱400 + ₱200 deposit) are intact in the DB
+### What's correct (no change needed)
+- ✅ `check_out_at = '2026-04-27 19:07:42'` (real value, already restored)
+- ✅ `total_deposit = 200`
+- ✅ `total_deduction = 0`
+- ✅ All 5 transactions intact in `transactions` table
 
-### What's incorrect (cosmetic)
-- ⚠️ `check_out_at = '2026-04-25 19:37:42'` — fake bug value. Should be her last legitimate planned-checkout `2026-04-27 19:07:42` (taken from BEFORE backup `homi_app_producoot_lastest_now.sql`).
+### What's wrong (needs fix)
+- ⚠ `is_check_out = 1` (must be `0` — she's still active)
+- ⚠ `room_status = 'Cleaned'` (must be `'Occupied'` — real guest inside)
 
 ---
 
-## 5. Recovery SQL (one statement, no urgency)
+## 5. Recovery procedure
+
+The complete step-by-step script is in:
+**`docs/data-repairs/2026-04-28-room-71-elmettose-RECOVERY-SCRIPT.md`**
+
+That document has the full 8-step procedure (read-only verifications, transaction wrapper, atomic UPDATEs, pre-COMMIT verify, COMMIT, post-COMMIT verify) with expected results at each step.
+
+### Summary of the SQL changes inside the transaction
 
 ```sql
-USE `hotelv2`;  -- or `homi_app` on production
-
 START TRANSACTION;
 
--- Restore the real planned-checkout date (overwritten by bug to a fake 30-min-after-checkin value).
--- Source of truth: BEFORE backup `homi_app_producoot_lastest_now.sql` taken 2026-04-27 23:17:30.
--- The guard `AND check_out_at = '2026-04-25 19:37:42'` makes this idempotent — re-running
--- the statement will affect 0 rows once the fix is in place.
 UPDATE checkin_details
-SET check_out_at = '2026-04-27 19:07:42',
-    updated_at   = NOW()
-WHERE id = 12086
-  AND check_out_at = '2026-04-25 19:37:42';
+SET is_check_out = 0, updated_at = NOW()
+WHERE id = 12086 AND is_check_out = 1;
 
--- Verify (should return 1)
-SELECT 'cid 12086 fixed' AS check_label, COUNT(*) AS count_should_be_1
-FROM checkin_details
-WHERE id = 12086 AND check_out_at = '2026-04-27 19:07:42';
+UPDATE rooms
+SET status = 'Occupied', updated_at = NOW()
+WHERE id = 54 AND status IN ('Available', 'Cleaned');
 
--- If count is 1, COMMIT. If 0, ROLLBACK and investigate.
+-- (verify with SELECT before COMMIT)
+
 COMMIT;
--- ROLLBACK;
 ```
 
-### What this does NOT do (intentional)
-- ❌ Does **not** flip `is_check_out` back to 0 — she's actually gone. The system correctly shows her as checked out.
-- ❌ Does **not** change `rooms.status` — Room #71 is correctly `Cleaned` (or `Available` if reused).
-- ❌ Does **not** create any new transactions — the missed extensions are a business loss, not recoverable via SQL.
-- ❌ Does **not** touch the deposit — admin handles via the normal admin-tools workflow.
+### Operational follow-up after COMMIT
+
+After COMMIT, frontdesk processes her overdue billing through the normal UI. Three options:
+
+| Option | Action | Money flow |
+|---|---|---:|
+| **A — She extends and stays** | Click "Add Extension" in Room Monitoring → collect ₱400 cash | +₱400 cash |
+| **B — She checks out today (recommended)** | Click "Check Out" → Deduct Deposit ₱200 → collect ~₱600 cash for 2 missed extensions | +₱600 cash + ₱200 deposit applied |
+| **C — Hotel absorbs the loss** | Click "Check Out" → Cashout ₱200 deposit | -₱200 (hotel goodwill) |
+
+**Recommended: Option B** — fair to both parties. She pays for hours she actually stayed; deposit covers part. Hotel collects what's owed.
 
 ---
 
-## 6. Operational follow-up (decisions for admin)
+## 6. Why this is different from the 20 already-recovered rooms
 
-### 6.1 Deposit handling
-
-Elmettose has ₱200 held in her record. Options:
-
-| Option | Action | When appropriate |
+| Aspect | The 20 active guests (recovered 5:30 AM) | Room #71 (Elmettose) |
 |---|---|---|
-| Forfeit | Mark as forfeited (Deduct Deposit transaction with reason "overstay") | If hotel policy charges for overstay and ₱200 is acceptable as partial offset |
-| Refund | Deduct Deposit then Cashout to her contact | If hotel decides to absorb the overstay loss as goodwill / due-to-bug |
-| Partial | Forfeit some, refund some | Mixed approach |
-
-To process the deposit through the normal admin flow:
-1. Open the admin interface for guest management
-2. Search for guest_id 14336 (Elmettose rivera)
-3. Use Deduct Deposit / Add Damage Charges as appropriate
-
-### 6.2 Lost revenue accounting
-
-For the missed ~13 hours of overstay:
-- Treat as **loss attributable to the 2026-04-28 incident** in any business reporting
-- Document in the incident summary that approximately ₱400-800 in extension revenue was lost (partially offset by the ₱200 deposit if forfeited)
-- This loss is **not recoverable** via SQL because the guest is no longer reachable for billing
-
-### 6.3 Customer communication
-
-If Elmettose is a known repeat guest or there is contact information on file:
-- Optional: courtesy follow-up call/text explaining the system issue
-- Optional: offer goodwill refund of the deposit
-- Probably not needed — she may not be aware of the system issue at all
+| Was guest physically inside at recovery time? | Yes | Yes (still inside throughout the day) |
+| Initial recovery action | Restore `is_check_out=0` + restore real `check_out_at` + flip room to Occupied | Was DEFERRED at 5:30 AM (ambiguous case) |
+| Cosmetic-only fix attempted at 8:25 AM | N/A | `check_out_at` restored. **Not enough** — `is_check_out` still wrong, room status still wrong. |
+| Required full recovery | Yes (done) | Yes (this doc — pending operator execution) |
+| Operational follow-up | None — frontdesk worked normally afterward | Frontdesk must bill her overdue extensions |
 
 ---
 
-## 7. Why this case is different from the 20 already-recovered rooms
+## 7. Why we are confident this recovery is correct
 
-| Aspect | The 20 active guests | Room #71 (Elmettose) |
-|---|---|---|
-| Guest physically still inside at recovery time? | Yes | No (had left by ~08:43) |
-| Recovery action | Restore `is_check_out` to 0 + restore `check_out_at` + flip room to Occupied | Restore `check_out_at` only (cosmetic) |
-| Time-pressure | Higher — every minute of unresolved state risked scenario C | Low — she's gone, no risk of conflict |
-| Lost revenue | Zero — every guest reappeared on Room Monitoring within 30 sec of COMMIT | ~₱400-800 — she physically left during the bug window without being billed for overstay |
-| Operational follow-up | None — frontdesk processed normally afterward | Admin decision on ₱200 deposit |
+1. **Source of truth.** The BEFORE backup `homi_app_producoot_lastest_now.sql` (taken 2026-04-27 23:17:30 — exactly 2 minutes 24 seconds before the bug fired) shows her real pre-bug state: `is_check_out=0`, `check_out_at='2026-04-27 19:07:42'`, room status `Occupied`. Recovery values come directly from this snapshot.
+
+2. **Independent confirmation by frontdesk.** Niño's two Telegram messages plus the 6 PM verbal confirmation all agree she's a real guest in Room #71.
+
+3. **Mathematical consistency.** Her transaction history (4 paid periods × 12 hours = 48 hours) matches the BEFORE backup's `check_out_at` value (`Apr 25 19:07 + 48 h = Apr 27 19:07`). The bug's "30-minute stay" value is mathematically impossible — she couldn't have paid 3 extensions if she only stayed 30 min.
+
+4. **Activity log evidence.** No "Check Out" entry exists for her in `activity_logs`. She has never been formally checked out — she just disappeared from the system due to the bug.
+
+5. **Idempotent + transactional safety.** The recovery SQL has guards (`AND is_check_out = 1`, `AND status IN ('Available','Cleaned')`) and is wrapped in a transaction with pre-COMMIT verification. Worst case is a no-op or a rolled-back transaction.
+
+6. **Reversible.** Explicit ROLLBACK procedure in the recovery script if anything looks wrong post-COMMIT.
 
 ---
 
 ## 8. Updated incident totals
 
-After this addendum, the incident totals become:
+After this recovery, the incident totals become:
 
-| Metric | Old (before addendum) | New (with Room #71) |
-|---|---:|---:|
-| Total rooms affected | 20 | **21** |
-| Total active deposits preserved | ₱15,598 | **₱15,798** |
-| Rooms restored to Occupied (active guest still inside) | 20 | 20 |
-| Records cosmetically fixed (guest already gone) | 0 | 1 (Room #71) |
-| Genuine ghosts correctly closed | 9 | 9 |
-| **Total `checkin_details` records touched by the bug** | 30 | 30 |
-
-The total of 30 records touched by the bug is unchanged — Room #71 was always part of those 30; we just deferred the decision on it because it was ambiguous.
+| Metric | Value |
+|---|---:|
+| Total rooms affected | 21 |
+| Total active deposits preserved | ₱15,798 |
+| Lost revenue (pre-fix unbillable hours) | ~₱600-800 (recoverable via Option B Check Out) |
+| Net hotel revenue from Elmettose | ₱2,400 (₱1,600 paid + ₱200 deposit + ~₱600 cash on checkout) |
+| Money lost to the bug | **₱0** (assuming Option B Check Out) |
 
 ---
 
 ## 9. Operator checklist
 
-- [ ] Run the SQL in Section 5 against production (1 row affected expected)
-- [ ] Verify the COUNT returns 1 before COMMIT
-- [ ] Decide on Elmettose's ₱200 deposit (Section 6.1)
-- [ ] Process the deposit through the normal admin flow
-- [ ] Update incident report (`docs/incidents/2026-04-28-fix-all-unresolved-incident-report.md`) with reference to this addendum
-- [ ] Note the ₱400-800 lost revenue in any monthly business report
+- [ ] Review `docs/data-repairs/2026-04-28-room-71-elmettose-RECOVERY-SCRIPT.md`
+- [ ] Take a fresh backup of production before running recovery
+- [ ] Run Steps 1-2 (read-only pre-flight) and confirm baseline
+- [ ] Run Steps 3-6 (transaction + UPDATEs + verify) inside one TablePlus tab
+- [ ] Verify Step 6 result shows `is_check_out=0` AND `room_status=Occupied`
+- [ ] Run Step 7 (`COMMIT;`) — point of no return
+- [ ] Run Step 8 (post-commit final verification)
+- [ ] Tell frontdesk to refresh Room Monitoring
+- [ ] Frontdesk processes Option B (Check Out + ₱200 deposit + ~₱600 cash)
+- [ ] Verify walk-in rescue cycle has stopped (no new "from Room #71" transfers in `activity_logs`)
+- [ ] Update this doc's `Sign-off` section with operator name + timestamp
 
 ---
 
@@ -225,11 +233,12 @@ The total of 30 records touched by the bug is unchanged — Room #71 was always 
 
 | Role | Status |
 |---|---|
-| Recovery SQL prepared | 2026-04-28 |
+| Recovery script prepared | 2026-04-28 (this revised version) |
 | Recovery SQL executed | _(operator + timestamp)_ |
-| Deposit handling decided | _(operator + decision)_ |
-| Incident report updated | _(date)_ |
+| Frontdesk billing completed (Option ___) | _(operator + amount collected)_ |
+| Walk-in rescue cycle confirmed stopped | _(timestamp of last "from Room #71" transfer)_ |
+| Incident addendum reviewed | _(reviewer + date)_ |
 
 ---
 
-*Addendum to incident `2026-04-28-001`.*
+*Revised version. Supersedes the earlier "she left" interpretation. The truth: she stayed throughout, the bug just hid her record.*

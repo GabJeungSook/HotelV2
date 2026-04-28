@@ -897,26 +897,65 @@ Pending physical room verification by frontdesk. Optional recovery block in `doc
 
 ## 13. Addendum — Room #71 / Elmettose rivera (post-recovery follow-up)
 
-After the initial 5:30 AM recovery on the 20 active-guest rooms, a frontdesk message at 09:20 AM confirmed that Room #71 (cid=12086) was also a real guest, not a ghost — making the total affected room count **21**, not 20.
+After the initial 5:30 AM recovery on the 20 active-guest rooms, frontdesk messages confirmed that Room #71 (cid=12086) was also a real guest, not a ghost — making the total affected room count **21**, not 20.
 
-By the time of confirmation, the guest (Elmettose rivera) had physically left and the room had been cleaned (08:43 AM). Her record is therefore in a different state than the other 20:
+### Initial assumption (later corrected)
 
-- `is_check_out = 1` is **correct** (she's gone)
-- `check_out_at` is **bogus** (bug-overwritten to `2026-04-25 19:37:42`) — needs cosmetic fix
-- ₱200 deposit still held — operational decision on forfeit/refund
+A first version of the addendum (written ~9:30 AM Apr 28) assumed that by mid-morning Elmettose had physically left and the room was cleaned. That assumption proved wrong. By 6 PM Apr 28, frontdesk re-confirmed that **she was still physically inside Room #71** — she had been there continuously since Apr 25, never left.
 
-**Lost revenue:** approximately ₱400-800 from ~13 hours of overstay during the bug window (frontdesk could not see her record to bill extensions). Partially offset by the ₱200 deposit if forfeited.
+The room status fluctuated between `Cleaned` and briefly `Occupied` throughout the day because **kiosk kept auto-assigning Room #71 to walk-ins** (system saw it as empty). Frontdesk rescue-transferred each walk-in (16 transfers logged between 07:01 and 18:06). Elmettose remained physically inside through all of these.
 
-**Recovery procedure for Room #71:** see the dedicated runbook at `docs/data-repairs/2026-04-28-room-71-elmettose-followup.md`.
+### Corrected understanding
 
-**Updated totals:**
+Her record requires **full restoration** (not cosmetic):
+
+- `is_check_out = 1` is **WRONG** — she's still active physically. Must be set to `0`.
+- `check_out_at` is **already correct** (`2026-04-27 19:07:42` — restored at 08:25 AM today, the cosmetic fix landed).
+- Room #71 `status = 'Cleaned'` is **WRONG** — must be `'Occupied'`.
+- ₱200 deposit still held; available for forfeit or refund.
+
+### Recovery procedure
+
+See the dedicated step-by-step runbook:
+- **`docs/data-repairs/2026-04-28-room-71-elmettose-RECOVERY-SCRIPT.md`** — complete 8-step SQL procedure with expected results
+- **`docs/data-repairs/2026-04-28-room-71-elmettose-followup.md`** — full context and timeline
+
+The recovery is two field changes inside one transaction:
+
+```sql
+START TRANSACTION;
+UPDATE checkin_details SET is_check_out = 0, updated_at = NOW()
+WHERE id = 12086 AND is_check_out = 1;
+UPDATE rooms SET status = 'Occupied', updated_at = NOW()
+WHERE id = 54 AND status IN ('Available', 'Cleaned');
+-- (verify, then COMMIT)
+```
+
+### Operational follow-up after COMMIT
+
+Frontdesk processes Elmettose's overdue billing through the normal UI:
+
+| Option | Action | Money flow |
+|---|---|---:|
+| A — She extends | Add Extension | +₱400 cash |
+| **B — She checks out (recommended)** | Check Out + Deduct Deposit ₱200 + collect ~₱600 cash | +₱600 cash + ₱200 deposit applied |
+| C — Goodwill | Check Out + Cashout ₱200 deposit | -₱200 (hotel absorbs) |
+
+### Lost revenue / business impact
+
+- ~₱600-800 of unpaid extension revenue accumulated during the bug window (frontdesk could not see her record to bill extensions for the ~24 hours she overstayed unpaid)
+- 16 rescue transfers × ~2 min = ~32 minutes of frontdesk time wasted
+- Recoverable: **₱0 net lost** if Option B is chosen — she pays cash for what she stayed, deposit covers part
+
+### Updated totals
 
 | Metric | Value |
 |---|---:|
 | Total rooms affected | **21** (was 20) |
-| Total active deposits preserved | **₱15,798** (was ₱15,598) |
-| Lost revenue (Room #71 overstay) | ~₱400-800 |
-| Time-pressure on remaining fix | **Low** (cosmetic only) |
+| Total active deposits preserved | **₱15,798** |
+| Net hotel revenue from Elmettose (after Option B) | **₱2,400** (₱1,600 paid pre-bug + ₱200 deposit + ~₱600 cash on checkout) |
+| Money lost to the bug | **₱0** (assuming Option B execution) |
+| Time-pressure on Room #71 fix | **Medium** (walk-in cycle is operational drag — fix soon to stop it) |
 
 ---
 
