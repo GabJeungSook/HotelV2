@@ -245,7 +245,7 @@ class CheckInFromKiosk extends Component
             'static_room_amount' => $this->room_static_amount,
             'static_amount' => $this->guest->static_amount,
             'hours_stayed' => $this->is_longStay
-                ? 0
+                ? $rate * $this->guest->number_of_days
                 : $rate,
             'total_deposit' => $this->save_excess
                 ? $this->excess_amount + $this->additional_charges
