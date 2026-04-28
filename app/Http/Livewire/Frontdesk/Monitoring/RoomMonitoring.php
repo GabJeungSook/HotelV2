@@ -983,7 +983,7 @@ class RoomMonitoring extends Component
             'rate_id' => $this->rate_id,
             'static_amount' => $guest->static_amount,
             'hours_stayed' => $this->is_longStay
-                ? 0
+                ? $this->checkInDetails['rate'] * $guest->number_of_days
                 : $this->checkInDetails['rate'],
             'total_deposit' => $this->save_excess
                 ? $this->excess_amount + $this->additional_charges
