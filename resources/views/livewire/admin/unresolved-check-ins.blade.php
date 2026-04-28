@@ -63,7 +63,8 @@
                 </p>
                 <p class="text-blue-700 text-sm">
                     <strong>These are likely true ghosts</strong> — guests who left without checkout.
-                    Click "Fix All Records" to close them, or process each manually via frontdesk.
+                    Click "Fix All Records" to close them all, or use the "Fix" button on each row.
+                    <span class="text-blue-600">(Frontdesk cannot checkout ghost records — kiosk required.)</span>
                 </p>
             </div>
         </div>

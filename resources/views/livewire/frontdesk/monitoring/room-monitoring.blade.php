@@ -970,7 +970,8 @@
             </div>
 
             <div class="bg-gray-50 rounded-md p-3 text-sm text-gray-600">
-              <p><strong>Action Required:</strong> Inform Admin about these ghost records. Admin can fix them from the sidebar menu → Unresolved Check-ins.</p>
+              <p><strong>Action Required:</strong> Inform Admin about these ghost records.</p>
+              <p class="mt-1 text-gray-500">Frontdesk cannot checkout ghost records (kiosk required). Only Admin can fix them via sidebar → Unresolved Check-ins.</p>
             </div>
           @endif
         </div>
