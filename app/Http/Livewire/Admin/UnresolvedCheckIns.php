@@ -15,6 +15,9 @@ class UnresolvedCheckIns extends Component
     use Actions;
 
     public $showConfirmModal = false;
+    public $showSingleConfirmModal = false;
+    public $selectedRecordId = null;
+    public $selectedRecordData = null;
     public $guardsEnabled = false;
 
     /**
@@ -39,7 +42,7 @@ class UnresolvedCheckIns extends Component
      *      (lines 924-960 — currently commented out).
      *   4. Test on staging with multiple long-stay guests before deploying.
      */
-    public bool $fixActionEnabled = false;
+    public bool $fixActionEnabled = true;
 
     public function mount()
     {
@@ -127,6 +130,90 @@ class UnresolvedCheckIns extends Component
         }
 
         $this->showConfirmModal = true;
+    }
+
+    /**
+     * Show confirmation modal for single record fix.
+     */
+    public function confirmSingleFix($recordId)
+    {
+        $record = CheckinDetail::where('id', $recordId)
+            ->where('is_check_out', 0)
+            ->with(['room:id,number,branch_id,status', 'room.floor:id,number', 'guest:id,name'])
+            ->first();
+
+        if (! $record) {
+            $this->dialog()->error('Not Found', 'Record not found or already checked out.');
+            return;
+        }
+
+        $this->selectedRecordId = $recordId;
+        $this->selectedRecordData = [
+            'id' => $record->id,
+            'room_number' => $record->room->number ?? 'N/A',
+            'floor_number' => $record->room->floor->number ?? 'N/A',
+            'room_status' => $record->room->status ?? 'N/A',
+            'guest_name' => $record->guest->name ?? 'Unknown',
+            'check_in_at' => Carbon::parse($record->check_in_at)->format('M d, Y H:i'),
+            'check_out_at' => $record->check_out_at ? Carbon::parse($record->check_out_at)->format('M d, Y H:i') : 'N/A',
+            'deposit' => $record->total_deposit ?? 0,
+        ];
+        $this->showSingleConfirmModal = true;
+    }
+
+    /**
+     * Fix a single ghost record (called from confirmation modal).
+     */
+    public function fixSingleRecord()
+    {
+        if (! $this->selectedRecordId) {
+            $this->dialog()->error('Error', 'No record selected.');
+            return;
+        }
+
+        $record = CheckinDetail::where('id', $this->selectedRecordId)
+            ->where('is_check_out', 0)
+            ->with(['room:id,number,branch_id', 'guest:id,name'])
+            ->first();
+
+        if (! $record) {
+            $this->dialog()->error('Not Found', 'Record not found or already checked out.');
+            $this->showSingleConfirmModal = false;
+            return;
+        }
+
+        // Safety guard: never close a record whose check_out_at is in the future
+        if ($record->check_out_at && Carbon::parse($record->check_out_at)->isFuture()) {
+            $this->dialog()->error(
+                'Cannot Fix',
+                'This record has a future checkout time. It may be an active guest.'
+            );
+            $this->showSingleConfirmModal = false;
+            return;
+        }
+
+        $record->update([
+            'is_check_out' => true,
+        ]);
+
+        ActivityLog::create([
+            'branch_id'   => $record->room->branch_id ?? auth()->user()->branch_id,
+            'user_id'     => auth()->id(),
+            'activity'    => 'Force-Close Ghost Record',
+            'description' => 'Force-closed cid=' . $record->id
+                . ' room=#' . ($record->room->number ?? 'N/A')
+                . ' guest=' . ($record->guest->name ?? 'Unknown')
+                . ' (check_out_at=' . $record->check_out_at . ')',
+        ]);
+
+        $this->showSingleConfirmModal = false;
+        $this->selectedRecordId = null;
+        $this->selectedRecordData = null;
+
+        $this->dialog()->success(
+            'Record Fixed',
+            'Closed ghost record for ' . ($record->guest->name ?? 'Unknown') . ' in Room #' . ($record->room->number ?? 'N/A')
+        );
     }
 
     /**

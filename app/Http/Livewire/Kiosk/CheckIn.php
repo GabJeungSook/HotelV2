@@ -84,12 +84,18 @@ class CheckIn extends Component
                 ->pluck('room_id')
                 ->toArray();
 
+            // Exclude rooms with unresolved check-ins (ghost records) from display
+            $ghostRoomIds = CheckinDetail::where('is_check_out', false)
+                ->pluck('room_id')
+                ->toArray();
+
             $rooms = Room::where('branch_id', $branchId)
                 ->whereIn('id', $activeRoomIds)
                 ->whereIn('status', ['Available', 'Cleaned'])
                 ->whereNotIn('id', $temporaryCheckInKiosk)
                 ->whereNotIn('id', $temporaryReserved)
                 ->whereNotIn('id', $pendingGuestRooms)
+                ->whereNotIn('id', $ghostRoomIds) // Hide rooms with ghost records
                 ->when($this->floor_id, function ($query) {
                     return $query->where('floor_id', $this->floor_id);
                 })
@@ -153,6 +159,11 @@ class CheckIn extends Component
             ->pluck('room_id')
             ->toArray();
 
+        // Exclude rooms with unresolved check-ins (ghost records) from count
+        $ghostRoomIds = CheckinDetail::where('is_check_out', false)
+            ->pluck('room_id')
+            ->toArray();
+
         $available = Room::where('branch_id', $branchId)
             ->where('type_id', $type_id)
             ->whereIn('id', $activeRoomIds)
@@ -160,6 +171,7 @@ class CheckIn extends Component
             ->whereNotIn('id', $temporaryCheckInKiosk)
             ->whereNotIn('id', $temporaryReserved)
             ->whereNotIn('id', $pendingGuestRooms)
+            ->whereNotIn('id', $ghostRoomIds) // Hide rooms with ghost records
             ->count();
 
         if ($available <= 0) {

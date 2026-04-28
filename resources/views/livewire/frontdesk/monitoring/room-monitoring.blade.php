@@ -54,6 +54,16 @@
           </span>
         @endif
 
+        {{-- Ghost Records count chip (orange) - notify frontdesk to report to Admin --}}
+        @if(($ghostCount ?? 0) > 0)
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-100 text-orange-800 border border-orange-300 ml-2" title="Rooms with unresolved check-ins. Report to Admin.">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Ghost Records: {{ $ghostCount }}
+          </span>
+        @endif
+
       </div>
       <div class="flex items-center bg-gray-50 px-3 py-1.5 rounded-md">
         <span class="text-xs text-gray-500 font-medium">Total Rooms:</span>
@@ -188,6 +198,28 @@
 
                   @case('Cleaned')
                     <x-badge class="font-normal" dark flat md label="Cleaned" />
+                    {{-- Ghost record warning for Cleaned rooms --}}
+                    @if(in_array($room->id, $ghostRoomIds ?? []))
+                      <span class="inline-flex items-center gap-1 rounded-md bg-orange-100 text-orange-800 border border-orange-300 px-2 py-1 text-xs font-semibold ml-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                        </svg>
+                        Ghost Record
+                      </span>
+                    @endif
+                  @break
+
+                  @case('Available')
+                    <x-badge class="font-normal" flat info md label="Available" />
+                    {{-- Ghost record warning for Available rooms --}}
+                    @if(in_array($room->id, $ghostRoomIds ?? []))
+                      <span class="inline-flex items-center gap-1 rounded-md bg-orange-100 text-orange-800 border border-orange-300 px-2 py-1 text-xs font-semibold ml-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                        </svg>
+                        Ghost Record
+                      </span>
+                    @endif
                   @break
 
                   @default

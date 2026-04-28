@@ -75,6 +75,26 @@ class CheckInCo extends Component
             str_pad($transaction, 4, '0', STR_PAD_LEFT);
 
         DB::beginTransaction();
+
+        // Block check-in if room has unresolved previous guest (2026-04-28)
+        $existingCheckin = CheckinDetail::where('room_id', $this->room_id)
+            ->where('is_check_out', false)
+            ->with('guest:id,name')
+            ->first();
+
+        if ($existingCheckin) {
+            DB::rollBack();
+            $ghostName = $existingCheckin->guest->name ?? 'Unknown';
+            $ghostDate = $existingCheckin->check_in_at
+                ? Carbon::parse($existingCheckin->check_in_at)->format('M d, Y g:i A')
+                : 'unknown date';
+            $this->dialog()->error(
+                'Room Has Active Guest',
+                "Room has unresolved check-in: {$ghostName} (checked in {$ghostDate}). Please checkout the previous guest first."
+            );
+            return;
+        }
+
         //save guest
              $guest = Guest::create([
                 'branch_id' => auth()->user()->branch_id,

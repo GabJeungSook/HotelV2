@@ -405,6 +405,15 @@ class RoomMonitoring extends Component
 
     public function render()
     {
+        // Get room IDs that have ghost records (Available but has open check-in)
+        $ghostRoomIds = CheckinDetail::where('is_check_out', false)
+            ->pluck('room_id')
+            ->toArray();
+
+        // Count how many of these ghost records affect rooms that are currently "Available" or similar
+        // (rooms that should be bookable but have unresolved check-ins)
+        $ghostCount = count($ghostRoomIds);
+
         return view('livewire.frontdesk.monitoring.room-monitoring', [
              'rooms' => $this->searchRooms(),
             'kiosks' => $this->searchKiosk(),
@@ -415,6 +424,8 @@ class RoomMonitoring extends Component
             'kioskBatchData' => $this->kioskBatchData,
             'kioskBatchTotals' => $this->kioskBatchTotals,
             'gracePeriodCount' => $this->gracePeriodCount,
+            'ghostRoomIds' => $ghostRoomIds, // For ghost record warning indicator
+            'ghostCount' => $ghostCount, // Count for header display
             // 'overTimeCount' => $this->overTimeCount,
             // 'overTimeRooms' => $this->overTimeRooms,
         ]);
