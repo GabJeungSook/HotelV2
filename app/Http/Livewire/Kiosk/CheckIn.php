@@ -395,11 +395,12 @@ class CheckIn extends Component
                     'discount_amount' => $this->discountEnabled ? $this->discount_amount : 0,
                 ]);
 
+                $kioskTimeLimit = auth()->user()->branch->kiosk_time_limit ?? 20;
                 TemporaryCheckInKiosk::create([
                     'guest_id' => $guest->id,
                     'room_id' => $this->room_id,
                     'branch_id' => auth()->user()->branch_id,
-                    'terminated_at' => now()->addMinutes(20),
+                    'terminated_at' => now()->addMinutes($kioskTimeLimit),
                 ]);
 
                 DB::commit();
