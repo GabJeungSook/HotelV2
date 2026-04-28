@@ -9,7 +9,7 @@
 | **Recovery committed** | 2026-04-28 05:30 (~6 h after start) |
 | **Fully resolved** | 2026-04-28 06:06 (final verification) |
 | **Duration of impact** | 6 h 11 min |
-| **Affected scope** | 20 of ~230 rooms; ~10% of inventory |
+| **Affected scope** | 21 of ~230 rooms; ~10% of inventory (20 actively-staying + 1 overstay/Room #71 — see addendum) |
 | **Financial loss** | **₱0.00** (verified) |
 | **Data loss** | **None** (verified — every value recoverable from pre-deploy backup) |
 | **Filed** | 2026-04-28 |
@@ -895,7 +895,32 @@ Pending physical room verification by frontdesk. Optional recovery block in `doc
 
 ---
 
-## 13. Sign-off
+## 13. Addendum — Room #71 / Elmettose rivera (post-recovery follow-up)
+
+After the initial 5:30 AM recovery on the 20 active-guest rooms, a frontdesk message at 09:20 AM confirmed that Room #71 (cid=12086) was also a real guest, not a ghost — making the total affected room count **21**, not 20.
+
+By the time of confirmation, the guest (Elmettose rivera) had physically left and the room had been cleaned (08:43 AM). Her record is therefore in a different state than the other 20:
+
+- `is_check_out = 1` is **correct** (she's gone)
+- `check_out_at` is **bogus** (bug-overwritten to `2026-04-25 19:37:42`) — needs cosmetic fix
+- ₱200 deposit still held — operational decision on forfeit/refund
+
+**Lost revenue:** approximately ₱400-800 from ~13 hours of overstay during the bug window (frontdesk could not see her record to bill extensions). Partially offset by the ₱200 deposit if forfeited.
+
+**Recovery procedure for Room #71:** see the dedicated runbook at `docs/data-repairs/2026-04-28-room-71-elmettose-followup.md`.
+
+**Updated totals:**
+
+| Metric | Value |
+|---|---:|
+| Total rooms affected | **21** (was 20) |
+| Total active deposits preserved | **₱15,798** (was ₱15,598) |
+| Lost revenue (Room #71 overstay) | ~₱400-800 |
+| Time-pressure on remaining fix | **Low** (cosmetic only) |
+
+---
+
+## 14. Sign-off
 
 | Role | Status |
 |---|---|
