@@ -947,27 +947,20 @@
                 <thead class="bg-gray-50">
                   <tr>
                     <th class="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
-                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Floor</th>
                     <th class="px-3 py-2 text-left font-semibold text-gray-700">Guest</th>
-                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Check-In</th>
                     <th class="px-3 py-2 text-left font-semibold text-gray-700">Expected Out</th>
-                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
+                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Overdue</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                   @foreach ($ghostRecordsData as $ghost)
                     <tr class="hover:bg-gray-50">
-                      <td class="px-3 py-2 font-semibold text-gray-900">#{{ $ghost['room_number'] }}</td>
-                      <td class="px-3 py-2 text-gray-600">{{ $ghost['floor_number'] }}</td>
+                      <td class="px-3 py-2 font-semibold text-gray-900">#{{ $ghost['room_number'] }} <span class="text-gray-400 font-normal">F{{ $ghost['floor_number'] }}</span></td>
                       <td class="px-3 py-2 text-gray-600">{{ $ghost['guest_name'] }}</td>
-                      <td class="px-3 py-2 text-gray-600">{{ $ghost['check_in_at'] }}</td>
                       <td class="px-3 py-2 text-gray-600">{{ $ghost['check_out_at'] }}</td>
                       <td class="px-3 py-2">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                          @if($ghost['room_status'] === 'Available') bg-blue-100 text-blue-800
-                          @elseif($ghost['room_status'] === 'Occupied') bg-green-100 text-green-800
-                          @else bg-gray-100 text-gray-800 @endif">
-                          {{ $ghost['room_status'] }}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800">
+                          {{ $ghost['days_overdue'] }} days
                         </span>
                       </td>
                     </tr>

@@ -106,29 +106,35 @@ class RoomMonitoring extends Component
 
     /**
      * Show modal with ghost records (rooms with unresolved check-ins).
+     * Ghost = check_out_at is 48+ hours in the past but is_check_out = false.
      * Frontdesk can see which rooms need Admin attention.
      */
     public function showGhostRecords()
     {
         $branchId = auth()->user()->branch_id;
+        $ghostCutoff = now()->subHours(48);
 
         $this->ghostRecordsData = CheckinDetail::where('is_check_out', false)
+            ->whereNotNull('check_out_at')
+            ->where('check_out_at', '<', $ghostCutoff)
             ->whereHas('room', function ($q) use ($branchId) {
                 $q->where('branch_id', $branchId);
             })
             ->with(['room:id,number,status,floor_id', 'room.floor:id,number', 'guest:id,name'])
-            ->orderBy('check_in_at', 'asc')
+            ->orderBy('check_out_at', 'asc')
             ->get()
             ->map(function ($record) {
+                $expectedOut = Carbon::parse($record->check_out_at);
+                $daysOverdue = round(now()->diffInHours($expectedOut) / 24, 1);
+
                 return [
                     'room_number' => $record->room->number ?? 'N/A',
                     'floor_number' => $record->room->floor->number ?? 'N/A',
                     'room_status' => $record->room->status ?? 'N/A',
                     'guest_name' => $record->guest->name ?? 'Unknown',
                     'check_in_at' => Carbon::parse($record->check_in_at)->format('M d, Y H:i'),
-                    'check_out_at' => $record->check_out_at
-                        ? Carbon::parse($record->check_out_at)->format('M d, Y H:i')
-                        : 'Not set',
+                    'check_out_at' => $expectedOut->format('M d, Y H:i'),
+                    'days_overdue' => $daysOverdue,
                 ];
             })
             ->toArray();
@@ -441,13 +447,16 @@ class RoomMonitoring extends Component
 
     public function render()
     {
-        // Get room IDs that have ghost records (Available but has open check-in)
+        // Ghost records: check-ins where guest should have left 48+ hours ago but wasn't checked out
+        // Same logic as Admin's Unresolved Check-Ins page
+        $ghostCutoff = now()->subHours(48);
+
         $ghostRoomIds = CheckinDetail::where('is_check_out', false)
+            ->whereNotNull('check_out_at')
+            ->where('check_out_at', '<', $ghostCutoff)
             ->pluck('room_id')
             ->toArray();
 
-        // Count how many of these ghost records affect rooms that are currently "Available" or similar
-        // (rooms that should be bookable but have unresolved check-ins)
         $ghostCount = count($ghostRoomIds);
 
         return view('livewire.frontdesk.monitoring.room-monitoring', [
