@@ -371,8 +371,10 @@
                 Roomboy Designation
               </a>
               @php
+                // Fixed 2026-04-28: Use check_out_at with 48-hour threshold (not number_of_hours)
                 $ghostCount = \App\Models\CheckinDetail::where('is_check_out', 0)
-                    ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [now()->subDays(1)])
+                    ->whereNotNull('check_out_at')
+                    ->where('check_out_at', '<', now()->subHours(48))
                     ->count();
               @endphp
               @if($ghostCount > 0)
@@ -921,12 +923,11 @@
                 </svg>
                 Reservation
               </a>
-              {{-- 2026-04-28 — Unresolved sidebar item HIDDEN (desktop nav). Same reason
-                   as mobile sidebar above — buggy detection query falsely flags active
-                   guests as ghosts. Hide entire item until query is corrected. --}}
-              {{-- @php
+              {{-- 2026-04-28 — Detection query FIXED: Uses check_out_at with 48-hour threshold --}}
+              @php
                 $ghostCountDesktop = \App\Models\CheckinDetail::where('is_check_out', 0)
-                    ->whereRaw('DATE_ADD(check_in_at, INTERVAL number_of_hours HOUR) < ?', [now()->subDays(1)])
+                    ->whereNotNull('check_out_at')
+                    ->where('check_out_at', '<', now()->subHours(48))
                     ->count();
               @endphp
               @if($ghostCountDesktop > 0)
@@ -951,7 +952,7 @@
                 </span>
                 <span class="bg-white text-red-500 text-xs font-bold px-2 py-0.5 rounded-full">{{ $ghostCountDesktop }}</span>
               </a>
-              @endif --}}
+              @endif
               @php
                 $ghostRoomCountDesktop = \App\Models\Room::where('status', 'Occupied')
                     ->whereNotIn('id', \App\Models\CheckinDetail::where('is_check_out', false)->pluck('room_id'))

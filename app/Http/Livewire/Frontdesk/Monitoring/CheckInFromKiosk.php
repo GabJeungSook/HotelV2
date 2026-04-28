@@ -216,10 +216,24 @@ class CheckInFromKiosk extends Component
              $next_extension_is_original = true;
          }
 
-         // Mark any existing active checkin_details for this room as checked out
-         CheckinDetail::where('room_id', $this->guest->room_id)
+         // Block check-in if room has unresolved previous guest
+         // Changed from auto-close to block (2026-04-28) to ensure proper checkout flow
+         $existingCheckin = CheckinDetail::where('room_id', $this->guest->room_id)
             ->where('is_check_out', false)
-            ->update(['is_check_out' => true, 'check_out_at' => now()]);
+            ->with('guest:id,name')
+            ->first();
+
+         if ($existingCheckin) {
+            $ghostName = $existingCheckin->guest->name ?? 'Unknown';
+            $ghostDate = $existingCheckin->check_in_at
+                ? \Carbon\Carbon::parse($existingCheckin->check_in_at)->format('M d, Y g:i A')
+                : 'unknown date';
+            $this->dialog()->error(
+                'Room Has Active Guest',
+                "Room has unresolved check-in: {$ghostName} (checked in {$ghostDate}). Please checkout the previous guest first via Guest Transaction."
+            );
+            return;
+         }
 
          //save check-in details
          $checkin = CheckinDetail::create([

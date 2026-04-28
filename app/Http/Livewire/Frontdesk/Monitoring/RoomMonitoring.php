@@ -900,10 +900,24 @@ class RoomMonitoring extends Component
             true
         );
 
-        // Mark any existing active checkin_details for this room as checked out
-        CheckinDetail::where('room_id', $this->room_id)
+        // Block check-in if room has unresolved previous guest
+        // Changed from auto-close to block (2026-04-28) to ensure proper checkout flow
+        $existingCheckin = CheckinDetail::where('room_id', $this->room_id)
             ->where('is_check_out', false)
-            ->update(['is_check_out' => true, 'check_out_at' => now()]);
+            ->with('guest:id,name')
+            ->first();
+
+        if ($existingCheckin) {
+            $ghostName = $existingCheckin->guest->name ?? 'Unknown';
+            $ghostDate = $existingCheckin->check_in_at
+                ? \Carbon\Carbon::parse($existingCheckin->check_in_at)->format('M d, Y g:i A')
+                : 'unknown date';
+            $this->dialog()->error(
+                'Room Has Active Guest',
+                "Room has unresolved check-in: {$ghostName} (checked in {$ghostDate}). Please checkout the previous guest first via Guest Transaction."
+            );
+            return;
+        }
 
         $checkin = CheckinDetail::create([
             'guest_id' => $guest->id,
@@ -1070,10 +1084,24 @@ class RoomMonitoring extends Component
             $next_extension_is_original = true;
         }
 
-        // Mark any existing active checkin_details for this room as checked out
-        CheckinDetail::where('room_id', $this->guest->room_id)
+        // Block check-in if room has unresolved previous guest
+        // Changed from auto-close to block (2026-04-28) to ensure proper checkout flow
+        $existingCheckinKiosk = CheckinDetail::where('room_id', $this->guest->room_id)
             ->where('is_check_out', false)
-            ->update(['is_check_out' => true, 'check_out_at' => now()]);
+            ->with('guest:id,name')
+            ->first();
+
+        if ($existingCheckinKiosk) {
+            $ghostName = $existingCheckinKiosk->guest->name ?? 'Unknown';
+            $ghostDate = $existingCheckinKiosk->check_in_at
+                ? \Carbon\Carbon::parse($existingCheckinKiosk->check_in_at)->format('M d, Y g:i A')
+                : 'unknown date';
+            $this->dialog()->error(
+                'Room Has Active Guest',
+                "Room has unresolved check-in: {$ghostName} (checked in {$ghostDate}). Please checkout the previous guest first via Guest Transaction."
+            );
+            return;
+        }
 
         $checkin = CheckinDetail::create([
             'guest_id' => $this->guest->id,
@@ -1284,10 +1312,24 @@ class RoomMonitoring extends Component
             $next_extension_is_original_reserve = true;
         }
 
-        // Mark any existing active checkin_details for this room as checked out
-        CheckinDetail::where('room_id', $this->guest_reserve->room_id)
+        // Block check-in if room has unresolved previous guest
+        // Changed from auto-close to block (2026-04-28) to ensure proper checkout flow
+        $existingCheckinReserve = CheckinDetail::where('room_id', $this->guest_reserve->room_id)
             ->where('is_check_out', false)
-            ->update(['is_check_out' => true, 'check_out_at' => now()]);
+            ->with('guest:id,name')
+            ->first();
+
+        if ($existingCheckinReserve) {
+            $ghostName = $existingCheckinReserve->guest->name ?? 'Unknown';
+            $ghostDate = $existingCheckinReserve->check_in_at
+                ? \Carbon\Carbon::parse($existingCheckinReserve->check_in_at)->format('M d, Y g:i A')
+                : 'unknown date';
+            $this->dialog()->error(
+                'Room Has Active Guest',
+                "Room has unresolved check-in: {$ghostName} (checked in {$ghostDate}). Please checkout the previous guest first via Guest Transaction."
+            );
+            return;
+        }
 
         $checkin = CheckinDetail::create([
             'guest_id' => $this->guest_reserve->id,
