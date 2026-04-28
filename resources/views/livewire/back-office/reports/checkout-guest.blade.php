@@ -111,7 +111,7 @@
                             </td>
 
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
-                                {{ $item->checkinDetail ? ($item->checkinDetail->guest->is_long_stay ? ($item->checkinDetail->hours_stayed * $item->checkinDetail->guest->number_of_days) . ' hours' : $item->checkinDetail->hours_stayed . ' hours') : '—' }}
+                                {{ $item->checkinDetail ? $item->checkinDetail->hours_stayed . ' hours' : '—' }}
                             </td>
 
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
@@ -119,7 +119,7 @@
                             </td>
 
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
-                                {{ $item->checkinDetail ? ($item->checkinDetail->guest->is_long_stay ? (($item->checkinDetail->hours_stayed * $item->checkinDetail->guest->number_of_days) + $item->checkinDetail->extendedGuestReports->sum('total_hours')) . ' hours' : ($item->checkinDetail->hours_stayed + $item->checkinDetail->extendedGuestReports->sum('total_hours')) . ' hours') : '—' }}
+                                {{ $item->checkinDetail ? ($item->checkinDetail->hours_stayed + $item->checkinDetail->extendedGuestReports->sum('total_hours')) . ' hours' : '—' }}
                             </td>
 
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
