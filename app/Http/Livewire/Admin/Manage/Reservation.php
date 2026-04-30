@@ -96,7 +96,13 @@ class Reservation extends Component implements Tables\Contracts\HasTable
     {
 
         if ($this->is_longStay == true) {
-        $room_pay = Rate::where('id', $this->rate_id)->first()->amount;
+        // Long-stay reservation: charge the destination type's max 24h rate
+        // multiplied by number_of_days. Without this multiplier the reservation
+        // would lock in a 1-day rate while booking the room for N days.
+        // (Mirrors Kiosk\CheckIn::proceedFillUp's long-stay calc.)
+        $room_pay = Rate::where('branch_id', auth()->user()->branch_id)
+            ->where('type_id', $this->type_id)
+            ->max('amount') * (int) $this->number_of_days;
         $transaction = Guest::whereYear(
             'created_at',
             \Carbon\Carbon::today()->year
