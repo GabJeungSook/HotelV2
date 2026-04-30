@@ -3,15 +3,11 @@
 namespace App\Http\Livewire\BackOffice\Reports;
 
 use Livewire\Component;
-use Livewire\WithPagination;
 use App\Models\NewGuestReport as reportQuery;
-use App\Models\Room;
 use App\Models\Frontdesk;
 
 class NewGuestReport extends Component
 {
-    use WithPagination;
-
     public $frontdesk_id;
     public $shift;
     public $date;
@@ -19,31 +15,14 @@ class NewGuestReport extends Component
 
     public $total_guest = 0;
 
-    protected $paginationTheme = 'tailwind';
-
     public function mount()
     {
         $this->date = now()->toDateString();
     }
 
-    public function updatingFrontdeskId()
-    {
-        $this->resetPage();
-    }
-
-    public function updatingShift()
-    {
-        $this->resetPage();
-    }
-
-    public function updatingDate()
-    {
-        $this->resetPage();
-    }
-
     public function render()
     {
-        $query = reportQuery::query()
+        $reports = reportQuery::query()
             ->where('branch_id', auth()->user()->branch_id)
             ->with([
                 'room:id,number',
@@ -64,10 +43,10 @@ class NewGuestReport extends Component
             ->when($this->time, fn($q) =>
                 $q->whereTime('created_at', '<=', $this->time)
             )
-            ->orderByDesc('created_at');
+            ->orderByDesc('created_at')
+            ->get();
 
-        $this->total_guest = $query->count();
-        $reports = $query->paginate(50);
+        $this->total_guest = $reports->count();
 
         return view('livewire.back-office.reports.new-guest-report', [
             'reports' => $reports,
@@ -79,6 +58,5 @@ class NewGuestReport extends Component
     {
         $this->reset(['frontdesk_id', 'shift', 'time']);
         $this->date = now()->toDateString();
-        $this->resetPage();
     }
 }
