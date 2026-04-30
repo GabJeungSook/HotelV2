@@ -783,18 +783,44 @@ class ManageGuestTransaction extends Component
 
     public function updatedTypeId()
     {
-        $hours = $this->guest->checkInDetail->hours_stayed;
-        $new_room = Rate::where('branch_id', auth()->user()->branch_id)
-            ->where('type_id', $this->type_id)
-            ->where('is_available', true)
-            ->whereHas('stayingHour', function ($query) use ($hours) {
-                $query
-                    ->where('branch_id', auth()->user()->branch_id)
-                    ->where('number', '=', $hours);
-            })
-            ->first();
-        if ($new_room->amount > $this->guest->static_amount) {
-            $this->total = $new_room->amount - $this->guest->static_amount;
+        // Long-stay-aware destination rate lookup. The old version queried
+        // by hours_stayed, but for long-stay guests hours_stayed = 24×days
+        // which doesn't match any staying_hours.number row → $new_room would
+        // be NULL and the next line fataled on null->amount. Mirrors the
+        // fix already applied in TransferRoom.php and TransferService.php.
+        if ($this->guest->is_long_stay) {
+            $longStayingHour = \App\Models\StayingHour::where('branch_id', auth()->user()->branch_id)
+                ->where('number', 24)
+                ->first();
+
+            $new_room = $longStayingHour
+                ? Rate::where('branch_id', auth()->user()->branch_id)
+                    ->where('type_id', $this->type_id)
+                    ->where('is_available', true)
+                    ->where('staying_hour_id', $longStayingHour->id)
+                    ->first()
+                : null;
+
+            $newRoomAmount = $new_room
+                ? $new_room->amount * (int) $this->guest->number_of_days
+                : 0;
+        } else {
+            $hours = $this->guest->checkInDetail->hours_stayed;
+            $new_room = Rate::where('branch_id', auth()->user()->branch_id)
+                ->where('type_id', $this->type_id)
+                ->where('is_available', true)
+                ->whereHas('stayingHour', function ($query) use ($hours) {
+                    $query
+                        ->where('branch_id', auth()->user()->branch_id)
+                        ->where('number', '=', $hours);
+                })
+                ->first();
+
+            $newRoomAmount = $new_room?->amount ?? 0;
+        }
+
+        if ($newRoomAmount > $this->guest->static_amount) {
+            $this->total = $newRoomAmount - $this->guest->static_amount;
         } else {
             $this->total = 0;
         }

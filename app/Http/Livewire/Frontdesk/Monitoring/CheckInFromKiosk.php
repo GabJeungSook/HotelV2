@@ -177,21 +177,43 @@ class CheckInFromKiosk extends Component
 
     public function saveCheckIn()
     {
-        // Prevent duplicate check-in for the same guest/room
+        DB::beginTransaction();
+
+        // Lock the kiosk hold row first. If two staff/tabs click "Confirm"
+        // simultaneously, only one will pass the lock and proceed; the second
+        // will see the hold deleted by the first and fall through the
+        // duplicate guard below.
+        $heldKioskRow = TemporaryCheckInKiosk::where('guest_id', $this->guest->id)
+            ->where('room_id', $this->guest->room_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $heldKioskRow) {
+            DB::rollBack();
+            $this->dialog()->error(
+                'Already Processed',
+                'This kiosk pick has already been confirmed by another session. Please refresh.'
+            );
+            return;
+        }
+
+        // Prevent duplicate check-in for the same guest/room within 5 minutes.
+        // Combined with the lockForUpdate above, this is bullet-proof against
+        // double-clicks, two-tab races, and queued retries.
         $alreadyExists = CheckinDetail::where('guest_id', $this->guest->id)
             ->where('room_id', $this->guest->room_id)
             ->where('check_in_at', '>=', now()->subMinutes(5))
+            ->lockForUpdate()
             ->exists();
 
         if ($alreadyExists) {
+            DB::rollBack();
             $this->dialog()->error('Duplicate Check-In', 'This guest has already been checked in.');
             return;
         }
 
-        DB::beginTransaction();
-
-        $rate = Rate::where('id', $this->guest->rate_id)->first()->stayingHour->number;
-        $room_number = Room::where('id', $this->guest->room_id)->first()->number;
+        $rate = Rate::where('id', $this->guest->rate_id)->first()?->stayingHour?->number ?? 0;
+        $room_number = Room::where('id', $this->guest->room_id)->first()?->number;
         $assigned_frontdesk = auth()->user()->assigned_frontdesks;
          //update guest
          $this->guest->static_amount = $this->total;
@@ -207,11 +229,11 @@ class CheckInFromKiosk extends Component
         $extension_time_reset = Branch::where(
             'id',
             auth()->user()->branch_id
-        )->first()->extension_time_reset;
+        )->first()?->extension_time_reset;
 
          $number_of_hours = $rate;
          $next_extension_is_original = false;
-         while ($number_of_hours >= $extension_time_reset) {
+         while ($extension_time_reset && $number_of_hours >= $extension_time_reset) {
              $number_of_hours -= $extension_time_reset;
              $next_extension_is_original = true;
          }
@@ -221,9 +243,11 @@ class CheckInFromKiosk extends Component
          $existingCheckin = CheckinDetail::where('room_id', $this->guest->room_id)
             ->where('is_check_out', false)
             ->with('guest:id,name')
+            ->lockForUpdate()
             ->first();
 
          if ($existingCheckin) {
+            DB::rollBack();
             $ghostName = $existingCheckin->guest->name ?? 'Unknown';
             $ghostDate = $existingCheckin->check_in_at
                 ? \Carbon\Carbon::parse($existingCheckin->check_in_at)->format('M d, Y g:i A')

@@ -392,6 +392,13 @@ class RoomMonitoring extends Component
 
         $room->update(['status' => 'Available']);
 
+        // Notify the kiosk batch — the just-freed ghost room is now eligible.
+        // Same hook as Admin\GhostRooms::fixRoom + the rooms:fix-ghost cron.
+        $room->refresh();
+        if ($room->is_priority) {
+            KioskBatchService::maybeFillBlankFloor($room);
+        }
+
         \App\Models\ActivityLog::create([
             'branch_id' => $room->branch_id,
             'user_id' => auth()->user()->id,
