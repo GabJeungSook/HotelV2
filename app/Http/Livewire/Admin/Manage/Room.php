@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Admin\Manage;
 
 use App\Models\ActivityLog;
 use App\Models\CheckinDetail;
+use App\Services\KioskBatchService;
 use Livewire\Component;
 use App\Models\Room as roomModel;
 use App\Models\Type;
@@ -257,6 +258,17 @@ class Room extends Component implements Tables\Contracts\HasTable
                     }
 
                     $record->update($data);
+
+                    // If the admin moved the room into a kiosk-eligible state,
+                    // notify the kiosk batch so the room becomes visible
+                    // without waiting for the next roomboy cleaning cycle.
+                    // maybeFillBlankFloor only inserts a slot if the floor
+                    // currently has none for that type — safe to call always.
+                    $record->refresh();
+                    if (in_array($record->status, ['Available', 'Cleaned'], true)
+                        && $record->is_priority) {
+                        KioskBatchService::maybeFillBlankFloor($record);
+                    }
 
                     ActivityLog::create([
                         'branch_id' => auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,

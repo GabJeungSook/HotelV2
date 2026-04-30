@@ -815,6 +815,118 @@ class KioskBatchTest extends TestCase
     }
 
     /** @test */
+    public function refresh_if_stale_clears_stale_picked_slot_when_room_no_longer_occupied()
+    {
+        // A picked slot is "stale" if the room it points to is no longer
+        // Occupied AND there's no temp_check_in_kiosks hold for it.
+        // This happens when the kiosk-checked-in guest gets transferred or
+        // checked out but the picked slot was never cleaned up.
+        $branch = Branch::create(['name' => 'Stale picked ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        $picked = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '1', 'status' => 'Available', 'is_priority' => true]);
+        $spare = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '2', 'status' => 'Available', 'is_priority' => true]);
+
+        // Simulate the stuck state: a picked slot whose room cycled back to
+        // Available without the slot being cleaned up.
+        KioskCurrentBatch::create([
+            'branch_id' => $branch->id,
+            'type_id' => $type->id,
+            'floor_id' => $f1->id,
+            'room_id' => $picked->id,
+            'slot_status' => KioskCurrentBatch::STATUS_PICKED,
+        ]);
+
+        $changed = KioskBatchService::refreshIfStale($branch->id, $type->id);
+        $this->assertTrue($changed);
+
+        // Stale picked slot deleted; a fresh active slot was thrown for the floor.
+        $remaining = KioskCurrentBatch::where('branch_id', $branch->id)->where('type_id', $type->id)->get();
+        $this->assertCount(1, $remaining, 'After cleanup, there should be exactly one fresh slot (the throw).');
+        $this->assertEquals('active', $remaining->first()->slot_status);
+    }
+
+    /** @test */
+    public function refresh_if_stale_keeps_picked_slot_when_room_still_occupied()
+    {
+        // If the picked slot's room is still Occupied (frontdesk hasn't
+        // closed the booking yet), the slot is NOT stale and must stay.
+        $branch = Branch::create(['name' => 'Live picked ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        $picked = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '1', 'status' => 'Occupied', 'is_priority' => true]);
+
+        $slot = KioskCurrentBatch::create([
+            'branch_id' => $branch->id,
+            'type_id' => $type->id,
+            'floor_id' => $f1->id,
+            'room_id' => $picked->id,
+            'slot_status' => KioskCurrentBatch::STATUS_PICKED,
+        ]);
+
+        $changed = KioskBatchService::refreshIfStale($branch->id, $type->id);
+        $this->assertFalse($changed, 'Picked slot pointing to Occupied room should be kept.');
+
+        $this->assertNotNull(KioskCurrentBatch::find($slot->id));
+    }
+
+    /** @test */
+    public function refresh_if_stale_keeps_picked_slot_when_temp_hold_exists()
+    {
+        // If a temp_check_in_kiosks hold still exists for the room (kiosk pick
+        // is in flight, frontdesk hasn't confirmed yet), the picked slot must
+        // be preserved — the guest could still cancel and have the slot
+        // returned to active via returnToBatch.
+        $branch = Branch::create(['name' => 'Held picked ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        $picked = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '1', 'status' => 'Available', 'is_priority' => true]);
+
+        $slot = KioskCurrentBatch::create([
+            'branch_id' => $branch->id,
+            'type_id' => $type->id,
+            'floor_id' => $f1->id,
+            'room_id' => $picked->id,
+            'slot_status' => KioskCurrentBatch::STATUS_PICKED,
+        ]);
+
+        // Active kiosk hold — guest hasn't been confirmed yet.
+        $heldGuest = Guest::create([
+            'branch_id' => $branch->id,
+            'name' => 'Held Guest',
+            'contact' => 'N/A',
+            'qr_code' => 'TEST' . uniqid(),
+            'room_id' => $picked->id,
+            'rate_id' => Rate::first()->id,
+            'type_id' => $type->id,
+            'static_amount' => 300,
+        ]);
+        TemporaryCheckInKiosk::create([
+            'guest_id' => $heldGuest->id,
+            'room_id' => $picked->id,
+            'branch_id' => $branch->id,
+            'terminated_at' => now()->addMinutes(20),
+        ]);
+
+        $changed = KioskBatchService::refreshIfStale($branch->id, $type->id);
+        $this->assertFalse($changed, 'Picked slot with active kiosk hold should be kept.');
+
+        $this->assertNotNull(KioskCurrentBatch::find($slot->id));
+    }
+
+    /** @test */
     public function refresh_if_stale_is_noop_when_active_slots_are_still_usable()
     {
         [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
