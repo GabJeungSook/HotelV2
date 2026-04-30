@@ -63,7 +63,15 @@ class CheckInCo extends Component
         ]);
 
         // Validation and saving logic for Check-In C/O goes here
-         $room_pay = Rate::where('id', $this->rate_id)->first()->amount;
+        // For long-stay guests, charge 24h-rate × number_of_days (mirrors the
+        // kiosk's proceedFillUp logic). Without this multiplier the guest is
+        // booked for N days but charged for 1 — silent revenue loss.
+        $rate = Rate::where('id', $this->rate_id)->first();
+        $room_pay = $this->is_longStay
+            ? Rate::where('branch_id', auth()->user()->branch_id)
+                  ->where('type_id', $this->type_id)
+                  ->max('amount') * (int) $this->is_longStay
+            : $rate->amount;
            $transaction = Guest::whereYear(
             'created_at',
             \Carbon\Carbon::today()->year

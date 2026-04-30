@@ -916,7 +916,17 @@ class RoomMonitoring extends Component
 
     public function updatedRateId()
     {
-        $this->total = Rate::where('id', $this->rate_id)->first()->amount + 200;
+        // For long-stay walk-ins, multiply the destination type's 24h rate
+        // by number_of_days. Without this multiplier the guest is booked
+        // for N days but charged for 1 — silent revenue loss.
+        // (Mirrors Kiosk\CheckIn::proceedFillUp's long-stay calc.)
+        $rate = Rate::where('id', $this->rate_id)->first();
+        $roomCharge = $this->is_longStay
+            ? Rate::where('branch_id', auth()->user()->branch_id)
+                  ->where('type_id', $this->type_id)
+                  ->max('amount') * (int) $this->is_longStay
+            : $rate->amount;
+        $this->total = $roomCharge + 200;
     }
 
     public function updatedAmountPaidReserve()

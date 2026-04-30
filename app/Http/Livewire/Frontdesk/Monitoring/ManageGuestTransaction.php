@@ -1533,10 +1533,19 @@ class ManageGuestTransaction extends Component
 
     public function payAllUnpaid()
     {
+        // Set paid_amount to each row's payable_amount so the audit trail
+        // matches the cash actually collected. Without paid_amount the row
+        // says "paid at this time, paid 0" which breaks cash-drawer
+        // reconciliation and any report that reads paid_amount directly.
+        // Note: addAllPaymentWithDeposit (below) deliberately keeps
+        // paid_amount = 0 because deposits don't add new cash.
         Transaction::where('branch_id', auth()->user()->branch_id)
             ->where('guest_id', $this->guest->id)
             ->whereNull('paid_at')
-            ->update(['paid_at' => now()]);
+            ->update([
+                'paid_at'     => now(),
+                'paid_amount' => DB::raw('payable_amount'),
+            ]);
 
         $this->dialog()->success(
             $title = 'Success',
@@ -1923,6 +1932,11 @@ class ManageGuestTransaction extends Component
         DB::beginTransaction();
         $transaction->update([
             'payable_amount' => $this->override_amount,
+            // Set paid_amount to match the override so cash-drawer
+            // reconciliation works. Set is_override=true so SalesReportV2
+            // (line 718) can detect this row as an overridden line.
+            'paid_amount' => $this->override_amount,
+            'is_override' => true,
             'change_amount' => 0,
             'paid_at' => now(),
             'deposit_amount' => 0,
