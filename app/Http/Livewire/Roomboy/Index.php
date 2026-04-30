@@ -80,6 +80,10 @@ class Index extends Component
             'cleaning_by_user_id' => auth()->id(),
         ]);
 
+        // Defensive: heal any stale kiosk slots for this type. Symmetric
+        // with finishCleaning's maybeFillBlankFloor hook.
+        KioskBatchService::refreshIfStale($room->branch_id, $room->type_id);
+
         $now = \Carbon\Carbon::now();
             $hour = (int) $now->format('H');
             $shift = $now->format('H:i');

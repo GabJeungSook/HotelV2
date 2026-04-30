@@ -1120,6 +1120,9 @@ class ManageGuestTransaction extends Component
                     $new_rate1 = $reset_time - $new_rate;
                     $nextday_rate = $new_rate - $new_rate1;
 
+                    // Null-safe: if no Rate row matches the computed hour
+                    // (rates table doesn't cover every possible cycle-cross
+                    // duration), fall back to 0 instead of fataling.
                     $first_rate = Rate::where(
                         'branch_id',
                         auth()->user()->branch_id
@@ -1130,14 +1133,14 @@ class ManageGuestTransaction extends Component
                         ) {
                             $query->where('number', $nextday_rate);
                         })
-                        ->first()->amount;
+                        ->first()?->amount ?? 0;
 
                     $second_rate = ExtensionRate::where(
                         'branch_id',
                         auth()->user()->branch_id
                     )
                         ->where('hour', $new_rate1)
-                        ->first()->amount;
+                        ->first()?->amount ?? 0;
 
                     $this->total_get_rate = $first_rate + $second_rate;
                 } else {
@@ -1172,6 +1175,9 @@ class ManageGuestTransaction extends Component
                         // dd("The selected number is $selected_number, and the result is $result.");
                         $new_rate = $selected_number;
 
+                        // Use null-safe ?->amount: ?? 0 alone doesn't help
+                        // if the Eloquent query itself returns null
+                        // (you'd error on null->amount before reaching ??).
                         $first_rate =
                             Rate::where('branch_id', auth()->user()->branch_id)
                                 ->where(
@@ -1183,7 +1189,7 @@ class ManageGuestTransaction extends Component
                                 ) use ($new_rate) {
                                     $query->where('number', $new_rate);
                                 })
-                                ->first()->amount ?? 0;
+                                ->first()?->amount ?? 0;
 
                         $second_rate =
                             ExtensionRate::where(
@@ -1191,7 +1197,7 @@ class ManageGuestTransaction extends Component
                                 auth()->user()->branch_id
                             )
                                 ->where('hour', $result)
-                                ->first()->amount ?? 0;
+                                ->first()?->amount ?? 0;
 
                         $this->total_get_rate = $first_rate + $second_rate;
                     } else {
@@ -1205,6 +1211,8 @@ class ManageGuestTransaction extends Component
             if ($total_remaining_hour < 0) {
                 $rate = $total_remaining_hour * -1;
                 // dd($this->getHour - $rate);
+                // Null-safe to avoid fatal "property of null" when no Rate
+                // / ExtensionRate row matches the computed hour value.
                 $first_rate = Rate::where(
                     'branch_id',
                     auth()->user()->branch_id
@@ -1213,13 +1221,13 @@ class ManageGuestTransaction extends Component
                     ->whereHas('stayingHour', function ($query) use ($rate) {
                         $query->where('number', $this->get_hour - $rate);
                     })
-                    ->first()->amount;
+                    ->first()?->amount ?? 0;
                 $second_rate = ExtensionRate::where(
                     'branch_id',
                     auth()->user()->branch_id
                 )
                     ->where('hour', $rate)
-                    ->first()->amount;
+                    ->first()?->amount ?? 0;
 
                 $this->total_get_rate = $first_rate + $second_rate;
             } else {
@@ -1670,6 +1678,26 @@ class ManageGuestTransaction extends Component
 
     public function claimAllDeposit()
     {
+        // Idempotency guard: if a Damage Charges row for this guest already
+        // exists, the deposit was already claimed. Stop before creating a
+        // duplicate Damage Charges entry that would inflate damage totals
+        // in reports. Without this guard, double-clicking the button (or
+        // submitting twice via lag) creates duplicate ₱200 damage rows.
+        if (!$this->is_checkout) {
+            $alreadyClaimed = Transaction::where('guest_id', $this->guest->id)
+                ->where('transaction_type_id', 4) // Damage Charges
+                ->where('remarks', 'Guest Charged for Damage: Room Key & TV Remote')
+                ->exists();
+
+            if ($alreadyClaimed) {
+                $this->dialog()->error(
+                    $title = 'Already Claimed',
+                    $description = 'The deposit for this guest has already been claimed. Refresh to see the existing damage charge.'
+                );
+                return;
+            }
+        }
+
         if ($this->is_checkout) {
             $balance =
                 $this->deposit_remote_and_key +
@@ -1901,6 +1929,14 @@ class ManageGuestTransaction extends Component
         ]);
 
         DB::commit();
+
+        // Heal the kiosk batch — the just-vacated room is now Uncleaned.
+        // Mirrors the fix in the sibling GuestTransaction::checkoutGuest path.
+        \App\Services\KioskBatchService::refreshIfStale(
+            auth()->user()->branch_id,
+            $this->guest->type_id,
+        );
+
         $this->dialog()->success(
             $title = 'Success',
             $description = 'Checkout successful'

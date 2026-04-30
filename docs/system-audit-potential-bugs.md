@@ -19,16 +19,32 @@ real bugs that haven't surfaced yet because the trigger is rare.
 
 ## Status as of 2026-05-01
 
-5 of 30 audit findings have been fixed in commit `444841c` on branch
+**13 of 30 audit findings fixed** across two commits on branch
 `feature/temp-disable-supervisor`:
 
+Commit `444841c` (5 finance bugs):
 - ✅ **A1** — Admin Check-In C/O long-stay multiplier
 - ✅ **A2** — RoomMonitoring storeGuest long-stay multiplier
 - ✅ **A6** — `payAllUnpaid` sets `paid_amount` per row
 - ✅ **A7** — `addOverride` sets `paid_amount` + `is_override`
-- ✅ **A11** *(found during planning, fixed in same commit)* — Admin Reservation long-stay multiplier
+- ✅ **A11** *(found during planning)* — Admin Reservation long-stay multiplier
 
-Remaining backlog: **25 findings** (the rest of this document).
+Commit *(this commit)* (8 batch-sync + audit fixes):
+- ✅ **A8** — `claimAllDeposit` idempotency guard
+- ✅ **A10** — Null-safe `?->amount ?? 0` on 6 unguarded rate lookups
+- ✅ **B2** — RoomMonitoring `saveReserveCheckInDetails` notifies kiosk batch
+- ✅ **B3** — Both `checkoutGuest` paths heal kiosk batch on checkout
+- ✅ **B4** — `TerminationInKiosk` job calls `returnToBatch`
+- ✅ **B6** *(defensive)* — Roomboy `startCleaning` calls `refreshIfStale`
+- ✅ **B7** — `PriorityRoom::removePriority` notifies kiosk batch
+- ✅ **B8** — RoomMonitoring `saveCheckIn` (kiosk-walk-in path) notifies batch
+
+Remaining backlog: **17 findings** (the rest of this document).
+
+Skipped intentionally:
+- **B9** (TemporaryReserved no cancellation hook) — no UI cancellation path
+  exists yet; would be premature. Will be addressed when cancellation feature
+  is added.
 
 Recovery scripts for historical data:
 - `docs/recovery-paid-amount-zero.md` — A6 + A7 (idempotent)
@@ -95,10 +111,12 @@ Recovery scripts for historical data:
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/ExtendGuest.php:115-122, 132-136`
 - **Pattern:** `whereHas('stayingHour', fn ... where('number', $extended_rate->hour))` doesn't scope by branch. Multi-branch deployments could pick wrong-branch rate if a different branch has same `number`.
 
-### A10. `updatedExtendRate` — multiple unguarded `->first()->amount`
-- **Severity:** HIGH | **Confidence:** HIGH
+### A10. `updatedExtendRate` — multiple unguarded `->first()->amount` ✅ FIXED
+- **Status:** ✅ FIXED in commit on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
+- **Severity:** MEDIUM | **Confidence:** HIGH
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:1133, 1140, 1186, 1194, 1216, 1222`
-- **Pattern:** Six chained `->first()->amount` calls without null-checks. Lines 1186/1194 use `?? 0` (silent zero recording extension at zero charge); 1133, 1140, 1216, 1222 throw fatal "property of null" if no matching row exists.
+- **Pattern:** Six chained `->first()->amount` calls. Note: `?? 0` on lines 1186/1194 wasn't actually safe — null-coalescing happens *after* the `->amount` access, so `null->amount` errored before reaching `?? 0`.
+- **Fix:** All 6 sites now use `->first()?->amount ?? 0` (PHP 7+ null-safe operator), so missing rate config no longer fatals the extension flow.
 
 ### A11. Admin Reservation long-stay multiplier ✅ FIXED
 - **Status:** ✅ FIXED in commit `444841c` (2026-05-01)
@@ -116,20 +134,20 @@ Recovery scripts for historical data:
 - **File:** `app/Http/Livewire/Admin/Manage/Reservation.php:140, 189`
 - **Pattern:** `saveReservation()` creates `TemporaryReserved` + sets `Room.status = 'Reserved'`. No `KioskBatchService` call. If active kiosk slot is currently pointing at this room, it becomes stale.
 
-### B2. Frontdesk reservation check-in (`saveReserveCheckInDetails`) doesn't notify batch
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php:1556-1563`
-- **Pattern:** Sets `Room.status = 'Occupied'` and deletes the `TemporaryReserved` row. No `KioskBatchService` call.
+### B2. Frontdesk reservation check-in (`saveReserveCheckInDetails`) doesn't notify batch ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php:1566-1573`
+- **Fix:** Added `KioskBatchService::refreshIfStale($branch_id, $room->type_id)` after DB::commit so the just-occupied reservation room's stale slot gets healed.
 
-### B3. Checkout from `GuestTransaction` and `ManageGuestTransaction` — no batch refill
-- **Severity:** MEDIUM-HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/GuestTransaction.php:2418-2477`, `ManageGuestTransaction.php:1848-1900`
-- **Pattern:** `checkoutGuest()` writes `status=Uncleaned`, `last_checkout_at`, `time_to_clean`, `is_check_out=true`. Neither calls `KioskBatchService`. If a stale active/picked slot from before checkout exists, it's not actively healed here.
+### B3. Checkout from `GuestTransaction` and `ManageGuestTransaction` — no batch refill ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/GuestTransaction.php:2418-2477`, `ManageGuestTransaction.php:1857-1903`
+- **Fix:** Both `checkoutGuest` paths now call `KioskBatchService::refreshIfStale($branch_id, $guest->type_id)` after DB::commit so any stale slot left by the just-vacated (now Uncleaned) room is repaired immediately.
 
-### B4. `TerminationInKiosk` job deletes hold without notifying batch
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Jobs/TerminationInKiosk.php:34-40`
-- **Pattern:** Deletes `TemporaryCheckInKiosk` row by room_id with NO `returnToBatch`/`refreshFloorSlot` call. The cron `CleanupTemporaryKiosk:70` does call `returnToBatch`. Cron path is healed but job path is not.
+### B4. `TerminationInKiosk` job deletes hold without notifying batch ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
+- **File:** `app/Jobs/TerminationInKiosk.php`
+- **Fix:** Job now calls `KioskBatchService::returnToBatch($room->branch_id, $room_id)` after deleting the temp hold, mirroring the cleanup cron's behavior. If ever activated, no more orphan picked slots.
 
 ### B5. Ghost Rooms / `rooms:fix-ghost` flip Occupied → Available without notifying batch
 - **Severity:** HIGH | **Confidence:** HIGH
@@ -139,25 +157,26 @@ Recovery scripts for historical data:
   - `app/Console/Commands/FixGhostRooms.php:86`
 - **Pattern:** All three flip `status='Available'` without calling `maybeFillBlankFloor`. Same symptom as the Admin Update Room fix we just shipped.
 
-### B6. Roomboy `startCleaning` flips Uncleaned → Cleaning without batch notification
-- **Severity:** MEDIUM | **Confidence:** MEDIUM
+### B6. Roomboy `startCleaning` flips Uncleaned → Cleaning without batch notification ✅ FIXED (defensive)
+- **Status:** ✅ FIXED on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
 - **Files:** `app/Http/Livewire/Roomboy/Main.php:170`, `app/Http/Livewire/Roomboy/Index.php:77`
-- **Pattern:** Asymmetric with `finishCleaning` which does call `maybeFillBlankFloor`. If somehow an Uncleaned room reached an active slot, going to Cleaning won't trigger any check.
+- **Note:** Verified that the bug described by the audit doesn't actually trigger — Uncleaned rooms aren't in the kiosk batch (filter is Available/Cleaned), so going Uncleaned → Cleaning can't create a stale slot. **However** added a defensive `refreshIfStale` call for symmetry with `finishCleaning`. No-op when no stale slots exist; harmless and maintains invariants.
 
-### B7. `PriorityRoom::removePriority` clears `is_priority` without notifying batch
-- **Severity:** MEDIUM | **Confidence:** HIGH
+### B7. `PriorityRoom::removePriority` clears `is_priority` without notifying batch ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
 - **File:** `app/Http/Livewire/Frontdesk/PriorityRoom.php:67-77`
-- **Pattern:** Kiosk batch only contains `is_priority=1` rooms. Un-prioritizing leaves a stale slot in the batch — kiosk briefly shows a non-priority room.
+- **Fix:** `removePriority` now calls `KioskBatchService::refreshIfStale($room->branch_id, $room->type_id)` after the update so the kiosk batch stops showing the non-priority room immediately.
 
-### B8. `RoomMonitoring::saveCheckIn` (kiosk-walked-in path) — no batch refresh
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php:1335-1342`
-- **Pattern:** Mirror of `CheckInFromKiosk::saveCheckIn` (which DOES call `refreshFloorSlot`), but this path has no batch service call. Picked slot eventually clears but no immediate floor refill.
+### B8. `RoomMonitoring::saveCheckIn` (kiosk-walked-in path) — no batch refresh ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php:1345-1359`
+- **Fix:** Mirror of the existing fix in `CheckInFromKiosk::saveCheckIn` — now calls `KioskBatchService::refreshFloorSlot` for the room's floor after committing.
 
-### B9. No cancellation hook for `TemporaryReserved`
-- **Severity:** MEDIUM | **Confidence:** MEDIUM
-- **File:** Nowhere — that's the bug
-- **Pattern:** Asymmetric lifecycle vs. kiosk holds. Kiosk holds have `cancelCheckIn` and a cron cleanup; frontdesk reservations have no expiration/cancellation hook. Whenever one is removed, batch and `Reserved` status drift.
+### B9. No cancellation hook for `TemporaryReserved` (deferred)
+- **Status:** ⏸ DEFERRED — no UI path exists to cancel a reservation, so the
+  bug can't be triggered today. Re-evaluate when a cancellation feature is added.
+- **File:** Nowhere — that's the gap
+- **Pattern:** Asymmetric lifecycle vs. kiosk holds. Kiosk holds have `cancelCheckIn` and a cron cleanup; frontdesk reservations have no expiration/cancellation hook.
 
 ---
 
@@ -282,9 +301,17 @@ Several places trust `branch_id` from input or omit it entirely. Multi-tenant is
 ## Recommended priority order for follow-up
 
 ```
-   ✅ FIXED 2026-05-01 (commit 444841c):
-   ──────────────────────────────────────
+   ✅ FIXED 2026-05-01 (commit 444841c — finance):
+   ────────────────────────────────────────────────
    A1, A2, A6, A7, A11
+
+   ✅ FIXED 2026-05-01 (this commit — batch sync + audit):
+   ────────────────────────────────────────────────────────
+   A8, A10, B2, B3, B4, B6, B7, B8
+
+   ⏸ DEFERRED (no trigger path exists yet):
+   ─────────────────────────────────────────
+   B9 — TemporaryReserved no cancellation hook
 
    IMMEDIATE (revenue impact / data corruption — still open):
    ─────────────────────────────────────────────────────────
@@ -294,9 +321,8 @@ Several places trust `branch_id` from input or omit it entirely. Multi-tenant is
    HIGH (silent state drift — still open):
    ────────────────────────────────────────
    A4, A5 — ManageGuestTransaction / GuestTransaction long-stay rate lookup
-   B1, B2 — Reservation flows missing batch hooks
-   B5 — Ghost room fixers missing batch hooks
-   B8 — RoomMonitoring saveCheckIn missing batch hook
+   B1 — Admin Reservation create missing batch hook (sibling of B2)
+   B5 — Ghost room fixers missing batch hooks (3 files)
 
    HIGH (race conditions under concurrent use — still open):
    ──────────────────────────────────────────────────────────
@@ -308,15 +334,10 @@ Several places trust `branch_id` from input or omit it entirely. Multi-tenant is
    MEDIUM (specific edge cases — still open):
    ───────────────────────────────────────────
    A3 — SalesReport display double-multiplication
-   A8 — claimAllDeposit no idempotency
-   A9 — ExtendGuest rate not branch-scoped
-   A10 — updatedExtendRate null hazards
-   B3 — Checkout no batch refresh
-   B4 — TerminationInKiosk job missing hook
-   B6, B7, B9 — minor batch hook gaps
+   A9 — ExtendGuest rate not branch-scoped (low impact in single-branch)
    C2 — Cron + saveCheckIn race
    C6 — Roomboy + frontdesk race
-   C9 — Null-pointer hazards
+   C9 — Null-pointer hazards (chained model accessors)
    C10 — Honorable mentions
 ```
 

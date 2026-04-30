@@ -1342,7 +1342,8 @@ class RoomMonitoring extends Component
 
         $this->reset(['amountPaid']);
         $this->checkInModal = false;
-        Room::where('id', $this->temporary_checkIn->room_id)
+        $kioskCheckInRoomId = $this->temporary_checkIn->room_id;
+        Room::where('id', $kioskCheckInRoomId)
             ->first()
             ->update([
                 'status' => 'Occupied',
@@ -1352,6 +1353,19 @@ class RoomMonitoring extends Component
             ->delete();
         $this->temporary_checkIn = null;
         DB::commit();
+
+        // Per-floor kiosk refresh after frontdesk confirms a kiosk pick.
+        // Mirrors the fix already applied in CheckInFromKiosk::saveCheckIn —
+        // without it, the picked slot stays orphaned and blocks the floor.
+        $kioskCheckInRoom = Room::find($kioskCheckInRoomId);
+        if ($kioskCheckInRoom) {
+            KioskBatchService::refreshFloorSlot(
+                auth()->user()->branch_id,
+                $kioskCheckInRoom->type_id,
+                $kioskCheckInRoom->floor_id,
+            );
+        }
+
         $this->dialog()->success(
             $title = 'Success',
             $description = 'Guest Has been Check-in'
@@ -1563,7 +1577,8 @@ class RoomMonitoring extends Component
 
         $this->reset(['amountPaid']);
         $this->checkInReserveModal = false;
-        Room::where('id', $this->temporary_reserve->room_id)
+        $reservedRoomId = $this->temporary_reserve->room_id;
+        Room::where('id', $reservedRoomId)
             ->first()
             ->update([
                 'status' => 'Occupied',
@@ -1573,6 +1588,18 @@ class RoomMonitoring extends Component
             ->delete();
         $this->temporary_reserve = null;
         DB::commit();
+
+        // Heal the kiosk batch — the just-occupied room is no longer
+        // kiosk-eligible, so any active slot pointing at it is stale.
+        // refreshIfStale repairs stale active and picked slots for the type.
+        $reservedRoom = Room::find($reservedRoomId);
+        if ($reservedRoom) {
+            KioskBatchService::refreshIfStale(
+                auth()->user()->branch_id,
+                $reservedRoom->type_id,
+            );
+        }
+
         $this->dialog()->success(
             $title = 'Success',
             $description = 'Guest Has been Check-in'

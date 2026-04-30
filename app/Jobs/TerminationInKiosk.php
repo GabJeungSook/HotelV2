@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Models\Room;
 use App\Models\TemporaryCheckInKiosk;
+use App\Services\KioskBatchService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -33,9 +35,18 @@ class TerminationInKiosk implements ShouldQueue
      */
     public function handle()
     {
-        $temporaryCheckInKiosk = TemporaryCheckInKiosk::where(
+        $room = Room::find($this->room_id);
+
+        TemporaryCheckInKiosk::where(
             'room_id',
             $this->room_id
         )->delete();
+
+        // Flip the kiosk picked slot for this room back to active so the
+        // floor doesn't end up with an orphan slot. Mirrors the cleanup
+        // that CleanupTemporaryKiosk console command already does.
+        if ($room) {
+            KioskBatchService::returnToBatch($room->branch_id, $this->room_id);
+        }
     }
 }
