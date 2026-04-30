@@ -305,6 +305,7 @@ class Main extends Component
             'started_cleaning_at' => null,
             'time_to_clean' => null,
             'cleaning_by_user_id' => null,
+            'last_cleaned_at' => \Carbon\Carbon::now(),
         ]);
 
         // If the room's floor has no row in the current kiosk batch, this

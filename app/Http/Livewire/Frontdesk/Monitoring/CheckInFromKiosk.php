@@ -464,14 +464,18 @@ class CheckInFromKiosk extends Component
 
         DB::commit();
 
-        // Wait-for-confirm batch refresh: the kiosk slot was already flipped
-        // to 'picked' when the guest reserved on the kiosk, but we delay the
-        // throw until every pick has been confirmed here. This way a guest
-        // who cancels (cancelCheckIn / trash / 10-min timeout) restores their
-        // floor's slot to active in the SAME batch instead of being lost.
-        KioskBatchService::maybeThrowNextBatch(
+        // Per-floor independent rotation: the kiosk slot was flipped to
+        // 'picked' when the guest reserved on the kiosk. Now that frontdesk
+        // has confirmed the check-in (room is Occupied, hold removed), refresh
+        // ONLY this floor's slot so the next clean room appears immediately.
+        // Other floors in the batch are not touched. The "wait for confirm"
+        // model still holds — cancellations before this point flip picked back
+        // to active via returnToBatch.
+        $floorId = Room::where('id', $this->guest->room_id)->value('floor_id');
+        KioskBatchService::refreshFloorSlot(
             $this->guest->branch_id,
             $this->guest->type_id,
+            $floorId,
         );
 
         $this->dialog()->success(

@@ -626,12 +626,12 @@ class KioskBatchTest extends TestCase
     }
 
     /** @test */
-    public function throw_prefers_never_used_rooms_then_least_recently_used()
+    public function throw_prefers_never_used_rooms_then_earliest_cleaned()
     {
         // Goal of the round-robin spec: don't keep picking the same low-
         // numbered room while higher-numbered ones sit idle. Tier 1 is
-        // never-used (last_checkin_at IS NULL); Tier 2 is least-recently-used.
-        // Within each tier, natsort lowest still wins.
+        // never-used (last_checkin_at IS NULL); Tier 2 is earliest-cleaned
+        // (FIFO from the roomboy entry). Within each tier, natsort lowest wins.
         $branch = Branch::create(['name' => 'RR ' . uniqid(), 'kiosk_time_limit' => 10]);
         $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
         $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
@@ -639,28 +639,105 @@ class KioskBatchTest extends TestCase
 
         $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
 
-        // Room "3" was used yesterday. Room "5" was never used. Room "10"
-        // was used last week. Strict natsort would pick "3" first; the
-        // round-robin rule should pick "5" (never used) instead.
-        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '3', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => now()->subDay()]);
-        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '5', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => null]);
-        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '10', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => now()->subWeek()]);
+        // Room "3" used yesterday but cleaned 1 hour ago. Room "5" never used.
+        // Room "10" used last week but cleaned 3 hours ago (earliest of the
+        // used set). Tier 1 must pick "5"; once "5" is gone, Tier 2 must pick
+        // "10" (earliest cleaning entry, NOT "3" which would have won under
+        // the old last_checkin_at rule).
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '3', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => now()->subDay(), 'last_cleaned_at' => now()->subHour()]);
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '5', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => null, 'last_cleaned_at' => null]);
+        Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '10', 'status' => 'Available', 'is_priority' => true, 'last_checkin_at' => now()->subWeek(), 'last_cleaned_at' => now()->subHours(3)]);
 
         KioskBatchService::throwNextBatch($branch->id, $type->id);
 
         $picked = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f1->id)->value('room_id'))->number;
         $this->assertEquals('5', $picked, 'Should pick the never-used room "5" before previously-used ones.');
 
-        // Now mark "5" as recently used and remove it from candidates by
-        // checking it's no longer the lowest-tier pick. With "5" gone (or
-        // newly used), the next throw should pick "10" (used last week,
-        // older than "3" used yesterday).
-        Room::where('floor_id', $f1->id)->where('number', '5')->update(['last_checkin_at' => now()]);
+        // With "5" newly used (and now also cleaned), reset and re-throw.
+        // Tier 2 should pick "10" because it was cleaned earliest among used
+        // rooms — even though "3" was checked-in more recently than "10".
+        Room::where('floor_id', $f1->id)->where('number', '5')->update(['last_checkin_at' => now(), 'last_cleaned_at' => now()]);
         KioskCurrentBatch::where('branch_id', $branch->id)->delete();
         KioskBatchService::throwNextBatch($branch->id, $type->id);
 
         $picked2 = Room::find(KioskCurrentBatch::where('branch_id', $branch->id)->where('floor_id', $f1->id)->value('room_id'))->number;
-        $this->assertEquals('10', $picked2, 'No never-used left; should pick least-recently-used "10" (older than "3" or "5").');
+        $this->assertEquals('10', $picked2, 'No never-used left; Tier 2 should pick "10" (earliest cleaned, FIFO).');
+    }
+
+    /** @test */
+    public function refresh_floor_slot_replaces_picked_with_next_priority_room_on_same_floor()
+    {
+        // After frontdesk confirms a kiosk pick, the picked slot is replaced
+        // immediately by the next-priority clean room on the same floor.
+        // Other floors must not be touched.
+        [$branch, $type, $floors, $rooms] = $this->seedBranchWithFloorsAndRooms(
+            floors: 2,
+            roomsPerFloor: 3,
+        );
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        $f1 = $floors[0];
+        $f2 = $floors[1];
+
+        $f1PickedRoomId = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->where('floor_id', $f1->id)
+            ->value('room_id');
+        $f2BeforeRoomId = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->where('floor_id', $f2->id)
+            ->value('room_id');
+
+        // Simulate the kiosk pick + frontdesk confirm path on Floor 1.
+        Room::where('id', $f1PickedRoomId)->update(['status' => 'Occupied']);
+        KioskBatchService::markPicked($branch->id, $f1PickedRoomId);
+
+        KioskBatchService::refreshFloorSlot($branch->id, $type->id, $f1->id);
+
+        $f1Slot = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->where('floor_id', $f1->id)
+            ->first();
+        $f2Slot = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->where('floor_id', $f2->id)
+            ->first();
+
+        $this->assertNotNull($f1Slot, 'F1 should have a fresh active slot, not be blank.');
+        $this->assertEquals('active', $f1Slot->slot_status);
+        $this->assertNotEquals($f1PickedRoomId, $f1Slot->room_id, 'F1 slot must point at a different (next-priority) room.');
+        $this->assertEquals($f2BeforeRoomId, $f2Slot->room_id, 'F2 slot must be untouched.');
+        $this->assertEquals('active', $f2Slot->slot_status);
+    }
+
+    /** @test */
+    public function refresh_floor_slot_leaves_floor_blank_when_no_replacement()
+    {
+        // No spare clean room on the floor → slot stays empty so a future
+        // roomboy `maybeFillBlankFloor` can promote the next cleaning.
+        $branch = Branch::create(['name' => 'No spare refresh ' . uniqid(), 'kiosk_time_limit' => 10]);
+        $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
+        $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
+        Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
+
+        $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
+
+        $onlyRoom = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '1', 'status' => 'Available', 'is_priority' => true]);
+
+        KioskBatchService::throwNextBatch($branch->id, $type->id);
+
+        Room::where('id', $onlyRoom->id)->update(['status' => 'Occupied']);
+        KioskBatchService::markPicked($branch->id, $onlyRoom->id);
+
+        KioskBatchService::refreshFloorSlot($branch->id, $type->id, $f1->id);
+
+        $slot = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->where('floor_id', $f1->id)
+            ->first();
+
+        $this->assertNull($slot, 'Floor should be blank — no replacement available.');
     }
 
     /** @test */
