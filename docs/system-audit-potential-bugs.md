@@ -2,8 +2,7 @@
 
 > **Read-only audit produced 2026-04-30 by spawning 3 parallel investigation
 > agents** (financial integrity, state synchronization, concurrency &
-> data integrity). Findings below are **not fixed** — this is a backlog
-> document for future sessions.
+> data integrity).
 
 ## How to use this doc
 
@@ -13,29 +12,45 @@ Each finding has:
 - **File:line** for direct navigation
 - **Trigger**: how to reproduce
 - **Evidence**: the suspect code pattern
+- **Status**: `✅ FIXED (commit X)` once shipped, otherwise backlog
 
 Treat HIGH/HIGH as priority backlog. MEDIUM/HIGH or HIGH/MEDIUM are likely
 real bugs that haven't surfaced yet because the trigger is rare.
 
-> The 9 bugs already fixed in this session are NOT listed here. This doc
-> is only the **remaining unfixed potential bugs** discovered by the audit.
+## Status as of 2026-05-01
+
+5 of 30 audit findings have been fixed in commit `444841c` on branch
+`feature/temp-disable-supervisor`:
+
+- ✅ **A1** — Admin Check-In C/O long-stay multiplier
+- ✅ **A2** — RoomMonitoring storeGuest long-stay multiplier
+- ✅ **A6** — `payAllUnpaid` sets `paid_amount` per row
+- ✅ **A7** — `addOverride` sets `paid_amount` + `is_override`
+- ✅ **A11** *(found during planning, fixed in same commit)* — Admin Reservation long-stay multiplier
+
+Remaining backlog: **25 findings** (the rest of this document).
+
+Recovery scripts for historical data:
+- `docs/recovery-paid-amount-zero.md` — A6 + A7 (idempotent)
+- `docs/recovery-longstay-walkin-undercharge.md` — A1, A2, A11 (per-guest)
 
 ---
 
 ## CATEGORY A — FINANCIAL / MONEY-CALCULATION BUGS
 
-### A1. Admin "Check-In C/O" drops long-stay multiplier — silent under-charge
+### A1. Admin "Check-In C/O" drops long-stay multiplier — silent under-charge ✅ FIXED
+- **Status:** ✅ FIXED in commit `444841c` (2026-05-01)
 - **Severity:** HIGH | **Confidence:** HIGH
 - **File:** `app/Http/Livewire/Admin/CheckInCo.php:66, 110`
-- **Pattern:** Long-stay guests get `static_amount = $rate->amount` (single-day rate), never multiplied by `number_of_days`. Compare with `Kiosk/CheckIn.php:251-264` which correctly does `max(amount) * longstay`. `hours_stayed` IS multiplied so the row is internally inconsistent: charged for 1 day but check-out scheduled for N days.
-- **Trigger:** Admin uses Check-In C/O form for a long-stay guest.
-- **Same pattern as:** Bug ③ from the long-stay transfer fix.
+- **Pattern:** Long-stay guests got `static_amount = $rate->amount` (single-day rate), never multiplied by `number_of_days`. `hours_stayed` IS multiplied so the row was internally inconsistent: charged for 1 day but check-out scheduled for N days.
+- **Fix:** Branched on `is_longStay`, multiplies max 24h rate by number of days, mirroring `Kiosk/CheckIn::proceedFillUp`.
 
-### A2. RoomMonitoring `storeGuest` skips long-stay multiplier
+### A2. RoomMonitoring `storeGuest` skips long-stay multiplier ✅ FIXED
+- **Status:** ✅ FIXED in commit `444841c` (2026-05-01)
 - **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php:917-919, 949, 985-987`
-- **Pattern:** `updatedRateId()` sets `total = Rate::amount + 200` (single-day) regardless of `is_longStay`. `storeGuest()` writes `static_amount = $this->total` while `hours_stayed` IS multiplied — same shape of bug as A1.
-- **Trigger:** Frontdesk uses RoomMonitoring's "Check In Guest" walk-in modal with long-stay days set.
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php:917-919`
+- **Pattern:** `updatedRateId()` set `total = Rate::amount + 200` (single-day) regardless of `is_longStay`.
+- **Fix:** `updatedRateId` now multiplies max 24h rate by `(int) $this->is_longStay` for long-stay path; total = roomCharge + 200.
 
 ### A3. SalesReport.php double-multiplies `hours_stayed` for long-stays
 - **Severity:** MEDIUM (display only) | **Confidence:** HIGH
@@ -54,17 +69,20 @@ real bugs that haven't surfaced yet because the trigger is rare.
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/GuestTransaction.php:1495-1520`
 - **Pattern:** Same lookup pattern using `hours_stayed` for the destination rate. Long-stay guests cause `$new_room === null` branch. Even when not null, comparing `$new_room->amount > $check_in_details->static_room_amount` is wrong because `static_room_amount` is per-day for some flows and total for others (see A1, A2). Wrong delta computed.
 
-### A6. `payAllUnpaid` and `addAllPaymentWithDeposit` set `paid_at` without `paid_amount` — silent zero
+### A6. `payAllUnpaid` sets `paid_at` without `paid_amount` ✅ FIXED
+- **Status:** ✅ FIXED in commit `444841c` (2026-05-01)
 - **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:1534-1549, 1582-1588`
-- **Pattern:** Updates ALL unpaid transactions to `paid_at = now()` but does NOT set `paid_amount`. Transactions are marked paid with `paid_amount = 0` (default). Reports relying on `paid_amount` (e.g. `SalesReportV2` override branch line 718) will show ₱0 collected for these.
-- **Evidence:** `Transaction::...->update(['paid_at' => now()]);` — no `paid_amount`.
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:1534-1549`
+- **Pattern:** Updated unpaid transactions to `paid_at = now()` but left `paid_amount = 0`. Cash-drawer reconciliation broken; audit trail says "paid ₱0" when guest paid the full amount.
+- **Fix:** Now also sets `paid_amount = DB::raw('payable_amount')` per row.
+- **Note:** `addAllPaymentWithDeposit` (line 1582) intentionally keeps `paid_amount = 0` (deposits don't add new cash). Left untouched.
 
-### A7. Override flow zeros `paid_amount` — interacts with SalesReportV2 to show ₱0 collected
-- **Severity:** HIGH | **Confidence:** HIGH
+### A7. `addOverride` doesn't set `paid_amount` or `is_override` ✅ FIXED
+- **Status:** ✅ FIXED in commit `444841c` (2026-05-01)
+- **Severity:** HIGH (audit-trail) | **Confidence:** HIGH
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:1923-1934`
-- **Pattern:** `addOverride()` sets `payable_amount = $override_amount` but never updates `paid_amount`. SalesReportV2.php:718 reads `is_override ? paid_amount : payable_amount`. So every overridden line shows ₱0 collected.
-- **Cross-reference:** `app/Http/Livewire/BackOffice/SalesReportV2.php:718`.
+- **Pattern:** Override action set `payable_amount = override_amount` but neither `paid_amount` (stayed 0) nor `is_override = true` (stayed false). SalesReportV2:718 conditional read on `is_override` couldn't detect override rows.
+- **Fix:** Now also sets `paid_amount = $this->override_amount` and `is_override = true`.
 
 ### A8. `claimAllDeposit` overstates Damage Charges, no idempotency
 - **Severity:** HIGH | **Confidence:** MEDIUM
@@ -81,6 +99,13 @@ real bugs that haven't surfaced yet because the trigger is rare.
 - **Severity:** HIGH | **Confidence:** HIGH
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:1133, 1140, 1186, 1194, 1216, 1222`
 - **Pattern:** Six chained `->first()->amount` calls without null-checks. Lines 1186/1194 use `?? 0` (silent zero recording extension at zero charge); 1133, 1140, 1216, 1222 throw fatal "property of null" if no matching row exists.
+
+### A11. Admin Reservation long-stay multiplier ✅ FIXED
+- **Status:** ✅ FIXED in commit `444841c` (2026-05-01)
+- **Severity:** HIGH | **Confidence:** HIGH
+- **File:** `app/Http/Livewire/Admin/Manage/Reservation.php:99` (long-stay branch of `saveReservation`)
+- **Pattern:** Long-stay reservation branch used `Rate::where('id',$rate_id)->first()->amount` (single-day) and stored as `static_amount`, the same shape as A1 + A2. Found during the planning phase by Phase 1 explore agent — added to fix scope.
+- **Fix:** Now uses `max(amount) for type * (int) $this->number_of_days`, matching the validated `number_of_days` form field.
 
 ---
 
@@ -257,31 +282,31 @@ Several places trust `branch_id` from input or omit it entirely. Multi-tenant is
 ## Recommended priority order for follow-up
 
 ```
-   IMMEDIATE (revenue impact / data corruption):
-   ──────────────────────────────────────────────
-   A6 — payAllUnpaid leaves paid_amount = 0
-   A7 — Override flow zeros paid_amount
-   A1 — Admin CheckInCo long-stay under-charge
-   A2 — RoomMonitoring storeGuest long-stay under-charge
-   C7 — API tenant leak
-   C8 — BackOffice reports tenant leak
+   ✅ FIXED 2026-05-01 (commit 444841c):
+   ──────────────────────────────────────
+   A1, A2, A6, A7, A11
 
-   HIGH (silent state drift):
-   ───────────────────────────
+   IMMEDIATE (revenue impact / data corruption — still open):
+   ─────────────────────────────────────────────────────────
+   C7 — API tenant leak (OccupiedRoomController, QrRoomController)
+   C8 — BackOffice reports tenant leak (Guest::loadQuery case 3)
+
+   HIGH (silent state drift — still open):
+   ────────────────────────────────────────
    A4, A5 — ManageGuestTransaction / GuestTransaction long-stay rate lookup
    B1, B2 — Reservation flows missing batch hooks
    B5 — Ghost room fixers missing batch hooks
    B8 — RoomMonitoring saveCheckIn missing batch hook
 
-   HIGH (race conditions under concurrent use):
-   ─────────────────────────────────────────────
+   HIGH (race conditions under concurrent use — still open):
+   ──────────────────────────────────────────────────────────
    C1 — CheckInFromKiosk no lockForUpdate
    C4 — TransferRoom no destination lock
    C5 — ExtendGuest double-extension
    C3 — API CheckInController no transaction
 
-   MEDIUM (specific edge cases):
-   ──────────────────────────────
+   MEDIUM (specific edge cases — still open):
+   ───────────────────────────────────────────
    A3 — SalesReport display double-multiplication
    A8 — claimAllDeposit no idempotency
    A9 — ExtendGuest rate not branch-scoped
