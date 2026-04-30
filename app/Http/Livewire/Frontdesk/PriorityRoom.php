@@ -5,6 +5,7 @@ namespace App\Http\Livewire\Frontdesk;
 use Livewire\Component;
 use App\Models\Room;
 use App\Models\Type;
+use App\Services\KioskBatchService;
 use Livewire\WithPagination;
 use WireUi\Traits\Actions;
 
@@ -68,6 +69,10 @@ class PriorityRoom extends Component
             $room->update([
                 'is_priority' => false,
             ]);
+            // Heal any kiosk batch slot that was pointing at this room — it's
+            // no longer eligible (kiosk filter requires is_priority = 1).
+            // refreshIfStale repairs stale active/picked slots for the type.
+            KioskBatchService::refreshIfStale($room->branch_id, $room->type_id);
             $this->notification()->success(
                 $title = 'Priority removed',
                 $description =

@@ -171,6 +171,11 @@ class Main extends Component
             'status' => 'Cleaning',
             'started_cleaning_at' => \Carbon\Carbon::now(),
             'cleaning_by_user_id' => auth()->id(),
+            // Note: room status flips Uncleaned → Cleaning. Uncleaned rooms
+            // are never in the kiosk batch (filter is Available/Cleaned), so
+            // this transition cannot create a stale slot. The defensive
+            // refreshIfStale call below catches any drift caused by other
+            // paths and is cheap (no-op if no stale slots exist).
         ]);
 
         $now = \Carbon\Carbon::now();
@@ -194,6 +199,10 @@ class Main extends Component
             // } else {
             //     $shift_schedule = 'PM';
             // }
+
+            // Defensive: heal any stale kiosk slots for this type. Symmetric
+            // with finishCleaning's maybeFillBlankFloor hook below.
+            KioskBatchService::refreshIfStale($room->branch_id, $room->type_id);
 
             DB::beginTransaction();
             if ($record_count > 0) {

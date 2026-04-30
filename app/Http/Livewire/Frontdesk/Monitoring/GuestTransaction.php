@@ -2468,6 +2468,16 @@ class GuestTransaction extends Component
         ]);
 
         DB::commit();
+
+        // Heal the kiosk batch — the just-vacated room is now Uncleaned.
+        // If a kiosk active or picked slot was pointing at this room, it's
+        // now stale (kiosk filter requires Available/Cleaned). refreshIfStale
+        // repairs stale slots for the type without affecting other floors.
+        \App\Services\KioskBatchService::refreshIfStale(
+            auth()->user()->branch_id,
+            $guest->type_id,
+        );
+
         $this->dialog()->success(
             $title = 'Success',
             $description = 'Checkout successful'
