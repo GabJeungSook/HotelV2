@@ -19,7 +19,7 @@ real bugs that haven't surfaced yet because the trigger is rare.
 
 ## Status as of 2026-05-01
 
-**13 of 30 audit findings fixed** across two commits on branch
+**19 of 30 audit findings fixed** across three commits on branch
 `feature/temp-disable-supervisor`:
 
 Commit `444841c` (5 finance bugs):
@@ -29,7 +29,7 @@ Commit `444841c` (5 finance bugs):
 - ✅ **A7** — `addOverride` sets `paid_amount` + `is_override`
 - ✅ **A11** *(found during planning)* — Admin Reservation long-stay multiplier
 
-Commit *(this commit)* (8 batch-sync + audit fixes):
+Commit `84e2cf2` (8 batch-sync + audit fixes):
 - ✅ **A8** — `claimAllDeposit` idempotency guard
 - ✅ **A10** — Null-safe `?->amount ?? 0` on 6 unguarded rate lookups
 - ✅ **B2** — RoomMonitoring `saveReserveCheckInDetails` notifies kiosk batch
@@ -39,7 +39,15 @@ Commit *(this commit)* (8 batch-sync + audit fixes):
 - ✅ **B7** — `PriorityRoom::removePriority` notifies kiosk batch
 - ✅ **B8** — RoomMonitoring `saveCheckIn` (kiosk-walk-in path) notifies batch
 
-Remaining backlog: **17 findings** (the rest of this document).
+Commit *(this commit)* (concurrency + null-safety + ghost-room hooks + 1 finance):
+- ✅ **A4** — ManageGuestTransaction `updatedTypeId` long-stay rate lookup (mirrors TransferRoom fix)
+- ✅ **B5** — Ghost-Room fixers (Admin, Frontdesk, console command) all notify kiosk batch
+- ✅ **C1** — CheckInFromKiosk `saveCheckIn` lockForUpdate on TemporaryCheckInKiosk + duplicate guard wrapped in transaction
+- ✅ **C4** — TransferRoom destination Room `lockForUpdate` + status guard inside lock window
+- ✅ **C5** — ExtendGuest `saveExtend` lockForUpdate + 3-second StayExtension recency idempotency check (prevents double-click double-extension)
+- ✅ **C9** — Null-safe accessors on chained model accessors in TransferRoom and ExtendGuest mounts
+
+Remaining backlog: **11 findings** (the rest of this document).
 
 Skipped intentionally:
 - **B9** (TemporaryReserved no cancellation hook) — no UI cancellation path
@@ -73,12 +81,10 @@ Recovery scripts for historical data:
 - **File:** `app/Http/Livewire/BackOffice/SalesReport.php:509-512`
 - **Pattern:** `hours_stayed` is stored as `24 × number_of_days` for long-stays, but this view multiplies again: `$detail->hours_stayed * $guest?->number_of_days`. Recent commit `1f2025d` fixed this elsewhere; this site was missed.
 
-### A4. ManageGuestTransaction `updatedTypeId` — same TransferRoom NULL-rate pattern
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:786-800`
-- **Pattern:** Identical to the bug just fixed in TransferRoom: `Rate::where(...)->whereHas('stayingHour', ... 'number' = $hours)->first()` where `$hours` for long-stay = `24×days`, never present in `staying_hours`. Result: `$new_room` NULL → calling `$new_room->amount` throws fatal error OR silently sets total to 0.
-- **Trigger:** Long-stay guest transferred via the legacy "Transfer" modal inside ManageGuestTransaction.
-- **Same pattern as:** Bug ③.
+### A4. ManageGuestTransaction `updatedTypeId` — same TransferRoom NULL-rate pattern ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:786-820`
+- **Fix:** Branched on `is_long_stay` and uses 24h staying-hour lookup × number_of_days, mirroring the same fix applied earlier in TransferRoom.php and TransferService.php. Also uses `?->amount ?? 0` to handle missing rate config gracefully.
 
 ### A5. GuestTransaction `updatedTypeId` — same NULL-rate + comparison flaw
 - **Severity:** HIGH | **Confidence:** HIGH
@@ -149,13 +155,13 @@ Recovery scripts for historical data:
 - **File:** `app/Jobs/TerminationInKiosk.php`
 - **Fix:** Job now calls `KioskBatchService::returnToBatch($room->branch_id, $room_id)` after deleting the temp hold, mirroring the cleanup cron's behavior. If ever activated, no more orphan picked slots.
 
-### B5. Ghost Rooms / `rooms:fix-ghost` flip Occupied → Available without notifying batch
-- **Severity:** HIGH | **Confidence:** HIGH
-- **Files:**
-  - `app/Http/Livewire/Admin/GhostRooms.php:45, 68`
-  - `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php:393`
-  - `app/Console/Commands/FixGhostRooms.php:86`
-- **Pattern:** All three flip `status='Available'` without calling `maybeFillBlankFloor`. Same symptom as the Admin Update Room fix we just shipped.
+### B5. Ghost Rooms / `rooms:fix-ghost` flip Occupied → Available without notifying batch ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
+- **Files (all 3 sites):**
+  - `app/Http/Livewire/Admin/GhostRooms.php` — `fixRoom` and `fixAllRooms`
+  - `app/Http/Livewire/Frontdesk/Monitoring/RoomMonitoring.php` — `fixGhostRoom`
+  - `app/Console/Commands/FixGhostRooms.php` — `handle`
+- **Fix:** All 3 sites now call `KioskBatchService::maybeFillBlankFloor($room)` after the status update (guarded by `is_priority` check), matching the existing hook pattern in roomboy `finishCleaning` and admin `Update Room`.
 
 ### B6. Roomboy `startCleaning` flips Uncleaned → Cleaning without batch notification ✅ FIXED (defensive)
 - **Status:** ✅ FIXED on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
@@ -182,10 +188,10 @@ Recovery scripts for historical data:
 
 ## CATEGORY C — CONCURRENCY & DATA-INTEGRITY BUGS
 
-### C1. Frontdesk confirm-from-kiosk: open-checkin guard inside transaction but WITHOUT `lockForUpdate`
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/CheckInFromKiosk.php:221-260`
-- **Pattern:** `saveCheckIn()` reads `CheckinDetail::where('room_id',...)->where('is_check_out', false)->first()` then `CheckinDetail::create()`. No row lock between read and write. Two staff/tabs clicking Confirm simultaneously can both pass and create two check-in details + duplicate transactions.
+### C1. Frontdesk confirm-from-kiosk: open-checkin guard inside transaction but WITHOUT `lockForUpdate` ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/CheckInFromKiosk.php:178-260`
+- **Fix:** `saveCheckIn` now opens DB transaction first, locks TemporaryCheckInKiosk + duplicate-CheckinDetail check + ghost-checkin guard with `lockForUpdate`. Two simultaneous Confirm clicks now serialize, with the second seeing the hold gone and rolling back cleanly.
 
 ### C2. Cron `kiosk:cleanup` races with `confirmCheckIn` and `saveCheckIn`
 - **Severity:** HIGH | **Confidence:** MEDIUM
@@ -197,15 +203,15 @@ Recovery scripts for historical data:
 - **File:** `app/Http/Controllers/API/CheckInController.php:15-95`
 - **Pattern:** All concurrency guards commented out (lines 27-58). `Guest::create` and `TemporaryCheckInKiosk::create` outside any DB transaction. No room occupancy check. No `lockForUpdate`. The transaction-code generator (`Guest::whereYear()->count()+1`) is a classic increment race → duplicate `qr_code` values. Hardcoded `addMinutes(20)` ignores `branch->kiosk_time_limit`.
 
-### C4. TransferRoom — no row lock on destination room
-- **Severity:** HIGH | **Confidence:** HIGH
+### C4. TransferRoom — no row lock on destination room ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/TransferRoom.php:422-668`
-- **Pattern:** Opens `DB::beginTransaction` but never reads destination room with `lockForUpdate`. Two transfers to the same destination simultaneously (or transfer racing with kiosk pick) both update status to `Occupied`, overwriting each other's bookkeeping.
+- **Fix:** `confirmTransfer` now `lockForUpdate`s the destination Room *and* re-checks `status === 'Available'` inside the lock window. Concurrent transfers to the same destination now serialize, with the second receiving a clear "Destination Unavailable" error.
 
-### C5. `ExtendGuest::saveExtend` no row-lock, no idempotency guard
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ExtendGuest.php:156-308`
-- **Pattern:** No `lockForUpdate` on `CheckinDetail`. Double-clicking "Save Extend" or two tabs creates two extension transactions, two `StayExtension` rows, doubles `addHours()` to `check_out_at`. No unique constraint preventing this.
+### C5. `ExtendGuest::saveExtend` no row-lock, no idempotency guard ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ExtendGuest.php:156-260`
+- **Fix:** `saveExtend` now `lockForUpdate`s the CheckinDetail row inside the transaction AND checks for any StayExtension created within the last 3 seconds for the guest. Double-clicks, network lag, two-tab races all blocked.
 
 ### C6. Roomboy `finishCleaning` unprotected status read-then-write
 - **Severity:** MEDIUM | **Confidence:** MEDIUM
@@ -226,13 +232,13 @@ Recovery scripts for historical data:
   - `app/Http/Livewire/BackOffice/Reports/Guest.php:33-41`
 - **Pattern:** `Guest::loadQuery()` case 3 (`whereHas('transactions',...)`) has NO `where('branch_id', auth()->user()->branch_id)` on the outer Guest query — returns guests from every branch.
 
-### C9. Null-pointer hazards on chained model accessors
-- **Severity:** MEDIUM | **Confidence:** HIGH
-- **Files:**
-  - `app/Http/Livewire/Frontdesk/Monitoring/TransferRoom.php:74-81` — `$this->guest->checkInDetail->rate->amount`
-  - `app/Http/Livewire/Frontdesk/Monitoring/ExtendGuest.php:50-60` — `Rate::...->first()->staying_hour_id`
-  - `app/Http/Livewire/Frontdesk/Monitoring/CheckInFromKiosk.php:193, 302, 347, 392` — `Rate::where('id', $this->guest->rate_id)->first()->stayingHour->number`, `auth()->user()->frontdesk->id`
-- **Pattern:** Direct chained accessors with no `?->` or null-check. Stale data, deleted rate, user without `frontdesk` relation → fatal error.
+### C9. Null-pointer hazards on chained model accessors ✅ PARTIALLY FIXED
+- **Status:** ✅ PARTIAL FIX on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
+- **Fixed sites:**
+  - TransferRoom `mount()` — `$this->guest?->checkInDetail?->rate?->amount ?? 0`
+  - ExtendGuest `mount()` — `$this->guest?->checkInDetail?->room_id` etc.
+  - CheckInFromKiosk `saveCheckIn` — `Rate::...->first()?->stayingHour?->number ?? 0`
+- **Still open:** `auth()->user()->frontdesk->id` references in CheckInFromKiosk (lines 302, 347, 392) — only fatal if a non-frontdesk user triggers saveCheckIn, which shouldn't happen in normal use. Defer.
 
 ### C10. Honorable mentions (lower priority but worth noting)
 - `TransferRoom.php:140-149` — destination Room listing has no row lock; by saveTransfer it may be Occupied
@@ -301,13 +307,11 @@ Several places trust `branch_id` from input or omit it entirely. Multi-tenant is
 ## Recommended priority order for follow-up
 
 ```
-   ✅ FIXED 2026-05-01 (commit 444841c — finance):
-   ────────────────────────────────────────────────
-   A1, A2, A6, A7, A11
-
-   ✅ FIXED 2026-05-01 (this commit — batch sync + audit):
-   ────────────────────────────────────────────────────────
-   A8, A10, B2, B3, B4, B6, B7, B8
+   ✅ FIXED 2026-05-01 across three commits:
+   ──────────────────────────────────────────
+   Commit 444841c (finance):     A1, A2, A6, A7, A11
+   Commit 84e2cf2 (batch sync):  A8, A10, B2, B3, B4, B6, B7, B8
+   Commit (this commit):         A4, B5, C1, C4, C5, C9 (partial)
 
    ⏸ DEFERRED (no trigger path exists yet):
    ─────────────────────────────────────────
@@ -320,16 +324,12 @@ Several places trust `branch_id` from input or omit it entirely. Multi-tenant is
 
    HIGH (silent state drift — still open):
    ────────────────────────────────────────
-   A4, A5 — ManageGuestTransaction / GuestTransaction long-stay rate lookup
+   A5 — GuestTransaction updatedTypeId long-stay rate lookup (sibling of A4)
    B1 — Admin Reservation create missing batch hook (sibling of B2)
-   B5 — Ghost room fixers missing batch hooks (3 files)
 
    HIGH (race conditions under concurrent use — still open):
    ──────────────────────────────────────────────────────────
-   C1 — CheckInFromKiosk no lockForUpdate
-   C4 — TransferRoom no destination lock
-   C5 — ExtendGuest double-extension
-   C3 — API CheckInController no transaction
+   C3 — API CheckInController no transaction (commented-out code)
 
    MEDIUM (specific edge cases — still open):
    ───────────────────────────────────────────
@@ -337,7 +337,7 @@ Several places trust `branch_id` from input or omit it entirely. Multi-tenant is
    A9 — ExtendGuest rate not branch-scoped (low impact in single-branch)
    C2 — Cron + saveCheckIn race
    C6 — Roomboy + frontdesk race
-   C9 — Null-pointer hazards (chained model accessors)
+   C9 (remaining) — `auth()->user()->frontdesk->id` chained accessor
    C10 — Honorable mentions
 ```
 

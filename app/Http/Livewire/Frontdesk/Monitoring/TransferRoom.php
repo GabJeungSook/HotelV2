@@ -71,14 +71,16 @@ class TransferRoom extends Component
                 ->where('id', $record)
                 ->first();
 
-        $is_long_stay = $this->guest->is_long_stay;
-        $days_stayed = $this->guest->number_of_days;
-        $amount = $this->guest->checkInDetail->rate->amount;
+        // Null-safe accessors: guest may exist without an active checkInDetail
+        // (rare, but happens with stale data). Default to 0 instead of fataling.
+        $is_long_stay = $this->guest?->is_long_stay;
+        $days_stayed = $this->guest?->number_of_days;
+        $amount = $this->guest?->checkInDetail?->rate?->amount ?? 0;
         $this->current_room_rate = $is_long_stay ? $amount * $days_stayed : $amount;
 
 
         $this->room = Room::where('branch_id', auth()->user()->branch_id)
-                ->where('id', $this->guest->checkInDetail->room_id)
+                ->where('id', $this->guest?->checkInDetail?->room_id)
                 ->first();
         $this->types = Type::where(
             'branch_id',
@@ -422,12 +424,29 @@ class TransferRoom extends Component
     public function saveTransfer()
     {
 
+        DB::beginTransaction();
+
+        // Lock the destination Room before any writes — two simultaneous
+        // transfers to the same destination would otherwise both overwrite
+        // status to Occupied and clobber each other's bookkeeping.
+        $destinationRoom = Room::where('id', $this->selected_room_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $destinationRoom || $destinationRoom->status !== 'Available') {
+            DB::rollBack();
+            $this->dialog()->error(
+                'Destination Unavailable',
+                'The selected destination room is no longer available. Please refresh and choose another room.'
+            );
+            return;
+        }
+
         $check_in_detail = CheckinDetail::where(
             'guest_id',
             $this->guest->id
-        )->first();
+        )->lockForUpdate()->first();
         $reason = TransferReason::find($this->selected_reason);
-        DB::beginTransaction();
         $users = User::role('frontdesk')->get();
 
             $threshold = now()->subMinutes(5)->timestamp;

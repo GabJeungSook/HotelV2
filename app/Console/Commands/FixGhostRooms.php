@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Room;
 use App\Models\CheckinDetail;
+use App\Services\KioskBatchService;
 use Illuminate\Console\Command;
 
 class FixGhostRooms extends Command
@@ -84,6 +85,11 @@ class FixGhostRooms extends Command
 
             foreach ($ghostRooms as $room) {
                 $room->update(['status' => 'Available']);
+                // Notify the kiosk batch — same hook as the GhostRooms UI.
+                $room->refresh();
+                if ($room->is_priority) {
+                    KioskBatchService::maybeFillBlankFloor($room);
+                }
                 $this->line("  ✅ Room #{$room->number} (ID: {$room->id}) → Available");
             }
 

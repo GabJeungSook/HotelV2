@@ -47,16 +47,16 @@ class ExtendGuest extends Component
                 ->where('id', $record)
                 ->first();
         $this->room = Room::where('branch_id', auth()->user()->branch_id)
-                ->where('id', $this->guest->checkInDetail->room_id)
+                ->where('id', $this->guest?->checkInDetail?->room_id)
                 ->first();
         $this->rate = Rate::where('branch_id', auth()->user()->branch_id)
-                ->where('id', $this->guest->rate_id)
+                ->where('id', $this->guest?->rate_id)
                 ->first();
         $this->stayingHour = StayingHour::where(
                 'branch_id',
                 auth()->user()->branch_id
             )
-                ->where('id', $this->rate->staying_hour_id)
+                ->where('id', $this->rate?->staying_hour_id)
                 ->first();
 
 
@@ -164,16 +164,50 @@ class ExtendGuest extends Component
                 $title = 'Missing Authorization Code',
                 $description = 'Admin must add authorization code first'
             );
-         }else{
-             $check_in_detail = CheckinDetail::where(
-                'guest_id',
-                $this->guest->id
-            )->first();
+            return;
+         }
 
             $rate = ExtensionRate::where('branch_id', auth()->user()->branch_id)
                 ->where('id', $this->extension_rate_id)
                 ->first();
              DB::beginTransaction();
+
+             // Lock the check-in detail so two concurrent saveExtend calls
+             // serialize. Combined with the recency check below, this
+             // protects against double-click / two-tab / network-lag double
+             // submissions that previously created two Extension transactions
+             // and added the extension hours twice to check_out_at.
+             $check_in_detail = CheckinDetail::where(
+                'guest_id',
+                $this->guest->id
+            )->lockForUpdate()->first();
+
+             if (! $check_in_detail) {
+                DB::rollBack();
+                $this->dialog()->error(
+                    $title = 'Error',
+                    $description = 'Check-in detail not found for this guest.'
+                );
+                return;
+             }
+
+             // Idempotency: if a StayExtension for this guest was just
+             // created (within the last 3 seconds), this is a duplicate
+             // submission. Reject before creating a second one. 3s window
+             // catches double-clicks but doesn't block legitimate rapid
+             // re-extension by the staff (which is rare anyway).
+             $recentExtension = StayExtension::where('guest_id', $this->guest->id)
+                ->where('created_at', '>=', now()->subSeconds(3))
+                ->exists();
+
+             if ($recentExtension) {
+                DB::rollBack();
+                $this->dialog()->error(
+                    $title = 'Already Processed',
+                    $description = 'An extension was just saved for this guest. Please refresh — if you intended a second extension, wait a few seconds and try again.'
+                );
+                return;
+             }
              $users = User::role('frontdesk')->get();
 
             $threshold = now()->subMinutes(5)->timestamp;
@@ -304,7 +338,6 @@ class ExtendGuest extends Component
                     'id' => $this->guest->id,
                 ]);
             //}
-         }
     }
 
     public function cancelExtend()

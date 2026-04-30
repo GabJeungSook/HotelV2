@@ -5,6 +5,7 @@ namespace App\Http\Livewire\Admin;
 use App\Models\Room;
 use App\Models\CheckinDetail;
 use App\Models\ActivityLog;
+use App\Services\KioskBatchService;
 use Livewire\Component;
 use WireUi\Traits\Actions;
 
@@ -44,6 +45,13 @@ class GhostRooms extends Component
 
         $room->update(['status' => 'Available']);
 
+        // Notify the kiosk batch — the just-freed room is now eligible.
+        // maybeFillBlankFloor adds a slot if the floor currently has none.
+        $room->refresh();
+        if ($room->is_priority) {
+            KioskBatchService::maybeFillBlankFloor($room);
+        }
+
         ActivityLog::create([
             'branch_id' => $room->branch_id,
             'user_id' => auth()->user()->id,
@@ -66,6 +74,12 @@ class GhostRooms extends Component
         $count = 0;
         foreach ($ghostRooms as $room) {
             $room->update(['status' => 'Available']);
+
+            // Notify the kiosk batch (same hook as fixRoom above).
+            $room->refresh();
+            if ($room->is_priority) {
+                KioskBatchService::maybeFillBlankFloor($room);
+            }
 
             ActivityLog::create([
                 'branch_id' => $room->branch_id,
