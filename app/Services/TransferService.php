@@ -14,6 +14,7 @@ use App\Models\Transaction;
 use App\Models\TransferedGuestReport;
 use App\Models\Type;
 use App\Models\User;
+use App\Services\KioskBatchService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -206,6 +207,16 @@ class TransferService
                 ]);
             }
 
+            // Move Deposit transactions to the new room so the audit trail
+            // and any room-scoped report show the deposit under the guest's
+            // current room (matches Bug ⑧ fix in TransferRoom.php).
+            Transaction::where('checkin_detail_id', $check_in_detail->id)
+                ->where('transaction_type_id', 2)
+                ->update([
+                    'room_id' => $request->to_room_id,
+                    'floor_id' => $toRoom->floor_id,
+                ]);
+
             // Create transfer report
             TransferedGuestReport::create([
                 'checkin_detail_id' => $check_in_detail->id,
@@ -252,6 +263,26 @@ class TransferService
             ]);
 
             DB::commit();
+
+            // Clear the kiosk picked slot for the source room (same fix as
+            // TransferRoom.php). Without this the slot stays orphaned after
+            // the kiosk-checked-in guest is moved away.
+            $sourceRoom = Room::find($request->from_room_id);
+            if ($sourceRoom) {
+                KioskBatchService::refreshFloorSlot(
+                    $request->branch_id,
+                    $check_in_detail->type_id,
+                    $sourceRoom->floor_id,
+                );
+            }
+
+            // Heal the destination type's batch — destination room just became
+            // Occupied so any active slot pointing to it is stale. Mirrors the
+            // safety call in TransferRoom.php.
+            KioskBatchService::refreshIfStale(
+                $request->branch_id,
+                $request->to_type_id,
+            );
 
             return ['success' => true, 'message' => 'Transfer completed successfully.'];
 

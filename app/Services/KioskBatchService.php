@@ -462,15 +462,80 @@ class KioskBatchService
      *
      * Returns true if any change was made.
      */
+    /**
+     * Delete picked slots that have become orphaned: their room is no longer
+     * Occupied AND no temp_check_in_kiosks hold exists. This indicates the
+     * original picker is gone (transferred, checked out, or abandoned without
+     * triggering returnToBatch). Returns true if any slot was deleted.
+     */
+    private static function cleanupStalePickedSlots(int $branchId, int $typeId): bool
+    {
+        $pickedSlots = KioskCurrentBatch::where('branch_id', $branchId)
+            ->where('type_id', $typeId)
+            ->where('slot_status', KioskCurrentBatch::STATUS_PICKED)
+            ->get();
+
+        if ($pickedSlots->isEmpty()) {
+            return false;
+        }
+
+        $occupiedRoomIds = Room::where('branch_id', $branchId)
+            ->whereIn('id', $pickedSlots->pluck('room_id'))
+            ->where('status', 'Occupied')
+            ->pluck('id')
+            ->all();
+
+        $heldRoomIds = TemporaryCheckInKiosk::where('branch_id', $branchId)
+            ->whereIn('room_id', $pickedSlots->pluck('room_id'))
+            ->pluck('room_id')
+            ->all();
+
+        $stale = $pickedSlots->reject(function ($slot) use ($occupiedRoomIds, $heldRoomIds) {
+            return in_array($slot->room_id, $occupiedRoomIds, true)
+                || in_array($slot->room_id, $heldRoomIds, true);
+        });
+
+        if ($stale->isEmpty()) {
+            return false;
+        }
+
+        foreach ($stale as $slot) {
+            $slot->delete();
+        }
+
+        return true;
+    }
+
     public static function refreshIfStale(int $branchId, int $typeId): bool
     {
+        // First pass: clean up stale PICKED slots. These can occur when the
+        // original picker abandoned without going through cancelCheckIn (e.g.
+        // a Transfer Room moved them, or the cleanup job didn't run, or the
+        // saveCheckIn flow committed but maybeThrowNextBatch returned false
+        // and never fired again). The picked slot is "stale" if its room is
+        // no longer Occupied AND there is no temp_check_in_kiosks hold for it.
+        // Once cleaned, the floor is free for a fresh active slot via the
+        // existing throw / maybeFillBlankFloor paths.
+        $pickedChanged = self::cleanupStalePickedSlots($branchId, $typeId);
+
         $activeSlots = KioskCurrentBatch::where('branch_id', $branchId)
             ->where('type_id', $typeId)
             ->where('slot_status', KioskCurrentBatch::STATUS_ACTIVE)
             ->get();
 
+        // If after picked-slot cleanup the batch is now fully empty, throw a
+        // fresh batch so floors with available rooms get visible immediately.
         if ($activeSlots->isEmpty()) {
-            return false;
+            $hasAnySlot = KioskCurrentBatch::where('branch_id', $branchId)
+                ->where('type_id', $typeId)
+                ->exists();
+
+            if (! $hasAnySlot && $pickedChanged) {
+                self::throwNextBatch($branchId, $typeId);
+                return true;
+            }
+
+            return $pickedChanged;
         }
 
         // Identify which active slots are stale (room no longer usable).

@@ -18,6 +18,7 @@ use App\Models\Transaction;
 use App\Models\TransferedGuestReport;
 use App\Models\TransferReason;
 use App\Models\Type;
+use App\Services\KioskBatchService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -588,6 +589,18 @@ class TransferRoom extends Component
             'floor_id' => $this->selected_floor_id,
         ]);
 
+        // Move Deposit transactions (room key + excess) to the new room so
+        // the audit trail and any room-scoped reports show the deposit under
+        // the guest's current room, not the source room they transferred out
+        // of. Without this the deposits stay tagged to the original kiosk
+        // room and look misattributed.
+        Transaction::where('checkin_detail_id', $check_in_detail->id)
+            ->where('transaction_type_id', 2)
+            ->update([
+                'room_id' => $this->selected_room_id,
+                'floor_id' => $this->selected_floor_id,
+            ]);
+
         TransferedGuestReport::create([
             'checkin_detail_id' => $check_in_detail->id,
             'previous_room_id' => $check_in_detail->room_id,
@@ -616,6 +629,32 @@ class TransferRoom extends Component
             'description' => 'Guest ' . $check_in_detail->guest->name . ' transferred from Room #' . Room::where('id', $check_in_detail->room_id)->first()->number . ' to Room #' . $new_room->number,
         ]);
         DB::commit();
+
+        // Clear the kiosk picked slot for the source room (if any). When a
+        // kiosk-checked-in guest is transferred, the source room cycles back
+        // toward Available but the picked slot stays orphaned otherwise,
+        // blocking the kiosk from showing other rooms on that floor/type.
+        // refreshFloorSlot deletes the picked slot and refills with the
+        // next-priority clean room on that floor (same logic used by
+        // CheckInFromKiosk after a confirmed kiosk pick).
+        $sourceFloorId = Room::where('id', $check_in_detail->room_id)->value('floor_id');
+        if ($sourceFloorId !== null) {
+            KioskBatchService::refreshFloorSlot(
+                auth()->user()->branch_id,
+                $check_in_detail->type_id,
+                $sourceFloorId,
+            );
+        }
+
+        // Also heal the destination type's batch. The destination room just
+        // became Occupied, so any active slot pointing to it is now stale.
+        // refreshIfStale repairs stale active slots in place (replaces with
+        // next-available room) and removes stale picked slots. This makes
+        // the kiosk recover instantly instead of waiting for the next render.
+        KioskBatchService::refreshIfStale(
+            auth()->user()->branch_id,
+            $this->selected_type_id,
+        );
 
         $this->dialog()->success(
             $title = 'Success',
