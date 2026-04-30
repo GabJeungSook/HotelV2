@@ -9,6 +9,7 @@ use App\Models\Guest;
 use App\Models\OverrideRequest;
 use App\Models\Rate;
 use App\Models\Room;
+use App\Models\StayingHour;
 use App\Models\Transaction;
 use App\Models\TransferedGuestReport;
 use App\Models\Type;
@@ -53,19 +54,39 @@ class TransferService
         try {
             $assigned_frontdesk = $requester->assigned_frontdesks ?? [];
 
-            // Get rate for new room
-            $hours = $check_in_detail->hours_stayed;
-            $new_room_rate_obj = Rate::where('branch_id', $request->branch_id)
-                ->where('type_id', $request->to_type_id)
-                ->where('is_available', true)
-                ->whereHas('stayingHour', function ($query) use ($request, $hours) {
-                    $query->where('branch_id', $request->branch_id)->where('number', '=', $hours);
-                })
-                ->first();
+            // Get rate for new room. Long-stay guests have hours_stayed =
+            // 24 × number_of_days, which never matches a staying_hours row
+            // (only 6, 12, 18, 24 exist). Use the 24-hour rate × days for them,
+            // mirroring the kiosk's long-stay flow.
+            if ($guest->is_long_stay) {
+                $longStayingHour = StayingHour::where('branch_id', $request->branch_id)
+                    ->where('number', 24)
+                    ->first();
 
-            $new_room_rate = $guest->is_long_stay
-                ? ($new_room_rate_obj ? $new_room_rate_obj->amount * $guest->number_of_days : 0)
-                : ($new_room_rate_obj ? $new_room_rate_obj->amount : 0);
+                $new_room_rate_obj = $longStayingHour
+                    ? Rate::where('branch_id', $request->branch_id)
+                        ->where('type_id', $request->to_type_id)
+                        ->where('is_available', true)
+                        ->where('staying_hour_id', $longStayingHour->id)
+                        ->first()
+                    : null;
+
+                $new_room_rate = $new_room_rate_obj
+                    ? $new_room_rate_obj->amount * $guest->number_of_days
+                    : 0;
+            } else {
+                $hours = $check_in_detail->hours_stayed;
+                $new_room_rate_obj = Rate::where('branch_id', $request->branch_id)
+                    ->where('type_id', $request->to_type_id)
+                    ->where('is_available', true)
+                    ->whereHas('stayingHour', function ($query) use ($request, $hours) {
+                        $query->where('branch_id', $request->branch_id)
+                            ->where('number', '=', $hours);
+                    })
+                    ->first();
+
+                $new_room_rate = $new_room_rate_obj ? $new_room_rate_obj->amount : 0;
+            }
 
             $current_room_rate = $request->current_amount;
             $excess_amount = max(0, $current_room_rate - $new_room_rate);
