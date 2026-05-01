@@ -115,7 +115,11 @@ class ExtendGuest extends Component
                 $rate = Rate::where('branch_id', auth()->user()->branch_id)
                     ->where('type_id', $this->rate->type_id)
                     ->whereHas('stayingHour', function ($query) {
-                        $query->where('number', $this->extended_rate->hour);
+                        // Defense-in-depth: also constrain the staying-hour to
+                        // this branch so a misconfigured cross-branch rate row
+                        // can't match a wrong-branch hour with the same number.
+                        $query->where('branch_id', auth()->user()->branch_id)
+                            ->where('number', $this->extended_rate->hour);
                     })->first();
                 $this->initial_amount = $rate?->amount ?? 0;
                 $this->extended_amount = 0;
@@ -132,7 +136,9 @@ class ExtendGuest extends Component
                 $rate = Rate::where('branch_id', auth()->user()->branch_id)
                     ->where('type_id', $this->rate->type_id)
                     ->whereHas('stayingHour', function ($query) use ($total_current_hours) {
-                        $query->where('number', $total_current_hours);
+                        // Defense-in-depth: scope staying-hour to this branch.
+                        $query->where('branch_id', auth()->user()->branch_id)
+                            ->where('number', $total_current_hours);
                     })->first();
 
                 $extend_hour = $this->extension_time_reset - $this->current_time_alloted;

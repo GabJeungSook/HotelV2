@@ -13,6 +13,7 @@ use App\Models\Type;
 use App\Models\Rate;
 use App\Models\Room;
 use App\Models\Guest;
+use App\Services\KioskBatchService;
 use DB;
 use WireUi\Traits\Actions;
 class Reservation extends Component implements Tables\Contracts\HasTable
@@ -146,6 +147,13 @@ class Reservation extends Component implements Tables\Contracts\HasTable
             Room::where('id', $this->room_id)->update(['status' => 'Reserved']);
 
             Db::commit();
+
+            // The room just flipped Available → Reserved. If the kiosk had
+            // an active slot pointing at this room, that slot is now stale.
+            // refreshIfStale repairs in-place so the kiosk does not show a
+            // reserved room as pickable.
+            KioskBatchService::refreshIfStale(auth()->user()->branch_id, $this->type_id);
+
             $this->add_modal = false;
             $this->dialog()->success(
                 $title = 'Reservation Added',
@@ -195,6 +203,11 @@ class Reservation extends Component implements Tables\Contracts\HasTable
             Room::where('id', $this->room_id)->update(['status' => 'Reserved']);
 
             Db::commit();
+
+            // Same kiosk-batch notification as the long-stay branch above —
+            // see comment there for rationale.
+            KioskBatchService::refreshIfStale(auth()->user()->branch_id, $this->type_id);
+
             $this->add_modal = false;
             $this->dialog()->success(
                 $title = 'Reservation Added',

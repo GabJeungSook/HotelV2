@@ -1492,28 +1492,53 @@ class GuestTransaction extends Component
             ->where('status', 'Available')
             ->get();
         $guestss = Guest::where('id', $this->guest_id)->first();
-        $hours = $guestss->checkInDetail->hours_stayed;
-        $new_room = Rate::where('branch_id', auth()->user()->branch_id)
-            ->where('type_id', $this->type_id)
-            ->where('is_available', true)
-            ->whereHas('stayingHour', function ($query) use ($hours) {
-                $query
-                    ->where('branch_id', auth()->user()->branch_id)
-                    ->where('number', '=', $hours);
-            })
-            ->first();
 
-        if($new_room === null)
-        {
-           $this->has_rate = false;
-        }else{
-            $check_in_details = CheckinDetail::where(
-                'guest_id',
-                $this->guest_id
-            )->first();
+        // Long-stay-aware destination rate lookup. For long-stay guests
+        // checkInDetail->hours_stayed is 24×number_of_days, not a per-day
+        // staying-hour value, so the old whereHas('stayingHour', number=$hours)
+        // query never matched → $new_room was NULL and the comparison line
+        // crashed on null->amount. Mirrors A4 fix in ManageGuestTransaction.
+        if ($guestss?->is_long_stay) {
+            $longStayingHour = \App\Models\StayingHour::where('branch_id', auth()->user()->branch_id)
+                ->where('number', 24)
+                ->first();
+
+            $new_room = $longStayingHour
+                ? Rate::where('branch_id', auth()->user()->branch_id)
+                    ->where('type_id', $this->type_id)
+                    ->where('is_available', true)
+                    ->where('staying_hour_id', $longStayingHour->id)
+                    ->first()
+                : null;
+
+            $newRoomAmount = $new_room
+                ? $new_room->amount * (int) ($guestss->number_of_days ?? 0)
+                : 0;
+        } else {
+            $hours = $guestss->checkInDetail->hours_stayed;
+            $new_room = Rate::where('branch_id', auth()->user()->branch_id)
+                ->where('type_id', $this->type_id)
+                ->where('is_available', true)
+                ->whereHas('stayingHour', function ($query) use ($hours) {
+                    $query
+                        ->where('branch_id', auth()->user()->branch_id)
+                        ->where('number', '=', $hours);
+                })
+                ->first();
+
+            $newRoomAmount = $new_room?->amount ?? 0;
+        }
+
+        if ($new_room === null) {
+            $this->has_rate = false;
+        } else {
             $this->has_rate = true;
-            if ($new_room->amount > $check_in_details->static_room_amount) {
-                $this->total = $new_room->amount - $check_in_details->static_room_amount;
+            // Compare against guest.static_amount (which holds the total
+            // already paid for the current rate, long-stay aware) rather
+            // than checkin_details.static_room_amount (which is per-day in
+            // some paths and total in others — see A1/A2).
+            if ($newRoomAmount > ($guestss->static_amount ?? 0)) {
+                $this->total = $newRoomAmount - $guestss->static_amount;
             } else {
                 $this->total = 0;
             }

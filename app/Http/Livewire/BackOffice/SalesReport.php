@@ -506,10 +506,12 @@ $meta = [
     'guest_name'     => $baseGuestName,
     'check_in'       => $detail->check_in_at ? Carbon::parse($detail->check_in_at)->format('m-d-Y h:iA') : '—',
     'check_out'      => $detail->check_out_at ? Carbon::parse($detail->check_out_at)->format('m-d-Y h:iA') : '—',
+    // hours_stayed is already stored as 24 × number_of_days for long-stays
+    // (see CheckInFromKiosk / RoomMonitoring save paths). Multiplying by
+    // number_of_days again here doubles the displayed value. Same fix as
+    // commit 1f2025d which corrected the other SalesReport sites.
     'initial_hrs'    => $detail->hours_stayed
-        ? ($guest?->is_long_stay
-            ? (($detail->hours_stayed * (int) ($guest?->number_of_days ?? 1)) . ' hrs')
-            : ($detail->hours_stayed . ' hrs'))
+        ? ($detail->hours_stayed . ' hrs')
         : '—',
     'frontdesk_name' => strtoupper($frontdesk?->name ?? '—'),
 ];

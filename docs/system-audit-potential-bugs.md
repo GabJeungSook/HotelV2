@@ -76,20 +76,20 @@ Recovery scripts for historical data:
 - **Pattern:** `updatedRateId()` set `total = Rate::amount + 200` (single-day) regardless of `is_longStay`.
 - **Fix:** `updatedRateId` now multiplies max 24h rate by `(int) $this->is_longStay` for long-stay path; total = roomCharge + 200.
 
-### A3. SalesReport.php double-multiplies `hours_stayed` for long-stays
-- **Severity:** MEDIUM (display only) | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/BackOffice/SalesReport.php:509-512`
-- **Pattern:** `hours_stayed` is stored as `24 × number_of_days` for long-stays, but this view multiplies again: `$detail->hours_stayed * $guest?->number_of_days`. Recent commit `1f2025d` fixed this elsewhere; this site was missed.
+### A3. SalesReport.php double-multiplies `hours_stayed` for long-stays ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **File:** `app/Http/Livewire/BackOffice/SalesReport.php`
+- **Fix:** `initial_hrs` now displays `$detail->hours_stayed . ' hrs'` directly (already 24×days for long-stays). Removed the redundant `* number_of_days` that was doubling the displayed value, matching the same fix applied earlier in commit `1f2025d` to other SalesReport sites.
 
 ### A4. ManageGuestTransaction `updatedTypeId` — same TransferRoom NULL-rate pattern ✅ FIXED
 - **Status:** ✅ FIXED on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:786-820`
 - **Fix:** Branched on `is_long_stay` and uses 24h staying-hour lookup × number_of_days, mirroring the same fix applied earlier in TransferRoom.php and TransferService.php. Also uses `?->amount ?? 0` to handle missing rate config gracefully.
 
-### A5. GuestTransaction `updatedTypeId` — same NULL-rate + comparison flaw
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/GuestTransaction.php:1495-1520`
-- **Pattern:** Same lookup pattern using `hours_stayed` for the destination rate. Long-stay guests cause `$new_room === null` branch. Even when not null, comparing `$new_room->amount > $check_in_details->static_room_amount` is wrong because `static_room_amount` is per-day for some flows and total for others (see A1, A2). Wrong delta computed.
+### A5. GuestTransaction `updatedTypeId` — same NULL-rate + comparison flaw ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/GuestTransaction.php`
+- **Fix:** Branched on `is_long_stay` and uses 24h staying-hour lookup × number_of_days for long-stay guests; `?->amount ?? 0` for short-stay; comparison switched from `static_room_amount` to `static_amount` for consistency. Mirrors A4's fix in ManageGuestTransaction.
 
 ### A6. `payAllUnpaid` sets `paid_at` without `paid_amount` ✅ FIXED
 - **Status:** ✅ FIXED in commit `444841c` (2026-05-01)
@@ -106,16 +106,17 @@ Recovery scripts for historical data:
 - **Pattern:** Override action set `payable_amount = override_amount` but neither `paid_amount` (stayed 0) nor `is_override = true` (stayed false). SalesReportV2:718 conditional read on `is_override` couldn't detect override rows.
 - **Fix:** Now also sets `paid_amount = $this->override_amount` and `is_override = true`.
 
-### A8. `claimAllDeposit` overstates Damage Charges, no idempotency
-- **Severity:** HIGH | **Confidence:** MEDIUM
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php:1664-1715`
-- **Pattern:** When `is_checkout = false`, creates a "Damage Charges" tx of `deposit_remote_and_key` and a Cashout of `$balance`. `total_deduction` incremented by `$balance` only — the damage charge becomes an unpaid bill. On second invocation it again creates a Damage row for the same key/remote deposit (no idempotency guard), double-charging.
-- **Trigger:** Frontdesk clicks "Claim All Deposit" twice, or mid-stay.
+### A8. `claimAllDeposit` overstates Damage Charges, no idempotency ✅ FIXED
+- **Status:** ✅ FIXED in earlier commit on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ManageGuestTransaction.php`
+- **Reality check on the audit text:**
+  - "Damage charge becomes unpaid bill" — was inaccurate. Damage Charges row is created with `paid_amount = deposit_remote_and_key`, so it's paid, not a debt.
+  - "No idempotency — second click double-charges" — was real. Now fixed: function checks for an existing Damage Charges row by remarks before creating a new one and shows an "Already Claimed" dialog if found.
 
-### A9. ExtendGuest "Priority 1" rate lookup not branch-scoped
-- **Severity:** MEDIUM | **Confidence:** MEDIUM
-- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ExtendGuest.php:115-122, 132-136`
-- **Pattern:** `whereHas('stayingHour', fn ... where('number', $extended_rate->hour))` doesn't scope by branch. Multi-branch deployments could pick wrong-branch rate if a different branch has same `number`.
+### A9. ExtendGuest "Priority 1" rate lookup not branch-scoped ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **File:** `app/Http/Livewire/Frontdesk/Monitoring/ExtendGuest.php`
+- **Fix:** Both `whereHas('stayingHour', ...)` subqueries (Priority 1 reset path + Priority 2 boundary path) now also constrain the staying-hour by `branch_id = auth()->user()->branch_id`. Defense-in-depth against any cross-branch staying-hour reference.
 
 ### A10. `updatedExtendRate` — multiple unguarded `->first()->amount` ✅ FIXED
 - **Status:** ✅ FIXED in commit on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
@@ -135,10 +136,10 @@ Recovery scripts for historical data:
 
 ## CATEGORY B — STATE SYNCHRONIZATION BUGS
 
-### B1. Admin Reservation creation marks room `Reserved` but never notifies kiosk batch
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Livewire/Admin/Manage/Reservation.php:140, 189`
-- **Pattern:** `saveReservation()` creates `TemporaryReserved` + sets `Room.status = 'Reserved'`. No `KioskBatchService` call. If active kiosk slot is currently pointing at this room, it becomes stale.
+### B1. Admin Reservation creation marks room `Reserved` but never notifies kiosk batch ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **File:** `app/Http/Livewire/Admin/Manage/Reservation.php`
+- **Fix:** Both branches of `saveReservation()` (long-stay and short-stay) now call `KioskBatchService::refreshIfStale($branch_id, $type_id)` after `Db::commit()`. If the kiosk had an active slot pointing at the now-Reserved room, it gets repaired in-place so the kiosk no longer shows a reserved room as pickable.
 
 ### B2. Frontdesk reservation check-in (`saveReserveCheckInDetails`) doesn't notify batch ✅ FIXED
 - **Status:** ✅ FIXED on branch `feature/batch-sync-and-finance-cleanup-may-1` (2026-05-01)
