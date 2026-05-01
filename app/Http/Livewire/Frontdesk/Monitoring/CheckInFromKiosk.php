@@ -486,8 +486,6 @@ class CheckInFromKiosk extends Component
             'description' => 'Checked in guest ' . $this->guest->name . ' from kiosk',
         ]);
 
-        DB::commit();
-
         // Per-floor independent rotation: the kiosk slot was flipped to
         // 'picked' when the guest reserved on the kiosk. Now that frontdesk
         // has confirmed the check-in (room is Occupied, hold removed), refresh
@@ -495,12 +493,20 @@ class CheckInFromKiosk extends Component
         // Other floors in the batch are not touched. The "wait for confirm"
         // model still holds — cancellations before this point flip picked back
         // to active via returnToBatch.
+        //
+        // MUST run inside the transaction so the picked-row delete is atomic
+        // with the TCK delete. If this lived after DB::commit() and the
+        // request died between commit and this call (PHP timeout, dropped
+        // connection), the picked row was orphaned forever — see 4F incident
+        // on 2026-04-30.
         $floorId = Room::where('id', $this->guest->room_id)->value('floor_id');
         KioskBatchService::refreshFloorSlot(
             $this->guest->branch_id,
             $this->guest->type_id,
             $floorId,
         );
+
+        DB::commit();
 
         $this->dialog()->success(
             $title = 'Success',

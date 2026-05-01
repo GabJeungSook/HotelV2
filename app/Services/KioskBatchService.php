@@ -463,10 +463,18 @@ class KioskBatchService
      * Returns true if any change was made.
      */
     /**
-     * Delete picked slots that have become orphaned: their room is no longer
-     * Occupied AND no temp_check_in_kiosks hold exists. This indicates the
-     * original picker is gone (transferred, checked out, or abandoned without
-     * triggering returnToBatch). Returns true if any slot was deleted.
+     * Delete picked slots whose underlying TCK is gone. The TCK is the
+     * canonical "kiosk pick in flight" marker — once it is gone no flow can
+     * ever resolve the slot, so leaving it as 'picked' just blocks the floor.
+     *
+     * Earlier this also spared slots whose room was Occupied (in case the
+     * frontdesk confirm was mid-flight). That carve-out turned out to mask
+     * permanent leftovers: when CheckInFromKiosk::saveCheckIn committed but
+     * its post-commit refreshFloorSlot did not run (PHP timeout / dropped
+     * connection), the row stayed 'picked' on an Occupied room forever (4F
+     * incident, 2026-04-30). With Layer A moving refreshFloorSlot inside
+     * the transaction, the only race left is identical to the cancel race
+     * (TCK deleted, slot still picked), which this cleanup is meant to fix.
      */
     private static function cleanupStalePickedSlots(int $branchId, int $typeId): bool
     {
@@ -479,21 +487,12 @@ class KioskBatchService
             return false;
         }
 
-        $occupiedRoomIds = Room::where('branch_id', $branchId)
-            ->whereIn('id', $pickedSlots->pluck('room_id'))
-            ->where('status', 'Occupied')
-            ->pluck('id')
-            ->all();
-
         $heldRoomIds = TemporaryCheckInKiosk::where('branch_id', $branchId)
             ->whereIn('room_id', $pickedSlots->pluck('room_id'))
             ->pluck('room_id')
             ->all();
 
-        $stale = $pickedSlots->reject(function ($slot) use ($occupiedRoomIds, $heldRoomIds) {
-            return in_array($slot->room_id, $occupiedRoomIds, true)
-                || in_array($slot->room_id, $heldRoomIds, true);
-        });
+        $stale = $pickedSlots->reject(fn ($slot) => in_array($slot->room_id, $heldRoomIds, true));
 
         if ($stale->isEmpty()) {
             return false;
@@ -549,7 +548,9 @@ class KioskBatchService
         $staleSlots = $activeSlots->reject(fn ($s) => in_array($s->room_id, $usableRoomIds, true));
 
         if ($staleSlots->isEmpty()) {
-            return false;
+            // No stale active slots, but the picked-slot cleanup may have
+            // made changes — propagate that so callers see the right answer.
+            return $pickedChanged;
         }
 
         // If EVERY slot is stale, fall back to a clean full throw.

@@ -851,18 +851,24 @@ class KioskBatchTest extends TestCase
     }
 
     /** @test */
-    public function refresh_if_stale_keeps_picked_slot_when_room_still_occupied()
+    public function refresh_if_stale_clears_picked_orphan_when_room_occupied_and_no_tck()
     {
-        // If the picked slot's room is still Occupied (frontdesk hasn't
-        // closed the booking yet), the slot is NOT stale and must stay.
-        $branch = Branch::create(['name' => 'Live picked ' . uniqid(), 'kiosk_time_limit' => 10]);
+        // 4F regression (2026-04-30): a kiosk-pick → frontdesk-confirm finished
+        // (room Occupied, TCK deleted) but the post-commit refreshFloorSlot
+        // never ran — leaving a 'picked' batch row pointing at an Occupied
+        // room with NO live TCK. Old rule treated this as "in flight" and kept
+        // it forever. New rule: no TCK = stale, regardless of room status.
+        $branch = Branch::create(['name' => 'Orphan picked ' . uniqid(), 'kiosk_time_limit' => 10]);
         $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
         $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
         Rate::create(['branch_id' => $branch->id, 'type_id' => $type->id, 'staying_hour_id' => $stayingHour->id, 'amount' => 300]);
 
         $f1 = Floor::create(['branch_id' => $branch->id, 'number' => 1]);
 
+        // Room is Occupied (the original picker is now a real guest), but the
+        // TCK was already deleted by the successful frontdesk confirm.
         $picked = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '1', 'status' => 'Occupied', 'is_priority' => true]);
+        $spare  = Room::create(['branch_id' => $branch->id, 'floor_id' => $f1->id, 'type_id' => $type->id, 'number' => '2', 'status' => 'Available', 'is_priority' => true]);
 
         $slot = KioskCurrentBatch::create([
             'branch_id' => $branch->id,
@@ -873,9 +879,19 @@ class KioskBatchTest extends TestCase
         ]);
 
         $changed = KioskBatchService::refreshIfStale($branch->id, $type->id);
-        $this->assertFalse($changed, 'Picked slot pointing to Occupied room should be kept.');
+        $this->assertTrue($changed, 'Orphan picked slot (Occupied + no TCK) must be cleaned.');
 
-        $this->assertNotNull(KioskCurrentBatch::find($slot->id));
+        $this->assertNull(KioskCurrentBatch::find($slot->id), 'Orphan row must be deleted.');
+
+        // After cleanup, the floor refills via throwNextBatch (since the batch
+        // became empty) — the spare available room should now be the active
+        // slot for floor 1.
+        $remaining = KioskCurrentBatch::where('branch_id', $branch->id)
+            ->where('type_id', $type->id)
+            ->get();
+        $this->assertCount(1, $remaining);
+        $this->assertEquals('active', $remaining->first()->slot_status);
+        $this->assertEquals($spare->id, $remaining->first()->room_id);
     }
 
     /** @test */
