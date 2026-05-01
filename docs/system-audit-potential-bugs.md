@@ -193,10 +193,10 @@ Recovery scripts for historical data:
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/CheckInFromKiosk.php:178-260`
 - **Fix:** `saveCheckIn` now opens DB transaction first, locks TemporaryCheckInKiosk + duplicate-CheckinDetail check + ghost-checkin guard with `lockForUpdate`. Two simultaneous Confirm clicks now serialize, with the second seeing the hold gone and rolling back cleanly.
 
-### C2. Cron `kiosk:cleanup` races with `confirmCheckIn` and `saveCheckIn`
-- **Severity:** HIGH | **Confidence:** MEDIUM
-- **Files:** `app/Console/Commands/CleanupTemporaryKiosk.php:45-66` vs. `CheckInFromKiosk.php:178-454`
-- **Pattern:** Cleanup deletes orphaned `Guest` (no checkInDetail, no transactions) without locking. Frontdesk's `saveCheckIn` doesn't lock the Guest either. Cron firing mid-confirm could delete the guest the frontdesk transaction is using → FK orphans.
+### C2. Cron `kiosk:cleanup` races with `confirmCheckIn` and `saveCheckIn` ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **File:** `app/Console/Commands/CleanupTemporaryKiosk.php`
+- **Fix:** Each expired hold is now processed inside `DB::transaction` with `lockForUpdate` on the TCK row AND on the `Guest` row before deletion. Existence of `CheckinDetail` / `Transaction` is re-checked INSIDE the lock window so a frontdesk save in flight cannot have its Guest deleted out from under it. The frontdesk's existing `lockForUpdate` on TCK (C1 fix) serializes against this — whichever side wins, the other sees consistent state.
 
 ### C3. API `CheckInController::store` has NO transaction, NO locks, NO occupancy guard
 - **Severity:** HIGH | **Confidence:** HIGH
@@ -213,24 +213,20 @@ Recovery scripts for historical data:
 - **File:** `app/Http/Livewire/Frontdesk/Monitoring/ExtendGuest.php:156-260`
 - **Fix:** `saveExtend` now `lockForUpdate`s the CheckinDetail row inside the transaction AND checks for any StayExtension created within the last 3 seconds for the guest. Double-clicks, network lag, two-tab races all blocked.
 
-### C6. Roomboy `finishCleaning` unprotected status read-then-write
-- **Severity:** MEDIUM | **Confidence:** MEDIUM
-- **File:** `app/Http/Livewire/Roomboy/Index.php:148-252`
-- **Pattern:** Reads room without lock, updates `status => 'Available'` at end. If frontdesk transitions room to Occupied between read and write (in `CheckInFromKiosk::saveCheckIn` which also doesn't lock), roomboy update overwrites — ending with Available room with active checkin_detail (a ghost). `maybeFillBlankFloor` then puts the just-occupied room in kiosk batch.
+### C6. Roomboy `finishCleaning` unprotected status read-then-write ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **Files:** `app/Http/Livewire/Roomboy/Index.php`, `app/Http/Livewire/Roomboy/Main.php`
+- **Fix:** `finishCleaning` now opens the transaction first, reads the room with `lockForUpdate` AND a branch filter, then aborts cleanly (with a clear "Front desk has already checked a guest into this room" dialog) if the room flipped to `Occupied` mid-cleaning. The `Available` write can no longer overwrite a live `Occupied`, eliminating the ghost-room (Available + active CheckinDetail) state.
 
-### C7. API `OccupiedRoomController::occupiedRooms` and `QrRoomController::getRoomByQr` — no branch authz
-- **Severity:** HIGH | **Confidence:** HIGH
-- **Files:**
-  - `app/Http/Controllers/API/OccupiedRoomController.php:16-33`
-  - `app/Http/Controllers/API/QrRoomController.php:18`
-- **Pattern:** Accepts `$branchId` from URL/body and returns guest details for ANY branch. No check that `auth()->user()->branch_id == $branchId`. Multi-tenant data leak: any authenticated user from branch A can read another branch's data.
+### C7. API `OccupiedRoomController::occupiedRooms` and `QrRoomController::getRoomByQr` — no branch authz ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **Files:** `app/Http/Controllers/API/OccupiedRoomController.php`, `app/Http/Controllers/API/QrRoomController.php`
+- **Fix:** Both controllers now reject the request with a 403 "Forbidden — branch mismatch" when the URL/body `branch_id` does not match `auth()->user()->branch_id`. Authenticated users can no longer read another branch's data even when they know the foreign branch_id.
 
-### C8. BackOffice reports leak across tenants
-- **Severity:** MEDIUM-HIGH | **Confidence:** HIGH
-- **Files:**
-  - `app/Http/Livewire/BackOffice/Reports/OccupiedRoom.php:14-23`
-  - `app/Http/Livewire/BackOffice/Reports/Guest.php:33-41`
-- **Pattern:** `Guest::loadQuery()` case 3 (`whereHas('transactions',...)`) has NO `where('branch_id', auth()->user()->branch_id)` on the outer Guest query — returns guests from every branch.
+### C8. BackOffice reports leak across tenants ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **Files:** `app/Http/Livewire/BackOffice/Reports/OccupiedRoom.php`, `app/Http/Livewire/BackOffice/Reports/Guest.php`
+- **Fix:** `Guest::loadQuery` case 3 now filters by `branch_id = auth()->user()->branch_id` on the outer Guest query. `OccupiedRoom::render` now also adds an explicit `branch_id` filter on the outer Transaction query (defense-in-depth alongside the existing `whereHas('guest.room', ...)` filter).
 
 ### C9. Null-pointer hazards on chained model accessors ✅ PARTIALLY FIXED
 - **Status:** ✅ PARTIAL FIX on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
@@ -241,10 +237,10 @@ Recovery scripts for historical data:
 - **Still open:** `auth()->user()->frontdesk->id` references in CheckInFromKiosk (lines 302, 347, 392) — only fatal if a non-frontdesk user triggers saveCheckIn, which shouldn't happen in normal use. Defer.
 
 ### C10. Honorable mentions (lower priority but worth noting)
-- `TransferRoom.php:140-149` — destination Room listing has no row lock; by saveTransfer it may be Occupied
-- `Roomboy/Index::startCleaning:44` — `Room::where('id',$room_id)->first()` without branch filter
-- `OverrideRequests::cancelRequest:105` — `OverrideRequest::find($requestId)` no branch_id check before delete
-- `Kiosk\CheckIn.php:365` — `Guest::whereYear('created_at', now()->year)->lockForUpdate()->count()` locks all year's rows; under load serializes every kiosk check-in
+- `TransferRoom.php:140-149` — destination Room listing has no row lock; saveTransfer's `lockForUpdate` (C4 fix) covers the actual race window. **Not fixed: low priority — listing is purely advisory.**
+- `Roomboy/Index::startCleaning:44` ✅ FIXED — `Room::where` now scoped to `auth()->user()->branch_id` with a clear "Room Not Found" error if the foreign branch is targeted.
+- `OverrideRequests::cancelRequest:105` ✅ FIXED — lookup now scoped to `branch_id` AND `requester_id`; cannot even load a foreign branch's request id.
+- `Kiosk\CheckIn.php:365` — `Guest::whereYear('created_at', now()->year)->lockForUpdate()->count()` locks all year's rows; under load serializes every kiosk check-in. **Not fixed: needs separate redesign (sequence table or year-scoped counter).**
 
 ---
 

@@ -41,7 +41,17 @@ class Index extends Component
     public function startCleaning($room_id)
     {
 
-        $room = Room::where('id', $room_id)->first();
+        // Multi-tenant safety: a roomboy can only start cleaning a room in
+        // their own branch. Without the branch filter, knowing a foreign
+        // room_id would let them touch another branch's room.
+        $room = Room::where('id', $room_id)
+            ->where('branch_id', auth()->user()->branch_id)
+            ->first();
+
+        if (! $room) {
+            $this->dialog()->error('Room Not Found', 'This room is not in your branch.');
+            return;
+        }
 
         $record_count = RoomBoyReport::where('roomboy_id', auth()->user()->id)
             ->whereDate('created_at', now())
@@ -151,7 +161,35 @@ class Index extends Component
 
     public function finishCleaning($room_id)
     {
-        $room = Room::where('id', $room_id)->first();
+        DB::beginTransaction();
+
+        // Lock the room INSIDE the transaction so a concurrent frontdesk
+        // saveCheckIn cannot flip status to Occupied between this read and
+        // our final 'Available' write. Without the lock, the roomboy update
+        // wins the race and overwrites Occupied — producing a "ghost room"
+        // (status Available but with an active CheckinDetail).
+        $room = Room::where('id', $room_id)
+            ->where('branch_id', auth()->user()->branch_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $room) {
+            DB::rollBack();
+            $this->dialog()->error('Room Not Found', 'This room is no longer accessible.');
+            return;
+        }
+
+        // If the room is now Occupied, frontdesk took it during cleaning.
+        // Bail without flipping to Available — that would erase the live
+        // booking from the room status field.
+        if ($room->status === 'Occupied') {
+            DB::rollBack();
+            $this->dialog()->error(
+                'Cannot Finish Cleaning',
+                'Front desk has already checked a guest into this room. Cleaning state cannot be flipped to Available.'
+            );
+            return;
+        }
 
         // Guard: Block finish cleaning if room has unresolved previous guest
         $openCheckin = CheckinDetail::where('room_id', $room->id)
@@ -160,6 +198,7 @@ class Index extends Component
             ->first();
 
         if ($openCheckin) {
+            DB::rollBack();
             $ghostName = $openCheckin->guest->name ?? 'Unknown';
             $ghostDate = $openCheckin->check_in_at
                 ? \Carbon\Carbon::parse($openCheckin->check_in_at)->format('M d, Y g:i A')
@@ -187,8 +226,6 @@ class Index extends Component
                 'time_to_clean' => \Carbon\Carbon::parse($room->started_cleaning_at)->addMinutes(15),
             ]);
         }
-
-        DB::beginTransaction();
 
         CleaningHistory::create([
             'user_id' => auth()->user()->id,

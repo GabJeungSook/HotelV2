@@ -16,7 +16,14 @@ class OccupiedRoomController extends Controller
     public function occupiedRooms($branchId)
     {
         try {
-            //query
+            // Multi-tenant authz: a user can only read occupied rooms in
+            // THEIR OWN branch. Without this guard, an authenticated user
+            // from branch A could read every guest in branch B by passing
+            // its branch_id in the URL.
+            if ((int) $branchId !== (int) auth()->user()->branch_id) {
+                return ApiResponse::error('Forbidden — branch mismatch', 403);
+            }
+
             $floors = Floor::where('branch_id', $branchId)->with(['rooms' => function ($query) use ($branchId) {
                     $query->where('status', 'Occupied')->with(['latestCheckInDetail.guest.type', 'latestCheckInDetail.transactions', 'latestCheckInDetail.extendedGuestReports']);
                 }])

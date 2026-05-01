@@ -102,9 +102,16 @@ class OverrideRequests extends Component
 
     public function cancelRequest($requestId)
     {
-        $request = OverrideRequest::find($requestId);
+        // Defense-in-depth: scope the lookup to this branch + this requester
+        // so a foreign request_id cannot even be loaded by another branch's
+        // user. requester_id alone would also work today, but the explicit
+        // branch filter documents the multi-tenant intent.
+        $request = OverrideRequest::where('id', $requestId)
+            ->where('branch_id', auth()->user()->branch_id)
+            ->where('requester_id', auth()->user()->id)
+            ->first();
 
-        if ($request && $request->status === 'pending' && $request->requester_id === auth()->user()->id) {
+        if ($request && $request->status === 'pending') {
             $request->delete();
             $this->dialog()->success(
                 $title = 'Cancelled',

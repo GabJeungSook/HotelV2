@@ -11,7 +11,8 @@ class OccupiedRoom extends Component
     public function render()
     {
         return view('livewire.back-office.reports.occupied-room', [
-            'occupieds' => Transaction::where('transaction_type_id', 1)
+            'occupieds' => Transaction::where('branch_id', auth()->user()->branch_id)
+                ->where('transaction_type_id', 1)
                 ->when($this->date, function ($query) {
                     $query->whereDate('created_at', $this->date);
                 })

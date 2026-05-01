@@ -31,9 +31,10 @@ class Guest extends Component
                     ->whereDate('created_at', now())
                     ->get();
             case 3:
-                return guestModel::whereHas('transactions', function ($query) {
-                    $query->where('transaction_type_id', 6);
-                })
+                return guestModel::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('transactions', function ($query) {
+                        $query->where('transaction_type_id', 6);
+                    })
                     ->when($this->date, function ($query) {
                         $query->whereDate('created_at', $this->date);
                     })

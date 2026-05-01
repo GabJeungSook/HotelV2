@@ -13,6 +13,14 @@ class QrRoomController extends Controller
     public function getRoomByQr($qrCode, Request $request)
     {
         try {
+            // Multi-tenant authz: a user can only resolve a QR within their
+            // own branch. Without this guard, an authenticated user from
+            // branch A could read another branch's guest data by passing
+            // its branch_id and a known qr_code.
+            if ((int) $request->branch_id !== (int) auth()->user()->branch_id) {
+                return ApiResponse::error('Forbidden — branch mismatch', 403);
+            }
+
             $room = Room::where('status', 'Occupied')
                 ->whereHas('checkInDetail.guest', function ($query) use ($qrCode, $request) {
                     $query->where('branch_id', $request->branch_id)->where('qr_code', $qrCode);
