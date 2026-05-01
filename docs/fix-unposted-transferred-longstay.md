@@ -405,49 +405,6 @@ the Check In rows for all 5 guests show their correct room amount instead of ₱
 
 ---
 
-## STEP 8 — Rollback (only if something looks wrong)
-
-Run any of these blocks to restore the affected rows to their pre-fix state.
-Each block is independent and safe to run in any order.
-
-### Rollback `guests.static_amount`
-
-```sql
-UPDATE guests g
-JOIN _bkp_unposted_guests_2026_04_30 bk ON bk.id = g.id
-SET g.static_amount = bk.static_amount;
-```
-
-### Rollback `checkin_details`
-
-```sql
-UPDATE checkin_details cd
-JOIN _bkp_unposted_checkins_2026_04_30 bk ON bk.id = cd.id
-SET cd.static_room_amount = bk.static_room_amount,
-    cd.static_amount      = bk.static_amount;
-```
-
-### Rollback Check In transactions
-
-```sql
-UPDATE transactions tr
-JOIN _bkp_unposted_transactions_2026_04_30 bk ON bk.id = tr.id
-SET tr.payable_amount = bk.payable_amount,
-    tr.paid_amount    = bk.paid_amount;
-```
-
-### Rollback transfered_guest_reports
-
-```sql
-UPDATE transfered_guest_reports tgr
-JOIN checkin_details cd ON cd.id = tgr.checkin_detail_id
-JOIN guests g ON g.id = cd.guest_id
-SET tgr.new_amount = 0
-WHERE tgr.checkin_detail_id IN (SELECT id FROM _bkp_unposted_checkins_2026_04_30);
-```
-
----
-
 ## Manual review needed
 
 **Leonardo charcos (guest_id = 15219, Room 30, April 28)** — already checked out.
@@ -592,3 +549,60 @@ Every value above was queried from the live production-copy database, not assume
 | Check In tx IDs (35082, 35929, 35933, 36000, 36084) | `SELECT tr.id FROM transactions WHERE checkin_detail_id IN (...) AND description='Guest Check In'` |
 | `transfered_guest_reports.previous_amount` | Already in the table — verified by SELECT |
 | `transfered_guest_reports.id` (689, 760, 761, 775, 789) | Real IDs from the transfered_guest_reports table |
+
+---
+
+## STEP 8 — Rollback (only if something looks wrong)
+
+> Use these only if STEP 9D verification shows wrong values, or you need
+> to undo the recovery for any reason. Each block restores one table from
+> its `_bkp_unposted_*_2026_04_30` backup table created in STEP 3.
+>
+> Each block is independent — you can run any combination in any order.
+
+### Rollback `guests.static_amount`
+
+```sql
+UPDATE guests g
+JOIN _bkp_unposted_guests_2026_04_30 bk ON bk.id = g.id
+SET g.static_amount = bk.static_amount;
+```
+
+### Rollback `checkin_details`
+
+```sql
+UPDATE checkin_details cd
+JOIN _bkp_unposted_checkins_2026_04_30 bk ON bk.id = cd.id
+SET cd.static_room_amount = bk.static_room_amount,
+    cd.static_amount      = bk.static_amount;
+```
+
+### Rollback Check In transactions
+
+```sql
+UPDATE transactions tr
+JOIN _bkp_unposted_transactions_2026_04_30 bk ON bk.id = tr.id
+SET tr.payable_amount = bk.payable_amount,
+    tr.paid_amount    = bk.paid_amount;
+```
+
+### Rollback transfered_guest_reports
+
+```sql
+UPDATE transfered_guest_reports tgr
+JOIN checkin_details cd ON cd.id = tgr.checkin_detail_id
+JOIN guests g ON g.id = cd.guest_id
+SET tgr.new_amount = 0
+WHERE tgr.checkin_detail_id IN (SELECT id FROM _bkp_unposted_checkins_2026_04_30);
+```
+
+### After verifying recovery looks good — drop the backup tables
+
+> Optional cleanup. Wait at least 24 hours after running the recovery
+> before dropping these — they're your safety net for STEP 8 rollback.
+
+```sql
+DROP TABLE IF EXISTS _bkp_unposted_guests_2026_04_30;
+DROP TABLE IF EXISTS _bkp_unposted_checkins_2026_04_30;
+DROP TABLE IF EXISTS _bkp_unposted_transactions_2026_04_30;
+```
