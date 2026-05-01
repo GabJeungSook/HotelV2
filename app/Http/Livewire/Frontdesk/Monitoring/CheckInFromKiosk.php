@@ -323,7 +323,7 @@ class CheckInFromKiosk extends Component
         //save cash on drawer
         CashOnDrawer::create([
             'branch_id' => auth()->user()->branch_id,
-            'frontdesk_id' => auth()->user()->frontdesk->id,
+            'frontdesk_id' => auth()->user()->frontdesk?->id,
             'cash_drawer_id' => auth()->user()->cash_drawer_id,
             'amount' => $this->room_static_amount,
             'transaction_date' => now()->toDateString(),
@@ -367,7 +367,7 @@ class CheckInFromKiosk extends Component
 
         CashOnDrawer::create([
             'branch_id' => auth()->user()->branch_id,
-            'frontdesk_id' => auth()->user()->frontdesk->id,
+            'frontdesk_id' => auth()->user()->frontdesk?->id,
             'cash_drawer_id' => auth()->user()->cash_drawer_id,
             'amount' => $this->additional_charges,
             'transaction_date' => now()->toDateString(),
@@ -413,7 +413,7 @@ class CheckInFromKiosk extends Component
              //save cash on drawer
             CashOnDrawer::create([
                 'branch_id' => auth()->user()->branch_id,
-                'frontdesk_id' => auth()->user()->frontdesk->id,
+                'frontdesk_id' => auth()->user()->frontdesk?->id,
                 'cash_drawer_id' => auth()->user()->cash_drawer_id,
                 'amount' => $this->excess_amount,
                 'transaction_date' => now()->toDateString(),

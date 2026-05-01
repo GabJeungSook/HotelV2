@@ -199,10 +199,10 @@ Recovery scripts for historical data:
 - **File:** `app/Console/Commands/CleanupTemporaryKiosk.php`
 - **Fix:** Each expired hold is now processed inside `DB::transaction` with `lockForUpdate` on the TCK row AND on the `Guest` row before deletion. Existence of `CheckinDetail` / `Transaction` is re-checked INSIDE the lock window so a frontdesk save in flight cannot have its Guest deleted out from under it. The frontdesk's existing `lockForUpdate` on TCK (C1 fix) serializes against this — whichever side wins, the other sees consistent state.
 
-### C3. API `CheckInController::store` has NO transaction, NO locks, NO occupancy guard
-- **Severity:** HIGH | **Confidence:** HIGH
-- **File:** `app/Http/Controllers/API/CheckInController.php:15-95`
-- **Pattern:** All concurrency guards commented out (lines 27-58). `Guest::create` and `TemporaryCheckInKiosk::create` outside any DB transaction. No room occupancy check. No `lockForUpdate`. The transaction-code generator (`Guest::whereYear()->count()+1`) is a classic increment race → duplicate `qr_code` values. Hardcoded `addMinutes(20)` ignores `branch->kiosk_time_limit`.
+### C3. API `CheckInController::store` has NO transaction, NO locks, NO occupancy guard ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **File:** `app/Http/Controllers/API/CheckInController.php`
+- **Fix:** Rewrote the controller to mirror `Kiosk\CheckIn::confirmCheckIn`'s safety envelope: explicit `validate()`, `DB::beginTransaction`, `lockForUpdate` on Room (Occupied check) + TCK + TemporaryReserved + open CheckinDetail, `lockForUpdate` on the qr_code sequence count to prevent duplicates, `branch->kiosk_time_limit` instead of hardcoded 20 minutes, atomic Guest+TCK creation, `KioskBatchService::markPicked` after commit so the kiosk batch advances. Two simultaneous API calls now fail-fast on the second one.
 
 ### C4. TransferRoom — no row lock on destination room ✅ FIXED
 - **Status:** ✅ FIXED on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
@@ -229,13 +229,13 @@ Recovery scripts for historical data:
 - **Files:** `app/Http/Livewire/BackOffice/Reports/OccupiedRoom.php`, `app/Http/Livewire/BackOffice/Reports/Guest.php`
 - **Fix:** `Guest::loadQuery` case 3 now filters by `branch_id = auth()->user()->branch_id` on the outer Guest query. `OccupiedRoom::render` now also adds an explicit `branch_id` filter on the outer Transaction query (defense-in-depth alongside the existing `whereHas('guest.room', ...)` filter).
 
-### C9. Null-pointer hazards on chained model accessors ✅ PARTIALLY FIXED
-- **Status:** ✅ PARTIAL FIX on branch `feature/concurrency-and-null-safety-may-1` (2026-05-01)
-- **Fixed sites:**
+### C9. Null-pointer hazards on chained model accessors ✅ FIXED
+- **Status:** ✅ FIXED on branch `feature/temp-disable-supervisor` (2026-05-01)
+- **Original partial fix** (`feature/concurrency-and-null-safety-may-1`):
   - TransferRoom `mount()` — `$this->guest?->checkInDetail?->rate?->amount ?? 0`
   - ExtendGuest `mount()` — `$this->guest?->checkInDetail?->room_id` etc.
   - CheckInFromKiosk `saveCheckIn` — `Rate::...->first()?->stayingHour?->number ?? 0`
-- **Still open:** `auth()->user()->frontdesk->id` references in CheckInFromKiosk (lines 302, 347, 392) — only fatal if a non-frontdesk user triggers saveCheckIn, which shouldn't happen in normal use. Defer.
+- **Final pass:** all 10 `auth()->user()->frontdesk->id` references across CheckInFromKiosk (3), GuestTransaction (6), and TransferRoom (1) now use `?->id`. `frontdesk_id` is a nullable column on `checkin_details` and `cash_on_drawers`, so a null relation no longer fatals — it stores NULL and the calling user can be diagnosed from the activity log.
 
 ### C10. Honorable mentions (lower priority but worth noting)
 - `TransferRoom.php:140-149` — destination Room listing has no row lock; saveTransfer's `lockForUpdate` (C4 fix) covers the actual race window. **Not fixed: low priority — listing is purely advisory.**

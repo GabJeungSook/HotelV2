@@ -1848,7 +1848,7 @@ class GuestTransaction extends Component
         //save cash on drawer
         CashOnDrawer::create([
             'branch_id' => auth()->user()->branch_id,
-            'frontdesk_id' => auth()->user()->frontdesk->id,
+            'frontdesk_id' => auth()->user()->frontdesk?->id,
             'cash_drawer_id' => auth()->user()->cash_drawer_id,
             'amount' => $transaction->payable_amount,
             'transaction_date' => now()->toDateString(),
@@ -1895,7 +1895,7 @@ class GuestTransaction extends Component
 
              CashOnDrawer::create([
             'branch_id' => auth()->user()->branch_id,
-            'frontdesk_id' => auth()->user()->frontdesk->id,
+            'frontdesk_id' => auth()->user()->frontdesk?->id,
             'cash_drawer_id' => auth()->user()->cash_drawer_id,
             'amount' => $this->pay_excess,
             'transaction_date' => now()->toDateString(),
@@ -2009,7 +2009,7 @@ class GuestTransaction extends Component
             //save deduction
             CashOnDrawer::create([
                 'branch_id' => auth()->user()->branch_id,
-                'frontdesk_id' => auth()->user()->frontdesk->id,
+                'frontdesk_id' => auth()->user()->frontdesk?->id,
                 'cash_drawer_id' => auth()->user()->cash_drawer_id,
                 'deduction' => $this->pay_transaction_amount,
                 'transaction_date' => now()->toDateString(),
@@ -2077,7 +2077,7 @@ class GuestTransaction extends Component
         //save cash on drawer
         CashOnDrawer::create([
             'branch_id' => auth()->user()->branch_id,
-            'frontdesk_id' => auth()->user()->frontdesk->id,
+            'frontdesk_id' => auth()->user()->frontdesk?->id,
             'cash_drawer_id' => auth()->user()->cash_drawer_id,
             'amount' => $payable,
             'transaction_date' => now()->toDateString(),
@@ -2177,7 +2177,7 @@ class GuestTransaction extends Component
         //save deduction
             CashOnDrawer::create([
                 'branch_id' => auth()->user()->branch_id,
-                'frontdesk_id' => auth()->user()->frontdesk->id,
+                'frontdesk_id' => auth()->user()->frontdesk?->id,
                 'cash_drawer_id' => auth()->user()->cash_drawer_id,
                 'deduction' => $this->pay_transaction_amount,
                 'transaction_date' => now()->toDateString(),
@@ -2582,7 +2582,7 @@ class GuestTransaction extends Component
         //save cash on drawer
         CashOnDrawer::create([
             'branch_id' => auth()->user()->branch_id,
-            'frontdesk_id' => auth()->user()->frontdesk->id,
+            'frontdesk_id' => auth()->user()->frontdesk?->id,
             'cash_drawer_id' => auth()->user()->cash_drawer_id,
             'amount' => $transaction->payable_amount,
             'transaction_date' => now()->toDateString(),
