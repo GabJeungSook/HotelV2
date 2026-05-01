@@ -42,18 +42,16 @@ Each step below is split into separate SQL blocks. Click anywhere inside one
 block, click "Run Current", check the result against the **Expected** table,
 then move to the next block.
 
-> **Recommended path (records-only fix for all 5 guests):**
+> **Run order:**
 > `STEP 1 → 2 → 3A → 3B → 3C → 3D → 9A → 9B → 9C → 6.5A → 6.5B → 9D`
 >
-> The SQL was tested end-to-end against the production-copy DB (17/17
-> assertions passed including rollback). See ADDENDUM at the bottom for
-> why STEP 9 is preferred over the original conservative STEPS 4-6.
-
-> **Conservative path (only fix the still-active guest, skip the 4 already checked out):**
-> `STEP 1 → 2 → 3A → 3B → 3C → 3D → 4A → 4B → 5A → 5B → 6A → 6B → 6.5A → 6.5B → 7`
+> Verified end-to-end against the production-copy DB (11/11 PASS,
+> including rollback). See [ADDENDUM](#addendum-2026-05-01--cash-analysis-says-all-5-are-records-only-fixes)
+> for the cash-analysis rationale.
 >
-> Use this only if you specifically want to leave the checked-out guests'
-> records in their corrupted state.
+> **Do NOT run STEPS 4-6** — those are deprecated (kept for historical
+> reference only) and contain a `cd.is_check_out` filter that was correct
+> when written but is now stale because more guests have checked out.
 
 > **Scope:** Branch 1, April 28–30 2026. Adjust the `WHERE` filters if a wider range needs recovery.
 
@@ -227,7 +225,24 @@ If any < 5 → **STOP** before running UPDATEs in STEPS 4–6.
 
 ---
 
-## STEP 4A — UPDATE `guests.static_amount`
+## STEPS 4-6 — DEPRECATED (skip these — use STEP 9 instead)
+
+> **DO NOT RUN STEPS 4-6.** They contain a `cd.is_check_out = 0` filter that
+> was added defensively when the doc was first written. As of 2026-05-01,
+> 4 of the 5 affected guests have already checked out, so STEPS 4-6 only
+> update Kenneth (1 row) and leave the other 4 corrupted.
+>
+> **Skip directly to STEP 9** below — it removes the `is_check_out` filter
+> and updates all 5 guests' records. STEP 9 was tested end-to-end against
+> the production-copy DB (11/11 PASS).
+>
+> The original STEPS 4-6 are kept here only for historical reference of
+> what the conservative approach would have looked like.
+
+<details>
+<summary>Click to expand the deprecated STEPS 4-6 (do not run)</summary>
+
+### STEP 4A — UPDATE `guests.static_amount` (DEPRECATED)
 
 ```sql
 UPDATE guests g
@@ -247,32 +262,10 @@ WHERE g.branch_id = 1
   AND DATE(g.created_at) BETWEEN '2026-04-28' AND '2026-04-30';
 ```
 
-### Expected
+Will affect 0–5 rows depending on how many guests have already checked out.
+As of 2026-05-01: **1 row** (Kenneth only).
 
-TablePlus shows: **4 rows affected** (Leonardo skipped — `is_check_out = 1`).
-
-## STEP 4B — Verify
-
-```sql
-SELECT g.id, g.name, b.initial_deposit AS old_static_amount, g.static_amount AS new_static_amount
-FROM guests g JOIN branches b ON b.id = g.branch_id
-WHERE g.id IN (SELECT id FROM _bkp_unposted_guests_2026_04_30)
-ORDER BY g.id;
-```
-
-### Expected — 5 rows
-
-| id | name | old_static_amount | new_static_amount |
-|----|------|-------------------|-------------------|
-| 15219 | Leonardo charcos | 200.00 | **200** (unchanged — skipped) |
-| 15592 | Wilfredo Zambo | 200.00 | **1800** |
-| 15593 | Michael D. Caores | 200.00 | **1600** |
-| 15615 | Jonalyn carreon | 200.00 | **2000** |
-| 15652 | Kenneth john besas | 200.00 | **1800** |
-
----
-
-## STEP 5A — UPDATE `checkin_details.static_room_amount` and `static_amount`
+### STEP 5A — UPDATE `checkin_details` (DEPRECATED)
 
 ```sql
 UPDATE checkin_details cd
@@ -289,32 +282,7 @@ WHERE cd.id IN (SELECT id FROM _bkp_unposted_checkins_2026_04_30)
   AND cd.is_check_out = 0;
 ```
 
-### Expected
-
-TablePlus shows: **4 rows affected**.
-
-## STEP 5B — Verify
-
-```sql
-SELECT cd.id, cd.guest_id, cd.static_room_amount, cd.static_amount, cd.is_check_out
-FROM checkin_details cd
-WHERE cd.id IN (SELECT id FROM _bkp_unposted_checkins_2026_04_30)
-ORDER BY cd.id;
-```
-
-### Expected — 5 rows
-
-| id | guest_id | static_room_amount | static_amount | is_check_out |
-|----|----------|--------------------|---------------|--------------|
-| 12836 | 15219 | **0.00** (unchanged) | 200 (unchanged) | 1 |
-| 13146 | 15592 | **1600.00** | **1800** | 0 |
-| 13147 | 15593 | **1400.00** | **1600** | 0 |
-| 13169 | 15615 | **1800.00** | **2000** | 0 |
-| 13196 | 15652 | **1600.00** | **1800** | 0 |
-
----
-
-## STEP 6A — UPDATE Check In transactions
+### STEP 6A — UPDATE Check In transactions (DEPRECATED)
 
 ```sql
 UPDATE transactions tr
@@ -331,11 +299,9 @@ WHERE tr.id IN (SELECT id FROM _bkp_unposted_transactions_2026_04_30)
   AND cd.is_check_out = 0;
 ```
 
-### Expected
+</details>
 
-TablePlus shows: **4 rows affected**.
-
-## STEP 6B — Verify
+## STEP 6B — Verify (works after STEP 9C)
 
 ```sql
 SELECT tr.id, tr.room_id, tr.payable_amount, tr.paid_amount, tr.remarks, tr.created_at
@@ -344,11 +310,11 @@ WHERE tr.id IN (SELECT id FROM _bkp_unposted_transactions_2026_04_30)
 ORDER BY tr.id;
 ```
 
-### Expected — 5 rows
+### Expected — 5 rows (after running STEP 9C)
 
 | id | room_id | payable_amount | paid_amount | remarks |
 |----|---------|----------------|-------------|---------|
-| 35082 | 29 | **0** (unchanged) | 0 (unchanged) | Guest Checked In at room #30 |
+| 35082 | 29 | **1600** | **1600** | Guest Checked In at room #30 |
 | 35929 | 32 | **1600** | **1600** | Guest Checked In at room #33 |
 | 35933 | 176 | **1400** | **1400** | Guest Checked In at room #4A |
 | 36000 | 14 | **1800** | **1800** | Guest Checked In at room #15 |
