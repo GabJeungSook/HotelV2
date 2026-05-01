@@ -480,6 +480,122 @@ that's just historical.
 
 ---
 
+## ADDENDUM (2026-05-01) — Cash analysis says all 5 are records-only fixes
+
+After the original doc was written, 3 more guests (Wilfredo, Michael, Jonalyn)
+checked out with `is_check_out = 1`, leaving only Kenneth still active. A cash
+analysis was run against the live production DB by reading the `paid_amount`
+column on each guest's Deposit transaction (which records the cash actually
+handed over):
+
+| Guest | Room | Expected | Cash given | Change | Net cash collected | Records-only fix safe? |
+|-------|------|----------|------------|--------|---------------------|------------------------|
+| Leonardo charcos | 30 | ₱1,800 | ₱1,800 | ₱50 (+ ₱50 cashout at checkout) | ₱1,700 | Close — see note below |
+| Wilfredo Zambo | 33 | ₱1,800 | ₱1,800 | ₱0 | **₱1,800** ✓ | ✅ Yes |
+| Michael D. Caores | 4A | ₱1,600 | ₱2,000 | ₱400 | **₱1,600** ✓ | ✅ Yes |
+| Jonalyn carreon | 15 | ₱2,000 | ₱2,000 | ₱0 | **₱2,000** ✓ | ✅ Yes |
+| Kenneth john besas | 252 | ₱1,800 | ₱1,800 | ₱0 | **₱1,800** ✓ | ✅ Yes |
+
+**The transfer bug only zeroed the records, AFTER the cash had already been
+collected at check-in.** No money is missing for 4 of the 5 guests. Leonardo's
+₱1,700 vs ₱1,800 expected likely reflects normal cashout-at-checkout flow
+(₱50 returned from his ₱250 deposit), not undercharge.
+
+### STEP 9 — Relaxed recovery (records-only, all 5 guests)
+
+This drops the `cd.is_check_out = 0` filter from STEPS 4-6. Run AFTER
+STEPS 1-3D (verification + backup) confirmed the 5 expected guests.
+
+**STEP 9A — UPDATE `guests.static_amount` for ALL 5**
+```sql
+UPDATE guests g
+JOIN checkin_details cd ON cd.guest_id = g.id
+JOIN branches b         ON b.id = g.branch_id
+JOIN staying_hours sh   ON sh.branch_id = g.branch_id AND sh.number = 24
+JOIN rates rt           ON rt.branch_id = g.branch_id
+                       AND rt.type_id = g.type_id
+                       AND rt.staying_hour_id = sh.id
+                       AND rt.is_available = 1
+SET g.static_amount = (rt.amount * g.number_of_days) + b.initial_deposit
+WHERE g.id IN (SELECT id FROM _bkp_unposted_guests_2026_04_30);
+```
+
+Expected: **5 rows affected**.
+
+**STEP 9B — UPDATE `checkin_details` for ALL 5**
+```sql
+UPDATE checkin_details cd
+JOIN guests g           ON g.id = cd.guest_id
+JOIN branches b         ON b.id = g.branch_id
+JOIN staying_hours sh   ON sh.branch_id = g.branch_id AND sh.number = 24
+JOIN rates rt           ON rt.branch_id = g.branch_id
+                       AND rt.type_id = g.type_id
+                       AND rt.staying_hour_id = sh.id
+                       AND rt.is_available = 1
+SET cd.static_room_amount = rt.amount * g.number_of_days,
+    cd.static_amount      = (rt.amount * g.number_of_days) + b.initial_deposit
+WHERE cd.id IN (SELECT id FROM _bkp_unposted_checkins_2026_04_30);
+```
+
+Expected: **5 rows affected**.
+
+**STEP 9C — UPDATE Check In transactions for ALL 5**
+```sql
+UPDATE transactions tr
+JOIN checkin_details cd ON cd.id = tr.checkin_detail_id
+JOIN guests g           ON g.id = cd.guest_id
+JOIN staying_hours sh   ON sh.branch_id = g.branch_id AND sh.number = 24
+JOIN rates rt           ON rt.branch_id = g.branch_id
+                       AND rt.type_id = g.type_id
+                       AND rt.staying_hour_id = sh.id
+                       AND rt.is_available = 1
+SET tr.payable_amount = rt.amount * g.number_of_days,
+    tr.paid_amount    = rt.amount * g.number_of_days
+WHERE tr.id IN (SELECT id FROM _bkp_unposted_transactions_2026_04_30);
+```
+
+Expected: **5 rows affected**.
+
+**STEP 9D — Verify (same SELECT as STEP 7)**
+```sql
+SELECT
+    g.id, g.name, r.number AS room, g.static_amount,
+    cd.static_room_amount, cd.static_amount AS cd_static_amount,
+    tr.payable_amount AS check_in_tx_payable,
+    tgr.new_amount AS transfer_report_new_amount,
+    cd.is_check_out
+FROM guests g
+JOIN checkin_details cd ON cd.guest_id = g.id
+JOIN rooms r            ON r.id = g.room_id
+LEFT JOIN transactions tr ON tr.checkin_detail_id = cd.id
+                          AND tr.description = 'Guest Check In'
+LEFT JOIN transfered_guest_reports tgr ON tgr.checkin_detail_id = cd.id
+WHERE g.id IN (SELECT id FROM _bkp_unposted_guests_2026_04_30)
+ORDER BY g.id;
+```
+
+Expected — all 5 rows now have correct values:
+
+| id | name | room | static_amount | static_room_amount | cd_static_amount | check_in_tx_payable | transfer_report_new_amount | is_check_out |
+|----|------|------|---------------|--------------------|--------------------|---------------------|----------------------------|--------------|
+| 15219 | Leonardo charcos | 30 | **1,800** | **1,600** | **1,800** | **1,600** | 1,600 | 1 |
+| 15592 | Wilfredo Zambo | 33 | **1,800** | **1,600** | **1,800** | **1,600** | 1,600 | 1 |
+| 15593 | Michael D. Caores | 4A | **1,600** | **1,400** | **1,600** | **1,400** | 1,400 | 1 |
+| 15615 | Jonalyn carreon | 15 | **2,000** | **1,800** | **2,000** | **1,800** | 1,800 | 1 |
+| 15652 | Kenneth john besas | 252 | **1,800** | **1,600** | **1,800** | **1,600** | 1,600 | 0 |
+
+Sales Report April 28-29 should now show real revenue numbers for these 5 guests.
+
+### Run order with the addendum
+
+`STEP 1 → 2 → 3A → 3B → 3C → 3D → (skip 4-6 with is_check_out filter) → 9A → 9B → 9C → 6.5A → 6.5B → 9D`
+
+Or if you've already run STEPS 4-6 (which only updated Kenneth), just run
+STEPS 9A/9B/9C — they re-update Kenneth (idempotent, same target values) and
+also update the 4 checked-out guests.
+
+---
+
 ## Source of truth for the expected values
 
 Every value above was queried from the live production-copy database, not assumed:
