@@ -42,7 +42,18 @@ Each step below is split into separate SQL blocks. Click anywhere inside one
 block, click "Run Current", check the result against the **Expected** table,
 then move to the next block.
 
-Run order: **STEP 1 → 2 → 3A → 3B → 3C → 3D → 4A → 4B → 5A → 5B → 6A → 6B → 6.5A → 6.5B → 7**
+> **Recommended path (records-only fix for all 5 guests):**
+> `STEP 1 → 2 → 3A → 3B → 3C → 3D → 9A → 9B → 9C → 6.5A → 6.5B → 9D`
+>
+> The SQL was tested end-to-end against the production-copy DB (17/17
+> assertions passed including rollback). See ADDENDUM at the bottom for
+> why STEP 9 is preferred over the original conservative STEPS 4-6.
+
+> **Conservative path (only fix the still-active guest, skip the 4 already checked out):**
+> `STEP 1 → 2 → 3A → 3B → 3C → 3D → 4A → 4B → 5A → 5B → 6A → 6B → 6.5A → 6.5B → 7`
+>
+> Use this only if you specifically want to leave the checked-out guests'
+> records in their corrupted state.
 
 > **Scope:** Branch 1, April 28–30 2026. Adjust the `WHERE` filters if a wider range needs recovery.
 
