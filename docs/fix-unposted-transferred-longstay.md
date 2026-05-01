@@ -384,18 +384,24 @@ WHERE g.id IN (SELECT id FROM _bkp_unposted_guests_2026_04_30)
 ORDER BY g.id;
 ```
 
-### Expected — 5 rows
+### Expected — 5 rows (after STEP 9 — all 5 fixed regardless of checkout state)
 
 | id | name | room | static_amount | static_room_amount | cd_static_amount | check_in_tx_payable | transfer_report_new_amount | is_check_out |
 |----|------|------|---------------|--------------------|--------------------|---------------------|----------------------------|--------------|
-| 15219 | Leonardo charcos | 30 | 200 | 0.00 | 200 | 0 | **1600.00** | 1 |
-| 15592 | Wilfredo Zambo | 33 | **1800** | **1600.00** | **1800** | **1600** | **1600.00** | 0 |
-| 15593 | Michael D. Caores | 4A | **1600** | **1400.00** | **1600** | **1400** | **1400.00** | 0 |
-| 15615 | Jonalyn carreon | 15 | **2000** | **1800.00** | **2000** | **1800** | **1800.00** | 0 |
-| 15652 | Kenneth john besas | 252 | **1800** | **1600.00** | **1800** | **1600** | **1600.00** | 0 |
+| 15219 | Leonardo charcos | 30 | **1800** | **1600.00** | **1800** | **1600** | **1600.00** | 1 |
+| 15592 | Wilfredo Zambo | 33 | **1800** | **1600.00** | **1800** | **1600** | **1600.00** | 1 |
+| 15593 | Michael D. Caores | 4A | **1600** | **1400.00** | **1600** | **1400** | **1400.00** | 1 |
+| 15615 | Jonalyn carreon | 15 | **2000** | **1800.00** | **2000** | **1800** | **1800.00** | 1 |
+| 15652 | Kenneth john besas | 252 | **1800** | **1600.00** | **1800** | **1600** | **1600.00** | 1 |
 
-After this step, reload the **Sales Report** for April 29 AM in the app — the
-Check In rows for the 4 active guests show their correct room amount instead of ₱0.
+> `is_check_out` values reflect the latest production state — most/all
+> guests are now checked out by the time you run the recovery. The actual
+> values of `is_check_out` don't matter to STEP 9, which fixes records
+> regardless. If a guest is still active when you run it, their column
+> will show 0 instead of 1 — that's still correct.
+
+After this step, reload the **Sales Report** for April 28–29 AM in the app —
+the Check In rows for all 5 guests show their correct room amount instead of ₱0.
 
 ---
 
