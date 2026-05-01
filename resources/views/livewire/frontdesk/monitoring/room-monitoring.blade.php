@@ -436,22 +436,39 @@
               @php
                 $guest = $room->latestCheckInDetail?->guest;
                 $checkInDetail = $room->latestCheckInDetail;
+                $checkOutAt = $checkInDetail?->check_out_at ? \Carbon\Carbon::parse($checkInDetail->check_out_at) : null;
+                $checkInAt = $checkInDetail?->check_in_at ? \Carbon\Carbon::parse($checkInDetail->check_in_at) : null;
+                $minutesPastDue = $checkOutAt ? (int) max(0, $checkOutAt->diffInMinutes(now(), false)) : 0;
+                $minutesUntilDue = $checkOutAt ? (int) max(0, now()->diffInMinutes($checkOutAt, false)) : 0;
+                $isOverdue = $minutesPastDue > 0;
+                $isUrgent = $isOverdue || ($minutesUntilDue > 0 && $minutesUntilDue <= 15);
               @endphp
               @if($guest && $checkInDetail)
               <li class="transition duration-200 ease-in-out hover:bg-blue-50">
-                <div class="flex items-center justify-between px-4 py-3">
+                <div class="flex items-center justify-between px-4 py-2">
                   <div class="flex items-center min-w-0 flex-1">
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-semibold text-blue-600 uppercase">
                         {{ $guest->name }}
                         <span class="text-gray-400 font-normal">(RM #{{ $room->number }})</span>
                       </p>
-                      <p class="flex items-center text-xs text-blue-500 mt-0.5">
-                        <svg class="mr-1 w-3.5 h-3.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <p class="flex items-center flex-wrap text-xs text-blue-500 mt-0.5 gap-x-1"
+                         title="@if($checkInAt)Checked in {{ $checkInAt->format('M d h:i A') }} · @endif@if($checkOutAt)due {{ $checkOutAt->format('M d h:i A') }}@endif">
+                        <svg class="mr-0.5 w-3.5 h-3.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
                           <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
                         </svg>
-                        {{ $guest->qr_code }}
+                        <span>{{ $guest->qr_code }}</span>
+                        @if ($checkOutAt)
+                          <span class="text-gray-300">·</span>
+                          <span class="{{ $isOverdue ? 'text-red-600 font-semibold' : ($isUrgent ? 'text-amber-600 font-medium' : 'text-gray-400') }}">
+                            @if ($isOverdue)
+                              {{ $minutesPastDue }}m overdue
+                            @else
+                              due in {{ $minutesUntilDue }}m
+                            @endif
+                          </span>
+                        @endif
                       </p>
                     </div>
                   </div>
