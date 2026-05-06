@@ -15,9 +15,8 @@
       {{-- <h1 class="text-6xl text-center font-bold text-gray-700 mt-5">SCAN QR CODE (CHECK-OUT)</h1> --}}
   </div>
   <div class="flex justify-center mt-16">
-      <input wire:model="qr_code" type="text" id="qr_code" class="text-center p-4 text-2xl focus:outline-none w-full mx-14 rounded-md" autofocus autocomplete="off" />
+      <input wire:model="qr_code" type="text" id="qr_code" class="text-center p-4 text-2xl focus:outline-none w-full mx-14 rounded-md border-2 border-gray-300 focus:border-blue-500" placeholder="Scan QR Code Here" autofocus autocomplete="off" />
   </div>
-  <small  class="flex justify-center mt-3 font-medium text-red-600">*Input QR Code Here*</small>
 </div>
 
 <div class="fixed bottom-20 right-0 left-0 px-4">
