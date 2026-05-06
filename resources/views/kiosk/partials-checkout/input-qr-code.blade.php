@@ -2,17 +2,7 @@
   <div class="flex items-end justify-between">
     <div>
       <h1 class="font-bold text-red-600">CHECK-OUT</h1>
-      <h1 class="text-3xl uppercase font-extrabold text-gray-600">Input QR Code</h1>
-    </div>
-    <div>
-        <button x-on:click="step--" wire:click="backRoom"
-        class="bg-gray-50 outline-blue-500 border border-blue-500 p-2 px-4 flex space-x-1 rounded-full">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-            stroke="currentColor" class="w-6 text-blue-500 h-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
-          </svg>
-          <span class="font-semibold text-blue-500 uppercase">Back</span>
-        </button>
+      <h1 class="text-3xl uppercase font-extrabold text-gray-600">Scan QR Code</h1>
     </div>
   </div>
 <div class="mt-5">
@@ -30,27 +20,27 @@
   <small  class="flex justify-center mt-3 font-medium text-red-600">*Input QR Code Here*</small>
 </div>
 
-<div class="fixed bottom-20 right-0 left-0">
+<div class="fixed bottom-20 right-0 left-0 px-4">
   <div class="flex justify-center">
     @if ($qr_code)
-     <button 
+     <button
            wire:click="validateQR"
-          class="font-medium px-8 py-3 text-white bg-green-600 rounded-2xl flex items-center gap-2">
-          
-          NEXT
-          
-          <svg xmlns="http://www.w3.org/2000/svg" 
-              class="w-14 h-14" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor">
+           wire:loading.attr="disabled"
+           wire:loading.class="opacity-50 cursor-not-allowed"
+          class="font-bold text-2xl px-12 py-5 text-white bg-green-600 hover:bg-green-700 active:bg-green-800 rounded-2xl flex items-center justify-center gap-3 min-w-[200px] shadow-lg transition-all">
+          <span wire:loading.remove wire:target="validateQR">NEXT</span>
+          <span wire:loading wire:target="validateQR">LOADING...</span>
+          <svg xmlns="http://www.w3.org/2000/svg"
+              class="w-8 h-8"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              wire:loading.remove
+              wire:target="validateQR">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>
-
       </button>
-      {{-- <x-button label="NEXT" wire:click="validateQR" lg class="font-medium " right-icon="chevron-double-right"
-        spinner green /> --}}
     @endif
   </div>
 </div>

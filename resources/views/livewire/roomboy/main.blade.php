@@ -17,7 +17,7 @@
                             <th class="px-2 py-2 text-center font-medium hidden sm:table-cell">FLOOR #</th>
                             <th class="px-2 py-2 text-center font-medium">NOTE</th>
                             <th class="px-2 py-2 text-center font-medium hidden md:table-cell">CHECKOUT TIME</th>
-                            <th class="px-2 py-2 text-center font-medium">TIME TO CLEAN</th>
+                            <th class="px-2 py-2 text-center font-medium">ELAPSED TIME</th>
                             <th class="px-2 py-2 text-center font-medium">ACTION</th>
                         </tr>
                     </thead>
@@ -26,13 +26,6 @@
                             @php
                                 $checkoutTime = \Carbon\Carbon::parse($room->check_out_time);
                                 $checkoutTimestamp = $checkoutTime->timestamp * 1000;
-
-                                // Calculate deadline: ALWAYS checkout + 4 hours
-                                $deadline = $checkoutTime->copy()->addHours(4);
-                                $deadlineTimestamp = $deadline->timestamp * 1000;
-                                $isExpired = $deadline->isPast();
-
-                                $hoursAgo = now()->diffInHours($checkoutTime);
                                 $rowBg = $index % 2 == 0 ? 'bg-white' : 'bg-gray-50';
                             @endphp
                             <tr wire:key="uncleaned-{{ $room->id }}" class="{{ $rowBg }}">
@@ -51,35 +44,27 @@
                                 </td>
                                 <td class="px-2 py-2 text-center text-gray-800 hidden md:table-cell">{{ $checkoutTime->format('g:i A') }}</td>
 
-                                {{-- TIME TO CLEAN: Real-time countdown --}}
+                                {{-- ELAPSED TIME: Count UP from checkout --}}
                                 <td class="px-2 py-2 text-center">
-                                    @if ($isExpired)
-                                        <span class="font-mono text-sm text-red-600 font-bold">0:00:00</span>
-                                    @else
-                                        <div x-data="{
-                                            deadline: {{ $deadlineTimestamp }},
-                                            serverNow: {{ $serverNow }},
-                                            offset: {{ $serverNow }} - Date.now(),
-                                            now: {{ $serverNow }},
-                                            init() { var self = this; setInterval(function() { self.now = Date.now() + self.offset; }, 1000); },
-                                            get remaining() {
-                                                var diff = Math.max(0, this.deadline - this.now);
-                                                if (diff <= 0) return '0:00:00';
-                                                // Cap at 4 hours maximum (14400000 ms)
-                                                if (diff > 14400000) diff = 14400000;
-                                                var h = Math.floor(diff / 3600000);
-                                                var m = Math.floor((diff % 3600000) / 60000);
-                                                var s = Math.floor((diff % 60000) / 1000);
-                                                return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-                                            },
-                                            get isLow() { return (this.deadline - this.now) < 1800000; },
-                                            get isExpired() { return (this.deadline - this.now) <= 0; }
-                                        }">
-                                            <span class="font-mono text-sm"
-                                                :class="isExpired ? 'text-red-600 font-bold' : (isLow ? 'text-red-600 font-semibold' : 'text-gray-700')"
-                                                x-text="remaining"></span>
-                                        </div>
-                                    @endif
+                                    <div x-data="{
+                                        checkout: {{ $checkoutTimestamp }},
+                                        serverNow: {{ $serverNow }},
+                                        offset: {{ $serverNow }} - Date.now(),
+                                        now: {{ $serverNow }},
+                                        init() { var self = this; setInterval(function() { self.now = Date.now() + self.offset; }, 1000); },
+                                        get elapsed() {
+                                            var diff = Math.max(0, this.now - this.checkout);
+                                            var h = Math.floor(diff / 3600000);
+                                            var m = Math.floor((diff % 3600000) / 60000);
+                                            var s = Math.floor((diff % 60000) / 1000);
+                                            return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+                                        },
+                                        get isOvertime() { return (this.now - this.checkout) >= 14400000; }
+                                    }">
+                                        <span class="font-mono text-sm"
+                                            :class="isOvertime ? 'text-red-600 font-bold' : 'text-gray-700'"
+                                            x-text="elapsed"></span>
+                                    </div>
                                 </td>
 
                                 <td class="px-2 py-2 text-center">
