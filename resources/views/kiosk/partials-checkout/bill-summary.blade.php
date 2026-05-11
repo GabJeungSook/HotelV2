@@ -6,7 +6,7 @@
     </div>
 
     <div>
-      <button x-on:click="step--" wire:click="backToQR"
+      <button x-on:click="step--" wire:click="backToRoom"
         class="bg-gray-50 outline-blue-500 border-2 border-blue-500 p-4 px-8 flex space-x-2 rounded-full">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor" class="w-8 text-blue-500 h-8">
@@ -46,8 +46,8 @@
                     </div>
 
                     <div class="flex justify-between text-xl">
-                      <dt class="font-medium">QR Code</dt>
-                      <dd class="font-semibold">{{ $guest->qr_code ?? 'N/A' }}</dd>
+                      <dt class="font-medium">Room Number</dt>
+                      <dd class="font-semibold">{{ $checkInDetail->room->number ?? 'N/A' }}</dd>
                     </div>
 
                     <div class="flex justify-between text-xl">

@@ -12,7 +12,7 @@ class CheckOut extends Component
     use Actions;
     public $steps;
     public $room_id;
-    public $qr_code;
+    public $room_number;
     public $guest;
     public $checkInDetail;
     public $extension_hours;
@@ -30,30 +30,28 @@ class CheckOut extends Component
         return view('livewire.kiosk.check-out');
     }
 
-    public function validateQR()
+    public function validateRoom()
     {
         $this->validate([
-            'qr_code' => 'required',
+            'room_number' => 'required',
         ]);
 
-        // Find active check-in by QR code (handles duplicate QR codes from different stays)
+        // Find active check-in by room number
         $checkInDetail = CheckinDetail::where('is_check_out', false)
-            ->whereHas('guest', function ($q) {
-                $q->where('qr_code', $this->qr_code)
-                  ->where('branch_id', auth()->user()->branch_id);
-            })
             ->whereHas('room', function ($q) {
-                $q->where('status', 'Occupied');
+                $q->where('number', $this->room_number)
+                  ->where('status', 'Occupied')
+                  ->where('branch_id', auth()->user()->branch_id);
             })
             ->with(['room', 'guest', 'extendedGuestReports', 'transactions'])
             ->first();
 
         if (!$checkInDetail) {
             $this->dialog()->error(
-                $title = 'Invalid QR Code',
-                $description = 'No active check-in found for this QR code.'
+                $title = 'Invalid Room Number',
+                $description = 'No active check-in found for this room number.'
             );
-            $this->qr_code = null;
+            $this->room_number = null;
             return;
         }
 
@@ -64,7 +62,7 @@ class CheckOut extends Component
                 $title = 'Already Checked Out',
                 $description = 'This guest has already completed kiosk check-out.'
             );
-            $this->qr_code = null;
+            $this->room_number = null;
             return;
         }
 
@@ -86,9 +84,9 @@ class CheckOut extends Component
         return redirect()->route('kiosk.check-out-success');
     }
 
-    public function backToQR()
+    public function backToRoom()
     {
-        $this->qr_code = null;
+        $this->room_number = null;
         $this->guest = null;
         $this->checkInDetail = null;
         $this->steps = 1;
