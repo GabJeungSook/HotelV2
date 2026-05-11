@@ -14,4 +14,9 @@ class MenuCategory extends Model
     {
         return $this->hasMany(Menu::class);
     }
+
+    public function parentCategory()
+    {
+        return $this->belongsTo(ParentCategory::class);
+    }
 }

@@ -19,4 +19,9 @@ class FrontdeskCategory extends Model
     {
         return $this->belongsTo(Branch::class);
     }
+
+    public function parentCategory()
+    {
+        return $this->belongsTo(ParentCategory::class);
+    }
 }

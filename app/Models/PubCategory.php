@@ -14,4 +14,9 @@ class PubCategory extends Model
     {
         return $this->hasMany(PubMenu::class);
     }
+
+    public function parentCategory()
+    {
+        return $this->belongsTo(ParentCategory::class);
+    }
 }
