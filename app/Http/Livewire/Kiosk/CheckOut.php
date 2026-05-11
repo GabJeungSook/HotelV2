@@ -13,6 +13,7 @@ class CheckOut extends Component
     public $steps;
     public $room_id;
     public $room_number;
+    public $qr_code;
     public $guest;
     public $checkInDetail;
     public $extension_hours;
@@ -43,7 +44,6 @@ class CheckOut extends Component
                   ->where('status', 'Occupied')
                   ->where('branch_id', auth()->user()->branch_id);
             })
-            ->with(['room', 'guest', 'extendedGuestReports', 'transactions'])
             ->first();
 
         if (!$checkInDetail) {
@@ -55,6 +55,37 @@ class CheckOut extends Component
             return;
         }
 
+        $this->steps = 2;
+    }
+
+    public function validateQR()
+    {
+        $this->validate([
+            'qr_code' => 'required',
+        ]);
+
+        // Find active check-in by QR code and room number
+        $checkInDetail = CheckinDetail::where('is_check_out', false)
+            ->whereHas('guest', function ($q) {
+                $q->where('qr_code', $this->qr_code)
+                  ->where('branch_id', auth()->user()->branch_id);
+            })
+            ->whereHas('room', function ($q) {
+                $q->where('number', $this->room_number)
+                  ->where('status', 'Occupied');
+            })
+            ->with(['room', 'guest', 'extendedGuestReports', 'transactions'])
+            ->first();
+
+        if (!$checkInDetail) {
+            $this->dialog()->error(
+                $title = 'Invalid QR Code',
+                $description = 'No active check-in found for this QR code.'
+            );
+            $this->qr_code = null;
+            return;
+        }
+
         $guest = $checkInDetail->guest;
 
         if ($guest->has_kiosk_check_out) {
@@ -62,7 +93,7 @@ class CheckOut extends Component
                 $title = 'Already Checked Out',
                 $description = 'This guest has already completed kiosk check-out.'
             );
-            $this->room_number = null;
+            $this->qr_code = null;
             return;
         }
 
@@ -73,7 +104,7 @@ class CheckOut extends Component
         $this->room_amount = $checkInDetail->transactions->where('transaction_type_id', 1)->sum('payable_amount');
         $this->total_amount = $checkInDetail->transactions->whereNotIn('transaction_type_id', [1, 2, 5])->sum('payable_amount');
         $this->total_deposit = $checkInDetail->transactions()->where('transaction_type_id', 2)->sum('payable_amount');
-        $this->steps = 2;
+        $this->steps = 3;
     }
 
     public function confirmCheckOut()
@@ -87,8 +118,17 @@ class CheckOut extends Component
     public function backToRoom()
     {
         $this->room_number = null;
+        $this->qr_code = null;
         $this->guest = null;
         $this->checkInDetail = null;
         $this->steps = 1;
+    }
+
+    public function backToQR()
+    {
+        $this->qr_code = null;
+        $this->guest = null;
+        $this->checkInDetail = null;
+        $this->steps = 2;
     }
 }

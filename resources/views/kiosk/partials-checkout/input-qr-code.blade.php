@@ -2,7 +2,17 @@
     <div class="flex items-end justify-between">
         <div>
             <h1 class="font-bold text-red-600">CHECK-OUT</h1>
-            <h1 class="text-3xl uppercase font-extrabold text-gray-600">Enter Room Number</h1>
+            <h1 class="text-3xl uppercase font-extrabold text-gray-600">Scan QR Code</h1>
+        </div>
+        <div>
+            <button wire:click="backToRoom"
+                class="bg-gray-50 outline-blue-500 border-2 border-blue-500 p-4 px-8 flex space-x-2 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-8 text-blue-500 h-8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
+                </svg>
+                <span class="font-semibold text-blue-500 uppercase text-xl">Back</span>
+            </button>
         </div>
     </div>
     <div class="mt-5">
@@ -10,26 +20,28 @@
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                 stroke="currentColor" class="h-24 w-24">
                 <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                    d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
             </svg>
         </div>
         <div class="flex justify-center mt-16">
-            <input wire:model="room_number" type="text" id="room_number"
+            <input wire:model="qr_code" type="text" id="qr_code"
                 class="text-center p-4 text-2xl focus:outline-none w-full mx-14 rounded-md border-2 border-gray-300 focus:border-blue-500"
-                placeholder="Enter Room Number" autofocus autocomplete="off" />
+                placeholder="Input QR Code Here" autofocus autocomplete="off" />
         </div>
     </div>
 
     <div class="fixed bottom-20 right-0 left-0 px-4">
         <div class="flex justify-center">
-            @if ($room_number)
-                <button wire:click="validateRoom" wire:loading.attr="disabled"
+            @if ($qr_code)
+                <button wire:click="validateQR" wire:loading.attr="disabled"
                     wire:loading.class="opacity-50 cursor-not-allowed"
                     class="font-bold text-2xl px-12 py-5 text-white bg-green-600 hover:bg-green-700 active:bg-green-800 rounded-2xl flex items-center justify-center gap-3 min-w-[200px] shadow-lg transition-all">
-                    <span wire:loading.remove wire:target="validateRoom">NEXT</span>
-                    <span wire:loading wire:target="validateRoom">LOADING...</span>
+                    <span wire:loading.remove wire:target="validateQR">NEXT</span>
+                    <span wire:loading wire:target="validateQR">LOADING...</span>
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor" wire:loading.remove wire:target="validateRoom">
+                        stroke="currentColor" wire:loading.remove wire:target="validateQR">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
@@ -39,9 +51,9 @@
     </div>
 
     <script>
-        const roomInput = document.getElementById('room_number');
-        roomInput.addEventListener('blur', () => {
-            roomInput.focus();
+        const qrInput = document.getElementById('qr_code');
+        qrInput.addEventListener('blur', () => {
+            qrInput.focus();
         });
     </script>
 
