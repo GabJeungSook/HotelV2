@@ -160,11 +160,19 @@ class BigBossReport extends Component
             ->whereBetween('created_at', [$timeIn, $timeOut])
             ->get();
 
+        // POS cash transactions (no room charge) — these have null checkin_detail_id
+        $cashPosTxns = Transaction::query()
+            ->where('branch_id', $branchId)
+            ->where('transaction_type_id', 9)
+            ->whereNull('checkin_detail_id')
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->get();
+
         // ===== FRONTDESK CHART (build first so summary can use its subtotals) =====
         $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn, $timeOut, $menuParentMap);
 
         // ===== SUMMARY TABLE =====
-        $summaryRows = $this->buildSummaryRows($floors, $transactions, $occupyingDetails, $timeIn, $timeOut, $frontdeskChart, $menuParentMap);
+        $summaryRows = $this->buildSummaryRows($floors, $transactions, $occupyingDetails, $timeIn, $timeOut, $frontdeskChart, $menuParentMap, $cashPosTxns);
 
         // ===== STATISTICS =====
         $totalNewGuest = NewGuestReport::where('branch_id', $branchId)
@@ -235,7 +243,7 @@ class BigBossReport extends Component
         ];
     }
 
-    private function buildSummaryRows($floors, $transactions, $occupyingDetails = null, Carbon $timeIn = null, Carbon $timeOut = null, array $frontdeskChart = [], array $menuParentMap = []): array
+    private function buildSummaryRows($floors, $transactions, $occupyingDetails = null, Carbon $timeIn = null, Carbon $timeOut = null, array $frontdeskChart = [], array $menuParentMap = [], $cashPosTxns = null): array
     {
         $categories = [
             'ROOM' => [1],            // Check In
@@ -271,18 +279,24 @@ class BigBossReport extends Component
                 $row['total'] += $amount;
                 $grossPerFloor[$floor->id] += $amount;
             }
-            // NO ROOM column (transactions without a floor match)
+            // NO ROOM column (room-charged transactions without a floor match + POS cash transactions)
             $noRoomTxns = $transactions
                 ->whereIn('transaction_type_id', $typeIds)
                 ->whereNotIn('floor_id', $floors->pluck('id')->toArray());
 
             if ($label === 'FOODS') {
                 $noRoomTxns = $noRoomTxns->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') !== 'DRINKS');
+                // Add POS cash food transactions
+                $cashFoods = $cashPosTxns ? $cashPosTxns->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') !== 'DRINKS') : collect();
+                $noRoom = (float) $noRoomTxns->sum('payable_amount') + (float) $cashFoods->sum('payable_amount');
             } elseif ($label === 'DRINKS') {
                 $noRoomTxns = $noRoomTxns->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') === 'DRINKS');
+                // Add POS cash drink transactions
+                $cashDrinks = $cashPosTxns ? $cashPosTxns->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') === 'DRINKS') : collect();
+                $noRoom = (float) $noRoomTxns->sum('payable_amount') + (float) $cashDrinks->sum('payable_amount');
+            } else {
+                $noRoom = (float) $noRoomTxns->sum('payable_amount');
             }
-
-            $noRoom = (float) $noRoomTxns->sum('payable_amount');
             $row['no_room'] = $noRoom;
             $row['total'] += $noRoom;
             $grossTotal += $row['total'];
