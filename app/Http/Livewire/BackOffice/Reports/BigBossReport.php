@@ -14,6 +14,8 @@ use App\Models\CleaningHistory;
 use App\Models\Expense;
 use App\Models\PaymentOnShort;
 use App\Models\Branch;
+use App\Models\FrontdeskMenu;
+use App\Models\StockMovement;
 use Carbon\Carbon;
 
 class BigBossReport extends Component
@@ -102,6 +104,8 @@ class BigBossReport extends Component
             'frontdeskChart' => [],
             'roomCleaningChart' => [],
             'roomboyLogs' => [],
+            'stocksInventory' => [],
+            'stocksSummary' => [],
         ];
 
         if (!$session) {
@@ -200,6 +204,9 @@ class BigBossReport extends Component
         // ===== ROOM BOY ACTIVITY LOGS =====
         $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories, $occupyingDetails, $timeIn, $timeOut);
 
+        // ===== STOCKS INVENTORY =====
+        $stocksData = $this->stocksInventoryRows($timeIn, $timeOut, $branchId);
+
         return [
             'floors' => $floors,
             'summaryRows' => $summaryRows,
@@ -216,6 +223,8 @@ class BigBossReport extends Component
             'frontdeskChart' => $frontdeskChart,
             'roomCleaningChart' => $roomCleaningChart,
             'roomboyLogs' => $roomboyLogs,
+            'stocksInventory' => $stocksData['groups'],
+            'stocksSummary' => $stocksData['summary'],
         ];
     }
 
@@ -742,6 +751,108 @@ class BigBossReport extends Component
         }
 
         return $logs;
+    }
+
+    private function stocksInventoryRows(Carbon $timeIn, Carbon $timeOut, int $branchId): array
+    {
+        $touched = StockMovement::where('branch_id', $branchId)
+            ->where('source_type', StockMovement::SOURCE_FRONTDESK)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->select('source_type', 'inventory_id', 'menu_id')
+            ->distinct()
+            ->get();
+
+        if ($touched->isEmpty()) {
+            return ['groups' => [], 'summary' => []];
+        }
+
+        $menuIds = $touched->pluck('menu_id')->unique()->filter()->values();
+        $menus = FrontdeskMenu::whereIn('id', $menuIds)
+            ->with(['frontdeskCategory.parentCategory'])
+            ->get()
+            ->keyBy('id');
+
+        $items = [];
+        foreach ($touched as $key) {
+            $menu = $menus[$key->menu_id] ?? null;
+            if (!$menu) continue;
+
+            $category       = $menu->frontdeskCategory;
+            $parentCategory = $category?->parentCategory;
+            $parentName     = $parentCategory?->name ?? 'UNCATEGORIZED';
+            $categoryName   = $category?->name ?? 'UNCATEGORIZED';
+
+            // Opening balance
+            $previous = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
+                ->where('inventory_id', $key->inventory_id)
+                ->where('created_at', '<', $timeIn)
+                ->orderByDesc('created_at')->orderByDesc('id')
+                ->first();
+            $opening = $previous ? (float) $previous->balance_after : 0.0;
+
+            $movements = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
+                ->where('inventory_id', $key->inventory_id)
+                ->whereBetween('created_at', [$timeIn, $timeOut])
+                ->orderBy('id')
+                ->get();
+
+            $inQty  = (float) $movements->whereIn('type', [StockMovement::TYPE_IN, StockMovement::TYPE_VOID])->sum('quantity');
+            $outQty = (float) $movements->where('type', StockMovement::TYPE_OUT)->sum('quantity');
+            $closing = $movements->isNotEmpty() ? (float) $movements->last()->balance_after : $opening;
+
+            $price      = (float) $menu->price;
+            $stockSold  = $outQty;
+            $salesTotal = $stockSold * $price;
+
+            $kitchenOut     = $inQty;
+            $kitchenOpening = $opening + $kitchenOut;
+            $kitchenClosing = $kitchenOpening - $kitchenOut;
+
+            $items[] = [
+                'parent_category' => strtoupper($parentName),
+                'category'        => strtoupper($categoryName),
+                'name'            => $menu->name,
+                'price'           => $price,
+                'kitchen'         => ['opening' => $kitchenOpening, 'in' => 0, 'out' => $kitchenOut, 'closing' => $kitchenClosing],
+                'frontdesk'       => ['opening' => $opening, 'in' => $inQty, 'out' => $outQty, 'closing' => $closing],
+                'total_remaining' => $closing,
+                'combo_ded'       => 0,
+                'stock_sold'      => $stockSold,
+                'sales_total'     => $salesTotal,
+            ];
+        }
+
+        $groups = [];
+        foreach ($items as $item) {
+            $pc  = $item['parent_category'];
+            $cat = $item['category'];
+            if (!isset($groups[$pc])) {
+                $groups[$pc] = ['categories' => [], 'total_sales' => 0];
+            }
+            if (!isset($groups[$pc]['categories'][$cat])) {
+                $groups[$pc]['categories'][$cat] = ['items' => []];
+            }
+            $groups[$pc]['categories'][$cat]['items'][] = $item;
+            $groups[$pc]['total_sales'] += $item['sales_total'];
+        }
+
+        foreach ($groups as &$group) {
+            ksort($group['categories']);
+            foreach ($group['categories'] as &$cat) {
+                usort($cat['items'], fn($a, $b) => strcasecmp($a['name'], $b['name']));
+            }
+        }
+        unset($group, $cat);
+
+        $summary = [];
+        $grandTotal = 0;
+        foreach ($groups as $parentName => $group) {
+            $summary[] = ['label' => "TOTAL {$parentName} SALES", 'amount' => $group['total_sales']];
+            $grandTotal += $group['total_sales'];
+        }
+        $summary[] = ['label' => 'TOTAL SALES', 'amount' => $grandTotal];
+
+        return ['groups' => $groups, 'summary' => $summary];
     }
 
     private function loadAvailableShiftSessions(): void

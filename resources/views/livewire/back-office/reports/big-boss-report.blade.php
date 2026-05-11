@@ -321,6 +321,90 @@
 
         </div>
 
+        {{-- ==================== STOCKS INVENTORY ==================== --}}
+        <div class="mb-6">
+            <div class="text-center my-6">
+                <h3 class="text-xl font-bold text-gray-500">STOCKS INVENTORY</h3>
+            </div>
+
+            @if(empty($stocksInventory))
+                <p class="text-sm text-gray-500 px-3 py-4">No inventory movement in this shift.</p>
+            @else
+                @foreach($stocksInventory as $parentName => $group)
+                    <table class="w-full text-xs border-collapse mt-4" style="font-family: 'Courier New', monospace;">
+                        <tr>
+                            <td colspan="14" class="bg-gray-400 text-black font-bold px-2 py-1 border border-gray-500">{{ $parentName }}</td>
+                        </tr>
+                        <tr>
+                            <td rowspan="3" class="border border-gray-400 px-1 py-1 font-bold">ITEM NAME</td>
+                            <td rowspan="3" class="border border-gray-400 px-1 py-1 font-bold text-center">PRICE</td>
+                            <td colspan="8" class="border border-gray-400 px-1 py-1 font-bold text-center bg-gray-300">STOCKS FLOW</td>
+                            <td rowspan="3" class="border border-gray-400 px-1 py-1 font-bold text-center bg-green-100">TOTAL<br>STOCKS<br>REM.</td>
+                            <td rowspan="3" class="border border-gray-400 px-1 py-1 font-bold text-center bg-yellow-100">COMBO<br>DED.</td>
+                            <td rowspan="3" class="border border-gray-400 px-1 py-1 font-bold text-center bg-cyan-100">STOCK<br>SOLD</td>
+                            <td rowspan="3" class="border border-gray-400 px-1 py-1 font-bold text-center">TOTAL</td>
+                        </tr>
+                        <tr>
+                            <td colspan="4" class="border border-gray-400 px-1 py-1 font-bold text-center bg-yellow-100">KITCHEN</td>
+                            <td colspan="4" class="border border-gray-400 px-1 py-1 font-bold text-center bg-gray-200">FRONT DESK</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-400 px-1 py-0.5 font-bold text-center bg-yellow-100">BEGIN.</td>
+                            <td class="border border-gray-400 px-1 py-0.5 font-bold text-center bg-yellow-100">IN</td>
+                            <td class="border border-gray-400 px-1 py-0.5 font-bold text-center bg-yellow-100">OUT</td>
+                            <td class="border border-gray-400 px-1 py-0.5 font-bold text-center bg-yellow-100">END</td>
+                            <td class="border border-gray-400 px-1 py-0.5 font-bold text-center bg-gray-200">BEGIN.</td>
+                            <td class="border border-gray-400 px-1 py-0.5 font-bold text-center bg-gray-200">IN</td>
+                            <td class="border border-gray-400 px-1 py-0.5 font-bold text-center bg-gray-200">OUT</td>
+                            <td class="border border-gray-400 px-1 py-0.5 font-bold text-center bg-gray-200">END</td>
+                        </tr>
+
+                        @foreach($group['categories'] as $categoryName => $category)
+                            <tr>
+                                <td class="border border-gray-400 px-1 py-1 font-bold text-left" colspan="14">{{ $categoryName }}</td>
+                            </tr>
+                            @foreach($category['items'] as $item)
+                                <tr>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-left">&nbsp;&nbsp;&raquo; {{ strtolower($item['name']) }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-right">{{ number_format($item['price'], 2) }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-yellow-50">{{ $item['kitchen']['opening'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-yellow-50">{{ $item['kitchen']['in'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-yellow-50">{{ $item['kitchen']['out'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-yellow-50">{{ $item['kitchen']['closing'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-gray-50">{{ $item['frontdesk']['opening'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-gray-50">{{ $item['frontdesk']['in'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-gray-50">{{ $item['frontdesk']['out'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-gray-50">{{ $item['frontdesk']['closing'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-green-50 font-semibold">{{ $item['total_remaining'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-yellow-50">{{ $item['combo_ded'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-center bg-cyan-50">{{ $item['stock_sold'] ?: '' }}</td>
+                                    <td class="border border-gray-400 px-1 py-0.5 text-right font-bold">{{ $item['sales_total'] > 0 ? number_format($item['sales_total'], 2) : '' }}</td>
+                                </tr>
+                            @endforeach
+                        @endforeach
+
+                        <tr>
+                            <td colspan="12" class="border border-gray-500 px-2 py-1 text-right font-bold bg-black text-white">TOTAL {{ $parentName }} SALES:</td>
+                            <td class="border border-gray-500 px-1 py-1 text-right bg-black text-white"></td>
+                            <td class="border border-gray-500 px-1 py-1 text-right font-bold bg-black text-white">{{ number_format($group['total_sales'], 2) }}</td>
+                        </tr>
+                    </table>
+                @endforeach
+
+                <table class="w-full text-sm border-collapse mt-6" style="font-family: 'Courier New', monospace;">
+                    <tr>
+                        <td colspan="14" class="bg-gray-300 font-bold px-2 py-1 border border-gray-500 text-center">SUMMARY</td>
+                    </tr>
+                    @foreach($stocksSummary as $line)
+                        <tr>
+                            <td colspan="13" class="border border-gray-400 px-2 py-2 text-right font-bold {{ $line['label'] === 'TOTAL SALES' ? 'text-lg' : '' }}">{{ $line['label'] }}</td>
+                            <td class="border border-gray-400 px-2 py-2 text-right font-bold {{ $line['label'] === 'TOTAL SALES' ? 'text-xl' : 'text-lg' }}">{{ number_format($line['amount'], 2) }}</td>
+                        </tr>
+                    @endforeach
+                </table>
+            @endif
+        </div>
+
         {{-- ==================== REMINDERS SA ROOMBOY ==================== --}}
         <div class="mb-6 border-2 border-red-500 rounded p-5">
             <h3 class="text-base font-bold text-red-600 mb-3">REMINDERS SA ROOMBOY</h3>

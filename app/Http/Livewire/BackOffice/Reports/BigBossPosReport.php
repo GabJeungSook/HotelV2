@@ -3,11 +3,13 @@
 namespace App\Http\Livewire\BackOffice\Reports;
 
 use App\Models\Branch;
+use App\Models\FrontdeskCategory;
 use App\Models\FrontdeskInventory;
 use App\Models\FrontdeskMenu;
 use App\Models\Guest;
 use App\Models\Inventory;
 use App\Models\Menu;
+use App\Models\ParentCategory;
 use App\Models\PosOrder;
 use App\Models\PubInventory;
 use App\Models\PubMenu;
@@ -92,16 +94,22 @@ class BigBossPosReport extends Component
     {
         if (!$session) {
             return [
-                'posSales'      => ['orders' => [], 'totals' => $this->emptyPosTotals()],
-                'inventoryRows' => [],
+                'posSales'        => ['orders' => [], 'totals' => $this->emptyPosTotals()],
+                'inventoryRows'   => [],
+                'stocksInventory' => [],
+                'stocksSummary'   => [],
             ];
         }
 
         $branchId = auth()->user()->branch_id;
 
+        $stocksData = $this->stocksInventoryRows($session, $branchId);
+
         return [
-            'posSales'      => $this->posSalesRows($session, $branchId),
-            'inventoryRows' => $this->inventoryRows($session, $branchId),
+            'posSales'        => $this->posSalesRows($session, $branchId),
+            'inventoryRows'   => $this->inventoryRows($session, $branchId),
+            'stocksInventory' => $stocksData['groups'],
+            'stocksSummary'   => $stocksData['summary'],
         ];
     }
 
@@ -221,6 +229,133 @@ class BigBossPosReport extends Component
         });
 
         return $rows;
+    }
+
+    /**
+     * Grouped stocks inventory matching the old Z-read format.
+     * Groups items by parent category (FOODS/DRINKS) → sub-category,
+     * with stock flow, price, sold qty, and sales totals.
+     */
+    public function stocksInventoryRows(array $session, int $branchId): array
+    {
+        $timeIn  = Carbon::parse($session['time_in']);
+        $timeOut = Carbon::parse($session['time_out']);
+
+        $touched = StockMovement::where('branch_id', $branchId)
+            ->where('source_type', StockMovement::SOURCE_FRONTDESK)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->select('source_type', 'inventory_id', 'menu_id')
+            ->distinct()
+            ->get();
+
+        if ($touched->isEmpty()) {
+            return ['groups' => [], 'summary' => []];
+        }
+
+        // Eager-load all needed menus with their categories and parent categories
+        $menuIds = $touched->pluck('menu_id')->unique()->filter()->values();
+        $menus = FrontdeskMenu::whereIn('id', $menuIds)
+            ->with(['frontdeskCategory.parentCategory'])
+            ->get()
+            ->keyBy('id');
+
+        $items = [];
+        foreach ($touched as $key) {
+            $menuId      = $key->menu_id;
+            $inventoryId = $key->inventory_id;
+            $menu        = $menus[$menuId] ?? null;
+
+            if (!$menu) continue;
+
+            $category       = $menu->frontdeskCategory;
+            $parentCategory = $category?->parentCategory;
+            $parentName     = $parentCategory?->name ?? 'UNCATEGORIZED';
+            $categoryName   = $category?->name ?? 'UNCATEGORIZED';
+
+            $opening = $this->openingBalance(StockMovement::SOURCE_FRONTDESK, $inventoryId, $timeIn);
+
+            $movements = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
+                ->where('inventory_id', $inventoryId)
+                ->whereBetween('created_at', [$timeIn, $timeOut])
+                ->orderBy('id')
+                ->get();
+
+            $inQty  = (float) $movements->whereIn('type', [StockMovement::TYPE_IN, StockMovement::TYPE_VOID])->sum('quantity');
+            $outQty = (float) $movements->where('type', StockMovement::TYPE_OUT)->sum('quantity');
+
+            $closing = $movements->isNotEmpty()
+                ? (float) $movements->last()->balance_after
+                : $opening;
+
+            $price      = (float) $menu->price;
+            $stockSold  = $outQty;
+            $salesTotal = $stockSold * $price;
+
+            // Kitchen columns: kitchen OUT = frontdesk IN (items transferred from kitchen)
+            $kitchenOut     = $inQty;
+            $kitchenOpening = $opening + $kitchenOut; // kitchen had these before transferring
+            $kitchenClosing = $kitchenOpening - $kitchenOut;
+
+            $items[] = [
+                'parent_category' => strtoupper($parentName),
+                'category'        => strtoupper($categoryName),
+                'name'            => $menu->name,
+                'price'           => $price,
+                'kitchen'         => [
+                    'opening' => $kitchenOpening,
+                    'in'      => 0,
+                    'out'     => $kitchenOut,
+                    'closing' => $kitchenClosing,
+                ],
+                'frontdesk'       => [
+                    'opening' => $opening,
+                    'in'      => $inQty,
+                    'out'     => $outQty,
+                    'closing' => $closing,
+                ],
+                'total_remaining' => $closing,
+                'combo_ded'       => 0,
+                'stock_sold'      => $stockSold,
+                'sales_total'     => $salesTotal,
+            ];
+        }
+
+        // Group by parent category → sub-category
+        $groups = [];
+        foreach ($items as $item) {
+            $pc  = $item['parent_category'];
+            $cat = $item['category'];
+
+            if (!isset($groups[$pc])) {
+                $groups[$pc] = ['categories' => [], 'total_sales' => 0];
+            }
+            if (!isset($groups[$pc]['categories'][$cat])) {
+                $groups[$pc]['categories'][$cat] = ['items' => []];
+            }
+
+            $groups[$pc]['categories'][$cat]['items'][] = $item;
+            $groups[$pc]['total_sales'] += $item['sales_total'];
+        }
+
+        // Sort categories and items alphabetically
+        foreach ($groups as &$group) {
+            ksort($group['categories']);
+            foreach ($group['categories'] as &$cat) {
+                usort($cat['items'], fn($a, $b) => strcasecmp($a['name'], $b['name']));
+            }
+        }
+        unset($group, $cat);
+
+        // Build summary
+        $summary = [];
+        $grandTotal = 0;
+        foreach ($groups as $parentName => $group) {
+            $summary[] = ['label' => "TOTAL {$parentName} SALES", 'amount' => $group['total_sales']];
+            $grandTotal += $group['total_sales'];
+        }
+        $summary[] = ['label' => 'TOTAL SALES', 'amount' => $grandTotal];
+
+        return ['groups' => $groups, 'summary' => $summary];
     }
 
     private function openingBalance(string $sourceType, ?int $inventoryId, Carbon $timeIn): float
