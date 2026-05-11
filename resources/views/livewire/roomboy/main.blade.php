@@ -28,7 +28,23 @@
                                 $checkoutTimestamp = $checkoutTime->timestamp * 1000;
                                 $rowBg = $index % 2 == 0 ? 'bg-white' : 'bg-gray-50';
                             @endphp
-                            <tr wire:key="uncleaned-{{ $room->id }}" class="{{ $rowBg }}">
+                            <tr wire:key="uncleaned-{{ $room->id }}"
+                                x-data="{
+                                    checkout: {{ $checkoutTimestamp }},
+                                    serverNow: {{ $serverNow }},
+                                    offset: {{ $serverNow }} - Date.now(),
+                                    now: {{ $serverNow }},
+                                    init() { var self = this; setInterval(function() { self.now = Date.now() + self.offset; }, 1000); },
+                                    get elapsed() {
+                                        var diff = Math.max(0, this.now - this.checkout);
+                                        var h = Math.floor(diff / 3600000);
+                                        var m = Math.floor((diff % 3600000) / 60000);
+                                        var s = Math.floor((diff % 60000) / 1000);
+                                        return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+                                    },
+                                    get isOvertime() { return (this.now - this.checkout) >= 14400000; }
+                                }"
+                                :class="isOvertime ? 'bg-red-100' : '{{ $rowBg }}'">
                                 <td class="px-2 py-2 text-center text-gray-600">{{ $index + 1 }}.</td>
                                 <td class="px-2 py-2 text-center font-bold text-gray-900">{{ $room->number }}</td>
                                 <td class="px-2 py-2 text-center text-gray-700 hidden sm:table-cell">{{ $room->floor->number ?? $room->floor_id }}</td>
@@ -46,28 +62,13 @@
 
                                 {{-- ELAPSED TIME: Count UP from checkout --}}
                                 <td class="px-2 py-2 text-center">
-                                    <div x-data="{
-                                        checkout: {{ $checkoutTimestamp }},
-                                        serverNow: {{ $serverNow }},
-                                        offset: {{ $serverNow }} - Date.now(),
-                                        now: {{ $serverNow }},
-                                        init() { var self = this; setInterval(function() { self.now = Date.now() + self.offset; }, 1000); },
-                                        get elapsed() {
-                                            var diff = Math.max(0, this.now - this.checkout);
-                                            var h = Math.floor(diff / 3600000);
-                                            var m = Math.floor((diff % 3600000) / 60000);
-                                            var s = Math.floor((diff % 60000) / 1000);
-                                            return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-                                        },
-                                        get isOvertime() { return (this.now - this.checkout) >= 14400000; }
-                                    }">
-                                        <span class="font-mono text-sm"
-                                            :class="isOvertime ? 'text-red-600 font-bold' : 'text-gray-700'"
-                                            x-text="elapsed"></span>
-                                    </div>
+                                    <span class="font-mono text-sm"
+                                        :class="isOvertime ? 'text-red-600 font-bold' : 'text-gray-700'"
+                                        x-text="elapsed"></span>
                                 </td>
 
                                 <td class="px-2 py-2 text-center">
+                                    @if($index === 0)
                                     <button
                                         wire:loading.attr="disabled"
                                         wire:target="startCleaning,finishCleaning"
@@ -85,6 +86,15 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
                                     </button>
+                                    @else
+                                    <button disabled
+                                        class="inline-flex items-center gap-1 bg-gray-300 text-white px-2 py-1.5 rounded text-xs font-medium opacity-50 cursor-not-allowed whitespace-nowrap">
+                                        Start Cleaning
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                                        </svg>
+                                    </button>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

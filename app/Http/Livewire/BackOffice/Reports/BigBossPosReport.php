@@ -241,32 +241,23 @@ class BigBossPosReport extends Component
         $timeIn  = Carbon::parse($session['time_in']);
         $timeOut = Carbon::parse($session['time_out']);
 
-        // Find all items touched during this shift (both kitchen and frontdesk movements)
-        $touched = StockMovement::where('branch_id', $branchId)
-            ->whereIn('source_type', [StockMovement::SOURCE_FRONTDESK, StockMovement::SOURCE_KITCHEN])
-            ->whereBetween('created_at', [$timeIn, $timeOut])
-            ->select('inventory_id', 'menu_id')
-            ->distinct()
-            ->get();
+        // Load ALL frontdesk inventory items (not just those with movements)
+        $allInventory = FrontdeskInventory::where('branch_id', $branchId)->get();
 
-        if ($touched->isEmpty()) {
+        if ($allInventory->isEmpty()) {
             return ['groups' => [], 'summary' => []];
         }
 
-        $menuIds = $touched->pluck('menu_id')->unique()->filter()->values();
+        $menuIds = $allInventory->pluck('frontdesk_menu_id')->unique()->filter()->values();
         $menus = FrontdeskMenu::whereIn('id', $menuIds)
             ->with(['frontdeskCategory.parentCategory'])
             ->get()
             ->keyBy('id');
 
         $items = [];
-        $processedInventories = [];
 
-        foreach ($touched as $key) {
-            if (in_array($key->inventory_id, $processedInventories)) continue;
-            $processedInventories[] = $key->inventory_id;
-
-            $menu = $menus[$key->menu_id] ?? null;
+        foreach ($allInventory as $inv) {
+            $menu = $menus[$inv->frontdesk_menu_id] ?? null;
             if (!$menu) continue;
 
             $category       = $menu->frontdeskCategory;
@@ -276,7 +267,7 @@ class BigBossPosReport extends Component
 
             // Kitchen (warehouse) opening balance
             $prevKitchen = StockMovement::where('source_type', StockMovement::SOURCE_KITCHEN)
-                ->where('inventory_id', $key->inventory_id)
+                ->where('inventory_id', $inv->id)
                 ->where('created_at', '<', $timeIn)
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->first();
@@ -284,7 +275,7 @@ class BigBossPosReport extends Component
 
             // Kitchen movements during shift
             $kitchenMovements = StockMovement::where('source_type', StockMovement::SOURCE_KITCHEN)
-                ->where('inventory_id', $key->inventory_id)
+                ->where('inventory_id', $inv->id)
                 ->whereBetween('created_at', [$timeIn, $timeOut])
                 ->orderBy('id')
                 ->get();
@@ -295,7 +286,7 @@ class BigBossPosReport extends Component
 
             // Frontdesk opening balance
             $prevFrontdesk = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
-                ->where('inventory_id', $key->inventory_id)
+                ->where('inventory_id', $inv->id)
                 ->where('created_at', '<', $timeIn)
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->first();
@@ -303,7 +294,7 @@ class BigBossPosReport extends Component
 
             // Frontdesk movements during shift
             $frontdeskMovements = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
-                ->where('inventory_id', $key->inventory_id)
+                ->where('inventory_id', $inv->id)
                 ->whereBetween('created_at', [$timeIn, $timeOut])
                 ->orderBy('id')
                 ->get();

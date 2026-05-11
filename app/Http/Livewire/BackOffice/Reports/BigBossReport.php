@@ -116,6 +116,13 @@ class BigBossReport extends Component
         $timeIn = Carbon::parse($session['time_in']);
         $timeOut = Carbon::parse($session['time_out']);
 
+        // Pre-fetch menu_id → parent category name map for splitting FOODS vs DRINKS
+        $menuParentMap = FrontdeskMenu::where('branch_id', $branchId)
+            ->with('frontdeskCategory.parentCategory')
+            ->get()
+            ->mapWithKeys(fn ($m) => [$m->id => strtoupper($m->frontdeskCategory?->parentCategory?->name ?? '')])
+            ->toArray();
+
         // Pre-fetch 6-hour base rates for all room types (keyed by type_id) - used for penalties
         $sixHourStaying = \App\Models\StayingHour::where('branch_id', $branchId)->where('number', 6)->first();
         $baseRatesByType = $sixHourStaying
@@ -154,10 +161,10 @@ class BigBossReport extends Component
             ->get();
 
         // ===== FRONTDESK CHART (build first so summary can use its subtotals) =====
-        $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn, $timeOut);
+        $frontdeskChart = $this->buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, $timeIn, $timeOut, $menuParentMap);
 
         // ===== SUMMARY TABLE =====
-        $summaryRows = $this->buildSummaryRows($floors, $transactions, $occupyingDetails, $timeIn, $timeOut, $frontdeskChart);
+        $summaryRows = $this->buildSummaryRows($floors, $transactions, $occupyingDetails, $timeIn, $timeOut, $frontdeskChart, $menuParentMap);
 
         // ===== STATISTICS =====
         $totalNewGuest = NewGuestReport::where('branch_id', $branchId)
@@ -228,14 +235,13 @@ class BigBossReport extends Component
         ];
     }
 
-    private function buildSummaryRows($floors, $transactions, $occupyingDetails = null, Carbon $timeIn = null, Carbon $timeOut = null, array $frontdeskChart = []): array
+    private function buildSummaryRows($floors, $transactions, $occupyingDetails = null, Carbon $timeIn = null, Carbon $timeOut = null, array $frontdeskChart = [], array $menuParentMap = []): array
     {
         $categories = [
             'ROOM' => [1],            // Check In
-            'TRANSFER' => [7],        // Transfer Room
             'EXTEND' => [6],          // Extend
-            'FOODS' => [9],           // Food and Beverages
-            'DRINKS' => [],           // No separate type
+            'FOODS' => [9],           // Food and Beverages (filtered by parent category)
+            'DRINKS' => [9],          // Food and Beverages (filtered by parent category)
             'MISCELLANEOUS' => [4, 8], // Damages + Amenities
         ];
 
@@ -249,19 +255,34 @@ class BigBossReport extends Component
         foreach ($categories as $label => $typeIds) {
             $row = ['label' => $label, 'floors' => [], 'total' => 0];
             foreach ($floors as $floor) {
-                $amount = empty($typeIds) ? 0 : (float) $transactions
+                $floorTxns = $transactions
                     ->whereIn('transaction_type_id', $typeIds)
-                    ->where('floor_id', $floor->id)
-                    ->sum('payable_amount');
+                    ->where('floor_id', $floor->id);
+
+                // Split type 9 by parent category
+                if ($label === 'FOODS') {
+                    $floorTxns = $floorTxns->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') !== 'DRINKS');
+                } elseif ($label === 'DRINKS') {
+                    $floorTxns = $floorTxns->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') === 'DRINKS');
+                }
+
+                $amount = (float) $floorTxns->sum('payable_amount');
                 $row['floors'][$floor->id] = $amount;
                 $row['total'] += $amount;
                 $grossPerFloor[$floor->id] += $amount;
             }
             // NO ROOM column (transactions without a floor match)
-            $noRoom = empty($typeIds) ? 0 : (float) $transactions
+            $noRoomTxns = $transactions
                 ->whereIn('transaction_type_id', $typeIds)
-                ->whereNotIn('floor_id', $floors->pluck('id')->toArray())
-                ->sum('payable_amount');
+                ->whereNotIn('floor_id', $floors->pluck('id')->toArray());
+
+            if ($label === 'FOODS') {
+                $noRoomTxns = $noRoomTxns->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') !== 'DRINKS');
+            } elseif ($label === 'DRINKS') {
+                $noRoomTxns = $noRoomTxns->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') === 'DRINKS');
+            }
+
+            $noRoom = (float) $noRoomTxns->sum('payable_amount');
             $row['no_room'] = $noRoom;
             $row['total'] += $noRoom;
             $grossTotal += $row['total'];
@@ -304,7 +325,7 @@ class BigBossReport extends Component
         };
     }
 
-    private function buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, Carbon $timeIn, Carbon $timeOut): array
+    private function buildFrontdeskChart($floors, $allRooms, $occupyingDetails, $transactions, Carbon $timeIn, Carbon $timeOut, array $menuParentMap = []): array
     {
         // Pre-fetch ALL deposit (type 2) and cashout (type 5) transactions for forwarded guests
         // since their deposits were created in a previous shift and aren't in $transactions
@@ -348,7 +369,6 @@ class BigBossReport extends Component
                         'is_forwarded' => false,
                         'rowspan' => 1,
                         'room_rate' => 0,
-                        'transfer' => 0,
                         'extend' => 0,
                         'foods' => 0,
                         'drinks' => 0,
@@ -379,10 +399,9 @@ class BigBossReport extends Component
                             'is_forwarded' => $isForwarded,
                             'rowspan' => $isFirst ? $checkinCount : 0,
                             'room_rate' => (float) $checkinTxns->where('transaction_type_id', 1)->sum('payable_amount'),
-                            'transfer' => (float) $checkinTxns->where('transaction_type_id', 7)->sum('payable_amount'),
                             'extend' => (float) $checkinTxns->where('transaction_type_id', 6)->sum('payable_amount'),
-                            'foods' => (float) $checkinTxns->where('transaction_type_id', 9)->sum('payable_amount'),
-                            'drinks' => 0,
+                            'foods' => (float) $checkinTxns->where('transaction_type_id', 9)->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') !== 'DRINKS')->sum('payable_amount'),
+                            'drinks' => (float) $checkinTxns->where('transaction_type_id', 9)->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') === 'DRINKS')->sum('payable_amount'),
                             'misc' => (float) $checkinTxns->whereIn('transaction_type_id', [4, 8])->sum('payable_amount'),
                             'room_deposit' => ($checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut))
                                 ? 0
@@ -406,7 +425,6 @@ class BigBossReport extends Component
             // Floor subtotals
             $subtotal = [
                 'room_rate' => collect($floorData)->sum('room_rate'),
-                'transfer' => collect($floorData)->sum('transfer'),
                 'extend' => collect($floorData)->sum('extend'),
                 'foods' => collect($floorData)->sum('foods'),
                 'drinks' => collect($floorData)->sum('drinks'),
@@ -755,32 +773,23 @@ class BigBossReport extends Component
 
     private function stocksInventoryRows(Carbon $timeIn, Carbon $timeOut, int $branchId): array
     {
-        // Find all items touched during this shift (both kitchen and frontdesk movements)
-        $touched = StockMovement::where('branch_id', $branchId)
-            ->whereIn('source_type', [StockMovement::SOURCE_FRONTDESK, StockMovement::SOURCE_KITCHEN])
-            ->whereBetween('created_at', [$timeIn, $timeOut])
-            ->select('inventory_id', 'menu_id')
-            ->distinct()
-            ->get();
+        // Load ALL frontdesk inventory items (not just those with movements)
+        $allInventory = \App\Models\FrontdeskInventory::where('branch_id', $branchId)->get();
 
-        if ($touched->isEmpty()) {
+        if ($allInventory->isEmpty()) {
             return ['groups' => [], 'summary' => []];
         }
 
-        $menuIds = $touched->pluck('menu_id')->unique()->filter()->values();
+        $menuIds = $allInventory->pluck('frontdesk_menu_id')->unique()->filter()->values();
         $menus = FrontdeskMenu::whereIn('id', $menuIds)
             ->with(['frontdeskCategory.parentCategory'])
             ->get()
             ->keyBy('id');
 
         $items = [];
-        $processedInventories = [];
 
-        foreach ($touched as $key) {
-            if (in_array($key->inventory_id, $processedInventories)) continue;
-            $processedInventories[] = $key->inventory_id;
-
-            $menu = $menus[$key->menu_id] ?? null;
+        foreach ($allInventory as $inv) {
+            $menu = $menus[$inv->frontdesk_menu_id] ?? null;
             if (!$menu) continue;
 
             $category       = $menu->frontdeskCategory;
@@ -790,7 +799,7 @@ class BigBossReport extends Component
 
             // Kitchen (warehouse) opening balance
             $prevKitchen = StockMovement::where('source_type', StockMovement::SOURCE_KITCHEN)
-                ->where('inventory_id', $key->inventory_id)
+                ->where('inventory_id', $inv->id)
                 ->where('created_at', '<', $timeIn)
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->first();
@@ -798,7 +807,7 @@ class BigBossReport extends Component
 
             // Kitchen movements during shift
             $kitchenMovements = StockMovement::where('source_type', StockMovement::SOURCE_KITCHEN)
-                ->where('inventory_id', $key->inventory_id)
+                ->where('inventory_id', $inv->id)
                 ->whereBetween('created_at', [$timeIn, $timeOut])
                 ->orderBy('id')
                 ->get();
@@ -809,7 +818,7 @@ class BigBossReport extends Component
 
             // Frontdesk opening balance
             $prevFrontdesk = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
-                ->where('inventory_id', $key->inventory_id)
+                ->where('inventory_id', $inv->id)
                 ->where('created_at', '<', $timeIn)
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->first();
@@ -817,7 +826,7 @@ class BigBossReport extends Component
 
             // Frontdesk movements during shift
             $frontdeskMovements = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
-                ->where('inventory_id', $key->inventory_id)
+                ->where('inventory_id', $inv->id)
                 ->whereBetween('created_at', [$timeIn, $timeOut])
                 ->orderBy('id')
                 ->get();

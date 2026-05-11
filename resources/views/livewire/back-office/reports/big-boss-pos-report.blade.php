@@ -27,8 +27,11 @@
                 <button onclick="window.print()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
                     Print Report
                 </button>
-                <button wire:click="exportHtml" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
-                    Export HTML
+                <button wire:click="exportHtml"
+                        wire:loading.attr="disabled"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50">
+                    <span wire:loading.remove wire:target="exportHtml">Export HTML</span>
+                    <span wire:loading wire:target="exportHtml">Exporting...</span>
                 </button>
             </div>
         </div>

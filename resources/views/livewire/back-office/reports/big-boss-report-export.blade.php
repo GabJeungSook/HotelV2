@@ -396,7 +396,7 @@
                     <table class="report-table">
                         <thead>
                             <tr>
-                                <th colspan="16" style="text-align: center; background: #000; color: #fff;">{{ strtoupper($floorGroup['floor']->numberWithFormat()) }}</th>
+                                <th colspan="15" style="text-align: center; background: #000; color: #fff;">{{ strtoupper($floorGroup['floor']->numberWithFormat()) }}</th>
                             </tr>
                             <tr>
                                 <th>ROOM</th>
@@ -408,7 +408,7 @@
                                 <th>CHECK OUT</th>
                                 <th>INI HOUR</th>
                                 <th>ROOM</th>
-                                <th>TRANSFER</th>
+
                                 <th>EXTEND</th>
                                 <th>FOOD</th>
                                 <th>DRINKS</th>
@@ -436,7 +436,6 @@
                                         <td class="text-center" style="color: #999; font-style: italic;">--</td>
                                         <td class="text-center" style="color: #999; font-style: italic;">--</td>
                                         <td class="text-center" style="color: #999; font-style: italic;">--</td>
-                                        <td class="text-center" style="color: #999; font-style: italic;">--</td>
                                     </tr>
                                 @elseif($room['is_forwarded'])
                                     <tr style="background-color: #fef3c7;">
@@ -449,7 +448,6 @@
                                         <td class="text-center">@if($room['check_out'])<span style="color: #dc2626;">{{ $room['check_out'] }}</span>@endif</td>
                                         <td class="text-center">{{ $room['initial_hours'] }}</td>
                                         <td class="text-right">{{ $room['room_rate'] > 0 ? number_format($room['room_rate'], 2) : '' }}</td>
-                                        <td class="text-right">{{ $room['transfer'] > 0 ? number_format($room['transfer'], 2) : '' }}</td>
                                         <td class="text-right">{{ $room['extend'] > 0 ? number_format($room['extend'], 2) : '' }}</td>
                                         <td class="text-right">{{ $room['foods'] > 0 ? number_format($room['foods'], 2) : '' }}</td>
                                         <td class="text-right">{{ $room['drinks'] > 0 ? number_format($room['drinks'], 2) : '' }}</td>
@@ -468,7 +466,6 @@
                                         <td class="text-center">@if($room['check_out'])<span style="color: red;">{{ $room['check_out'] }}</span>@endif</td>
                                         <td class="text-center">{{ $room['initial_hours'] }}</td>
                                         <td class="text-right">{{ $room['room_rate'] > 0 ? number_format($room['room_rate'], 2) : '' }}</td>
-                                        <td class="text-right">{{ $room['transfer'] > 0 ? number_format($room['transfer'], 2) : '' }}</td>
                                         <td class="text-right">{{ $room['extend'] > 0 ? number_format($room['extend'], 2) : '' }}</td>
                                         <td class="text-right">{{ $room['foods'] > 0 ? number_format($room['foods'], 2) : '' }}</td>
                                         <td class="text-right">{{ $room['drinks'] > 0 ? number_format($room['drinks'], 2) : '' }}</td>
@@ -479,14 +476,13 @@
                                 @endif
                             @empty
                                 <tr>
-                                    <td colspan="16" class="text-center" style="color: #999; font-style: italic;">No rooms</td>
+                                    <td colspan="15" class="text-center" style="color: #999; font-style: italic;">No rooms</td>
                                 </tr>
                             @endforelse
                             @if(!empty($floorGroup['subtotal']))
                                 <tr style="background-color: #e5e7eb; font-weight: bold;">
-                                    <td colspan="8" class="text-right">SUBTOTAL</td>
+                                    <td colspan="7" class="text-right">SUBTOTAL</td>
                                     <td class="text-right">{{ ($floorGroup['subtotal']['room_rate'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['room_rate'], 2) : '' }}</td>
-                                    <td class="text-right">{{ ($floorGroup['subtotal']['transfer'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['transfer'], 2) : '' }}</td>
                                     <td class="text-right">{{ ($floorGroup['subtotal']['extend'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['extend'], 2) : '' }}</td>
                                     <td class="text-right">{{ ($floorGroup['subtotal']['foods'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['foods'], 2) : '' }}</td>
                                     <td class="text-right">{{ ($floorGroup['subtotal']['drinks'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['drinks'], 2) : '' }}</td>

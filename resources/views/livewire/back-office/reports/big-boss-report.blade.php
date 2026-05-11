@@ -27,8 +27,11 @@
                 <button onclick="window.print()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
                     Print Report
                 </button>
-                <button wire:click="exportHtml" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
-                    Export Z-Read
+                <button wire:click="exportHtml"
+                        wire:loading.attr="disabled"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50">
+                    <span wire:loading.remove wire:target="exportHtml">Export Z-Read</span>
+                    <span wire:loading wire:target="exportHtml">Exporting...</span>
                 </button>
             </div>
         </div>
@@ -266,7 +269,6 @@
                                 <th class="border border-gray-300 px-2 py-1 text-left">Check-out</th>
                                 <th class="border border-gray-300 px-2 py-1 text-center">Initial Hours</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Room Rate</th>
-                                <th class="border border-gray-300 px-2 py-1 text-right">Transfer</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Extend</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Foods</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Drinks</th>
@@ -287,7 +289,6 @@
                                 <td class="border border-gray-300 px-2 py-1">{{ $room['check_out'] }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-center">{{ $room['initial_hours'] !== '' ? $room['initial_hours'] : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['room_rate'] > 0 ? number_format($room['room_rate'], 2) : '' }}</td>
-                                <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['transfer'] > 0 ? number_format($room['transfer'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['extend'] > 0 ? number_format($room['extend'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['foods'] > 0 ? number_format($room['foods'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ $room['drinks'] > 0 ? number_format($room['drinks'], 2) : '' }}</td>
@@ -297,14 +298,13 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="16" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
+                                <td colspan="15" class="border border-gray-300 px-2 py-1 text-center text-gray-400 italic">No rooms</td>
                             </tr>
                             @endforelse
                             @if(!empty($floorGroup['subtotal']))
                             <tr class="bg-gray-200 font-bold">
-                                <td colspan="8" class="border border-gray-300 px-2 py-1 text-right">SUBTOTAL</td>
+                                <td colspan="7" class="border border-gray-300 px-2 py-1 text-right">SUBTOTAL</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['room_rate'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['room_rate'], 2) : '' }}</td>
-                                <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['transfer'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['transfer'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['extend'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['extend'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['foods'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['foods'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['drinks'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['drinks'], 2) : '' }}</td>

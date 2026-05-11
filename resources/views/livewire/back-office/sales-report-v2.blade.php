@@ -96,8 +96,10 @@
             {{-- Buttons --}}
             <div class="flex items-end gap-2">
                 <button wire:click="generateReport" type="button"
-                        class="flex-1 inline-flex justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
-                    Apply
+                        wire:loading.attr="disabled"
+                        class="flex-1 inline-flex justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+                    <span wire:loading.remove wire:target="generateReport">Apply</span>
+                    <span wire:loading wire:target="generateReport">Loading...</span>
                 </button>
                 <button wire:click="resetFilters" type="button"
                         class="flex-1 inline-flex justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -126,8 +128,10 @@
             {{-- Buttons --}}
             <div class="flex items-end gap-2">
                 <button wire:click="generateReport" type="button"
-                        class="flex-1 inline-flex justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
-                    Apply
+                        wire:loading.attr="disabled"
+                        class="flex-1 inline-flex justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+                    <span wire:loading.remove wire:target="generateReport">Apply</span>
+                    <span wire:loading wire:target="generateReport">Loading...</span>
                 </button>
                 <button wire:click="resetFilters" type="button"
                         class="flex-1 inline-flex justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
