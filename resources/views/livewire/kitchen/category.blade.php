@@ -14,7 +14,13 @@
   </div>
   <x-modal wire:model.defer="add_modal" max-width="lg">
     <x-card title="Add New Category">
-      <div>
+      <div class="space-y-4">
+        <x-native-select label="Parent Category" wire:model="parent_category_id">
+            <option selected hidden>Select Parent Category</option>
+            @foreach ($parentCategories as $item)
+                <option value="{{ $item->id }}">{{ $item->name }}</option>
+            @endforeach
+        </x-native-select>
         <x-input label="Name" wire:model="name" />
       </div>
       <x-slot name="footer">
@@ -28,7 +34,13 @@
 
   <x-modal wire:model.defer="edit_modal" max-width="lg">
     <x-card title="Update Category">
-      <div>
+      <div class="space-y-4">
+        <x-native-select label="Parent Category" wire:model="parent_category_id">
+            <option selected hidden>Select Parent Category</option>
+            @foreach ($parentCategories as $item)
+                <option value="{{ $item->id }}">{{ $item->name }}</option>
+            @endforeach
+        </x-native-select>
         <x-input label="Name" wire:model="name" />
       </div>
       <x-slot name="footer">
