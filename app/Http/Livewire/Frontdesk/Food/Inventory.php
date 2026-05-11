@@ -16,10 +16,12 @@ class Inventory extends Component
     public $selectedItem;
     public $quantities = [];
     public $add_stock_modal = false;
+    public $set_stock_modal = false;
     public $menu_item;
     public $menu_name;
     public $menu_price;
     public $menu_quantity;
+    public $set_stock_quantity;
 
     public $record;
 
@@ -79,6 +81,62 @@ class Inventory extends Component
         $this->dialog()->success(
             $title = 'Success',
             $description = 'Stock added to kitchen successfully',
+        );
+    }
+
+    public function setStock($id)
+    {
+        $this->menu_item = FrontdeskMenu::where('id', $id)->first();
+        $this->menu_name = $this->menu_item->name;
+        $this->menu_price = '₱ '.number_format($this->menu_item->price, 2);
+
+        $inv = InventoryModel::where('frontdesk_menu_id', $id)
+            ->where('branch_id', auth()->user()->branch_id)
+            ->first();
+        $this->set_stock_quantity = $inv ? $inv->warehouse_stock : 0;
+        $this->set_stock_modal = true;
+    }
+
+    public function saveSetStock()
+    {
+        $this->validate([
+            'set_stock_quantity' => 'required|numeric|min:0'
+        ]);
+
+        try {
+            app(StockService::class)->warehouseAdjust(
+                (int) $this->menu_item->id,
+                (float) $this->set_stock_quantity,
+                [
+                    'branch_id' => auth()->user()->branch_id,
+                    'reason'    => 'Admin set kitchen stock',
+                    'ref_type'  => 'admin_warehouse_adjust',
+                    'user_id'   => auth()->id(),
+                ]
+            );
+        } catch (\Throwable $e) {
+            $this->dialog()->error(
+                $title = 'Set stock failed',
+                $description = $e->getMessage(),
+            );
+            return;
+        }
+
+        ActivityLog::create([
+            'branch_id' => auth()->user()->branch_id,
+            'user_id' => auth()->user()->id,
+            'activity' => 'Set Inventory',
+            'description' => sprintf('Set kitchen stock of %s to %s',
+                $this->menu_item->name,
+                rtrim(rtrim(number_format((float) $this->set_stock_quantity, 2), '0'), '.')),
+        ]);
+
+        $this->set_stock_modal = false;
+        $this->set_stock_quantity = '';
+
+        $this->dialog()->success(
+            $title = 'Success',
+            $description = 'Kitchen stock updated successfully',
         );
     }
 

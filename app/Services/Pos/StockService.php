@@ -134,6 +134,53 @@ class StockService
         });
     }
 
+    /**
+     * Set kitchen stock to an exact quantity (admin correction).
+     * Creates an ADJUST StockMovement for audit trail.
+     */
+    public function warehouseAdjust(int $menuId, float $newBalance, array $context = []): StockMovement
+    {
+        return DB::transaction(function () use ($menuId, $newBalance, $context) {
+            $branchId = $context['branch_id'] ?? auth()->user()?->branch_id;
+
+            $inventory = \App\Models\FrontdeskInventory::query()
+                ->where('frontdesk_menu_id', $menuId)
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+                ->lockForUpdate()
+                ->first();
+
+            $oldBalance = 0.0;
+
+            if (!$inventory) {
+                $inventory = \App\Models\FrontdeskInventory::create([
+                    'branch_id'         => $branchId,
+                    'frontdesk_menu_id' => $menuId,
+                    'number_of_serving' => 0,
+                    'warehouse_stock'   => $newBalance,
+                ]);
+            } else {
+                $oldBalance = (float) $inventory->warehouse_stock;
+                $inventory->warehouse_stock = $newBalance;
+                $inventory->save();
+            }
+
+            return StockMovement::create([
+                'branch_id'    => $branchId,
+                'source_type'  => StockMovement::SOURCE_KITCHEN,
+                'menu_id'      => $menuId,
+                'inventory_id' => $inventory->id,
+                'type'         => StockMovement::TYPE_ADJUST,
+                'quantity'     => abs($newBalance - $oldBalance),
+                'balance_after'=> $newBalance,
+                'reason'       => $context['reason'] ?? 'Admin set kitchen stock',
+                'ref_type'     => $context['ref_type'] ?? 'admin_warehouse_adjust',
+                'ref_id'       => $context['ref_id'] ?? null,
+                'user_id'      => $context['user_id'] ?? auth()->id(),
+                'shift_log_id' => $context['shift_log_id'] ?? null,
+            ]);
+        });
+    }
+
     public function adjust(string $sourceType, int $menuId, float $absoluteBalance, array $context = []): StockMovement
     {
         return DB::transaction(function () use ($sourceType, $menuId, $absoluteBalance, $context) {
