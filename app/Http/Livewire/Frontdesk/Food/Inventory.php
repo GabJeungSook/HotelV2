@@ -4,6 +4,7 @@ namespace App\Http\Livewire\Frontdesk\Food;
 
 use App\Models\ActivityLog;
 use App\Models\FrontdeskMenu;
+use App\Services\Pos\StockService;
 use Livewire\Component;
 use App\Models\FrontdeskInventory as InventoryModel;
 use WireUi\Traits\Actions;
@@ -44,42 +45,40 @@ class Inventory extends Component
             'menu_quantity' => 'required|numeric|min:1'
         ]);
 
-        if($this->menu_item->inventory === null)
-        {
-            InventoryModel::create([
-                'branch_id' =>  auth()->user()->branch_id,
-                'frontdesk_menu_id' => $this->menu_item->id,
-                'number_of_serving' => $this->menu_quantity
-            ]);
-
-            ActivityLog::create([
-                'branch_id' => auth()->user()->branch_id,
-                'user_id' => auth()->user()->id,
-                'activity' => 'Add Inventory',
-                'description' => 'Added inventory for menu ' . $this->menu_item->name,
-            ]);
-
-        }else{
-            $this->menu_item->inventory->update([
-                'number_of_serving' => $this->menu_item->inventory->number_of_serving + $this->menu_quantity,
-            ]);
-
-            ActivityLog::create([
-                'branch_id' => auth()->user()->branch_id,
-                'user_id' => auth()->user()->id,
-                'activity' => 'Add Inventory',
-                'description' => 'Added inventory for menu ' . $this->menu_item->name,
-            ]);
+        try {
+            app(StockService::class)->warehouseIn(
+                (int) $this->menu_item->id,
+                (float) $this->menu_quantity,
+                [
+                    'branch_id' => auth()->user()->branch_id,
+                    'reason'    => 'Add stock to kitchen',
+                    'ref_type'  => 'admin_warehouse_add',
+                    'user_id'   => auth()->id(),
+                ]
+            );
+        } catch (\Throwable $e) {
+            $this->dialog()->error(
+                $title = 'Stock-in failed',
+                $description = $e->getMessage(),
+            );
+            return;
         }
 
-
+        ActivityLog::create([
+            'branch_id' => auth()->user()->branch_id,
+            'user_id' => auth()->user()->id,
+            'activity' => 'Add Inventory',
+            'description' => sprintf('Added %s units of %s to kitchen stock',
+                rtrim(rtrim(number_format((float) $this->menu_quantity, 2), '0'), '.'),
+                $this->menu_item->name),
+        ]);
 
         $this->add_stock_modal = false;
         $this->menu_quantity = '';
 
         $this->dialog()->success(
             $title = 'Success',
-            $description = 'Stock added successfully',
+            $description = 'Stock added to kitchen successfully',
         );
     }
 

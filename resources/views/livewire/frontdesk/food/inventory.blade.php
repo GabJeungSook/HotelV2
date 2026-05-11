@@ -46,7 +46,7 @@
                                         $inv = \App\Models\FrontdeskInventory::where('branch_id', auth()->user()->branch_id)
                                             ->where('frontdesk_menu_id', $item->id)
                                             ->first();
-                                        $stock = $inv ? $inv->number_of_serving : 0;
+                                        $stock = $inv ? $inv->warehouse_stock : 0;
                                     @endphp
                                     <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium {{ $stock < 5 ? 'text-red-600' : 'text-gray-900' }} sm:pl-6 lg:pl-8">{{ $stock }}</td>
                                     {{-- <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">

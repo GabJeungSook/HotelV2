@@ -141,19 +141,16 @@ class KitchenInventory extends Component
 
         $branchId = auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id;
 
-        // Route through StockService::in so an audited stock_movements row
-        // is created. Direct $inventory->update() bypassed the audit log
-        // and produced drift between inventory and movement totals; this
-        // is the same fix class as the Kitchen/Pub Phase A refactor.
+        // Add stock to warehouse (kitchen main supply).
+        // Frontdesk staff will transfer from warehouse to their counter via Stock-In.
         try {
-            app(StockService::class)->in(
-                StockMovement::SOURCE_FRONTDESK,
+            app(StockService::class)->warehouseIn(
                 (int) $this->menu_item->id,
                 (float) $this->menu_quantity,
                 [
                     'branch_id' => $branchId,
-                    'reason'    => 'Admin add stock',
-                    'ref_type'  => 'admin_add_stock',
+                    'reason'    => 'Admin add stock to kitchen',
+                    'ref_type'  => 'admin_warehouse_add',
                     'user_id'   => auth()->id(),
                 ]
             );

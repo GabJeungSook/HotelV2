@@ -241,10 +241,11 @@ class BigBossPosReport extends Component
         $timeIn  = Carbon::parse($session['time_in']);
         $timeOut = Carbon::parse($session['time_out']);
 
+        // Find all items touched during this shift (both kitchen and frontdesk movements)
         $touched = StockMovement::where('branch_id', $branchId)
-            ->where('source_type', StockMovement::SOURCE_FRONTDESK)
+            ->whereIn('source_type', [StockMovement::SOURCE_FRONTDESK, StockMovement::SOURCE_KITCHEN])
             ->whereBetween('created_at', [$timeIn, $timeOut])
-            ->select('source_type', 'inventory_id', 'menu_id')
+            ->select('inventory_id', 'menu_id')
             ->distinct()
             ->get();
 
@@ -252,7 +253,6 @@ class BigBossPosReport extends Component
             return ['groups' => [], 'summary' => []];
         }
 
-        // Eager-load all needed menus with their categories and parent categories
         $menuIds = $touched->pluck('menu_id')->unique()->filter()->values();
         $menus = FrontdeskMenu::whereIn('id', $menuIds)
             ->with(['frontdeskCategory.parentCategory'])
@@ -260,11 +260,13 @@ class BigBossPosReport extends Component
             ->keyBy('id');
 
         $items = [];
-        foreach ($touched as $key) {
-            $menuId      = $key->menu_id;
-            $inventoryId = $key->inventory_id;
-            $menu        = $menus[$menuId] ?? null;
+        $processedInventories = [];
 
+        foreach ($touched as $key) {
+            if (in_array($key->inventory_id, $processedInventories)) continue;
+            $processedInventories[] = $key->inventory_id;
+
+            $menu = $menus[$key->menu_id] ?? null;
             if (!$menu) continue;
 
             $category       = $menu->frontdeskCategory;
@@ -272,48 +274,56 @@ class BigBossPosReport extends Component
             $parentName     = $parentCategory?->name ?? 'UNCATEGORIZED';
             $categoryName   = $category?->name ?? 'UNCATEGORIZED';
 
-            $opening = $this->openingBalance(StockMovement::SOURCE_FRONTDESK, $inventoryId, $timeIn);
+            // Kitchen (warehouse) opening balance
+            $prevKitchen = StockMovement::where('source_type', StockMovement::SOURCE_KITCHEN)
+                ->where('inventory_id', $key->inventory_id)
+                ->where('created_at', '<', $timeIn)
+                ->orderByDesc('created_at')->orderByDesc('id')
+                ->first();
+            $kitchenOpening = $prevKitchen ? (float) $prevKitchen->balance_after : 0.0;
 
-            $movements = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
-                ->where('inventory_id', $inventoryId)
+            // Kitchen movements during shift
+            $kitchenMovements = StockMovement::where('source_type', StockMovement::SOURCE_KITCHEN)
+                ->where('inventory_id', $key->inventory_id)
                 ->whereBetween('created_at', [$timeIn, $timeOut])
                 ->orderBy('id')
                 ->get();
 
-            $inQty  = (float) $movements->whereIn('type', [StockMovement::TYPE_IN, StockMovement::TYPE_VOID])->sum('quantity');
-            $outQty = (float) $movements->where('type', StockMovement::TYPE_OUT)->sum('quantity');
+            $kitchenIn  = (float) $kitchenMovements->whereIn('type', [StockMovement::TYPE_IN, StockMovement::TYPE_VOID])->sum('quantity');
+            $kitchenOut = (float) $kitchenMovements->where('type', StockMovement::TYPE_OUT)->sum('quantity');
+            $kitchenClosing = $kitchenMovements->isNotEmpty() ? (float) $kitchenMovements->last()->balance_after : $kitchenOpening;
 
-            $closing = $movements->isNotEmpty()
-                ? (float) $movements->last()->balance_after
-                : $opening;
+            // Frontdesk opening balance
+            $prevFrontdesk = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
+                ->where('inventory_id', $key->inventory_id)
+                ->where('created_at', '<', $timeIn)
+                ->orderByDesc('created_at')->orderByDesc('id')
+                ->first();
+            $frontdeskOpening = $prevFrontdesk ? (float) $prevFrontdesk->balance_after : 0.0;
+
+            // Frontdesk movements during shift
+            $frontdeskMovements = StockMovement::where('source_type', StockMovement::SOURCE_FRONTDESK)
+                ->where('inventory_id', $key->inventory_id)
+                ->whereBetween('created_at', [$timeIn, $timeOut])
+                ->orderBy('id')
+                ->get();
+
+            $frontdeskIn  = (float) $frontdeskMovements->whereIn('type', [StockMovement::TYPE_IN, StockMovement::TYPE_VOID])->sum('quantity');
+            $frontdeskOut = (float) $frontdeskMovements->where('type', StockMovement::TYPE_OUT)->sum('quantity');
+            $frontdeskClosing = $frontdeskMovements->isNotEmpty() ? (float) $frontdeskMovements->last()->balance_after : $frontdeskOpening;
 
             $price      = (float) $menu->price;
-            $stockSold  = $outQty;
+            $stockSold  = $frontdeskOut;
             $salesTotal = $stockSold * $price;
-
-            // Kitchen columns: kitchen OUT = frontdesk IN (items transferred from kitchen)
-            $kitchenOut     = $inQty;
-            $kitchenOpening = $opening + $kitchenOut; // kitchen had these before transferring
-            $kitchenClosing = $kitchenOpening - $kitchenOut;
 
             $items[] = [
                 'parent_category' => strtoupper($parentName),
                 'category'        => strtoupper($categoryName),
                 'name'            => $menu->name,
                 'price'           => $price,
-                'kitchen'         => [
-                    'opening' => $kitchenOpening,
-                    'in'      => 0,
-                    'out'     => $kitchenOut,
-                    'closing' => $kitchenClosing,
-                ],
-                'frontdesk'       => [
-                    'opening' => $opening,
-                    'in'      => $inQty,
-                    'out'     => $outQty,
-                    'closing' => $closing,
-                ],
-                'total_remaining' => $closing,
+                'kitchen'         => ['opening' => $kitchenOpening, 'in' => $kitchenIn, 'out' => $kitchenOut, 'closing' => $kitchenClosing],
+                'frontdesk'       => ['opening' => $frontdeskOpening, 'in' => $frontdeskIn, 'out' => $frontdeskOut, 'closing' => $frontdeskClosing],
+                'total_remaining' => $kitchenClosing + $frontdeskClosing,
                 'combo_ded'       => 0,
                 'stock_sold'      => $stockSold,
                 'sales_total'     => $salesTotal,

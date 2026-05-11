@@ -269,14 +269,12 @@ class PointOfSale extends Component
         ]);
 
         try {
-            app(StockService::class)->in(
-                StockMovement::SOURCE_FRONTDESK,
+            app(StockService::class)->transfer(
                 (int) $this->stockIn_menu_id,
                 (float) $this->stockIn_quantity,
                 [
                     'branch_id' => auth()->user()->branch_id,
                     'reason'    => $this->stockIn_reason !== '' ? $this->stockIn_reason : null,
-                    'ref_type'  => 'stock_in_form',
                     'user_id'   => auth()->id(),
                 ]
             );

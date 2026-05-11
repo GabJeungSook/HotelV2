@@ -24,6 +24,116 @@ class StockService
         return $this->apply($sourceType, $menuId, $qty, StockMovement::TYPE_VOID, $context);
     }
 
+    /**
+     * Transfer stock from kitchen to frontdesk.
+     * Deducts warehouse_stock and adds to number_of_serving.
+     * Creates two StockMovement records: kitchen OUT + frontdesk IN.
+     */
+    public function transfer(int $menuId, float $qty, array $context = []): array
+    {
+        return DB::transaction(function () use ($menuId, $qty, $context) {
+            $branchId = $context['branch_id'] ?? auth()->user()?->branch_id;
+
+            $inventory = \App\Models\FrontdeskInventory::query()
+                ->where('frontdesk_menu_id', $menuId)
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+                ->lockForUpdate()
+                ->first();
+
+            if (!$inventory) {
+                throw new \RuntimeException('Inventory record not found for this item.');
+            }
+
+            if ((float) $inventory->warehouse_stock < $qty) {
+                throw new InsufficientStockException('kitchen', $menuId, (float) $inventory->warehouse_stock, $qty);
+            }
+
+            // Deduct from kitchen
+            $inventory->warehouse_stock = (float) $inventory->warehouse_stock - $qty;
+            // Add to frontdesk
+            $inventory->number_of_serving = (float) $inventory->number_of_serving + $qty;
+            $inventory->save();
+
+            // Kitchen OUT movement
+            $kitchenOut = StockMovement::create([
+                'branch_id'    => $branchId,
+                'source_type'  => StockMovement::SOURCE_KITCHEN,
+                'menu_id'      => $menuId,
+                'inventory_id' => $inventory->id,
+                'type'         => StockMovement::TYPE_OUT,
+                'quantity'     => $qty,
+                'balance_after'=> (float) $inventory->warehouse_stock,
+                'reason'       => $context['reason'] ?? 'Transfer to frontdesk',
+                'ref_type'     => 'transfer_to_frontdesk',
+                'ref_id'       => $context['ref_id'] ?? null,
+                'user_id'      => $context['user_id'] ?? auth()->id(),
+                'shift_log_id' => $context['shift_log_id'] ?? null,
+            ]);
+
+            // Frontdesk IN movement
+            $frontdeskIn = StockMovement::create([
+                'branch_id'    => $branchId,
+                'source_type'  => StockMovement::SOURCE_FRONTDESK,
+                'menu_id'      => $menuId,
+                'inventory_id' => $inventory->id,
+                'type'         => StockMovement::TYPE_IN,
+                'quantity'     => $qty,
+                'balance_after'=> (float) $inventory->number_of_serving,
+                'reason'       => $context['reason'] ?? 'Transfer from kitchen',
+                'ref_type'     => 'transfer_from_kitchen',
+                'ref_id'       => $context['ref_id'] ?? null,
+                'user_id'      => $context['user_id'] ?? auth()->id(),
+                'shift_log_id' => $context['shift_log_id'] ?? null,
+            ]);
+
+            return [$kitchenOut, $frontdeskIn];
+        });
+    }
+
+    /**
+     * Add stock to kitchen (admin use).
+     * Only increases warehouse_stock, does NOT touch number_of_serving.
+     */
+    public function warehouseIn(int $menuId, float $qty, array $context = []): StockMovement
+    {
+        return DB::transaction(function () use ($menuId, $qty, $context) {
+            $branchId = $context['branch_id'] ?? auth()->user()?->branch_id;
+
+            $inventory = \App\Models\FrontdeskInventory::query()
+                ->where('frontdesk_menu_id', $menuId)
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+                ->lockForUpdate()
+                ->first();
+
+            if (!$inventory) {
+                $inventory = \App\Models\FrontdeskInventory::create([
+                    'branch_id'         => $branchId,
+                    'frontdesk_menu_id' => $menuId,
+                    'number_of_serving' => 0,
+                    'warehouse_stock'   => $qty,
+                ]);
+            } else {
+                $inventory->warehouse_stock = (float) $inventory->warehouse_stock + $qty;
+                $inventory->save();
+            }
+
+            return StockMovement::create([
+                'branch_id'    => $branchId,
+                'source_type'  => StockMovement::SOURCE_KITCHEN,
+                'menu_id'      => $menuId,
+                'inventory_id' => $inventory->id,
+                'type'         => StockMovement::TYPE_IN,
+                'quantity'     => $qty,
+                'balance_after'=> (float) $inventory->warehouse_stock,
+                'reason'       => $context['reason'] ?? 'Admin add stock to kitchen',
+                'ref_type'     => $context['ref_type'] ?? 'admin_warehouse_add',
+                'ref_id'       => $context['ref_id'] ?? null,
+                'user_id'      => $context['user_id'] ?? auth()->id(),
+                'shift_log_id' => $context['shift_log_id'] ?? null,
+            ]);
+        });
+    }
+
     public function adjust(string $sourceType, int $menuId, float $absoluteBalance, array $context = []): StockMovement
     {
         return DB::transaction(function () use ($sourceType, $menuId, $absoluteBalance, $context) {

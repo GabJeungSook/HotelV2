@@ -35,17 +35,36 @@ class StockIn extends Component
     {
         $this->validate();
 
-        app(StockService::class)->in(
-            $this->source_type,
-            (int) $this->menu_id,
-            (float) $this->quantity,
-            [
-                'branch_id' => auth()->user()->branch_id,
-                'reason'    => $this->reason !== '' ? $this->reason : null,
-                'ref_type'  => 'stock_in_form',
-                'user_id'   => auth()->id(),
-            ]
-        );
+        try {
+            if ($this->source_type === StockMovement::SOURCE_FRONTDESK) {
+                // Transfer from kitchen to frontdesk counter
+                app(StockService::class)->transfer(
+                    (int) $this->menu_id,
+                    (float) $this->quantity,
+                    [
+                        'branch_id' => auth()->user()->branch_id,
+                        'reason'    => $this->reason !== '' ? $this->reason : null,
+                        'user_id'   => auth()->id(),
+                    ]
+                );
+            } else {
+                // Kitchen/Pub stock-in stays as direct stock-in
+                app(StockService::class)->in(
+                    $this->source_type,
+                    (int) $this->menu_id,
+                    (float) $this->quantity,
+                    [
+                        'branch_id' => auth()->user()->branch_id,
+                        'reason'    => $this->reason !== '' ? $this->reason : null,
+                        'ref_type'  => 'stock_in_form',
+                        'user_id'   => auth()->id(),
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            $this->notification()->error('Stock-in failed', $e->getMessage());
+            return;
+        }
 
         $recorded = $this->quantity;
         $this->reset(['menu_id', 'quantity', 'reason']);
