@@ -94,9 +94,23 @@
             </div>
         </div>
 
-        <!-- CATEGORY CHIPS + SEARCH -->
+        <!-- SEARCH BAR (FULL WIDTH) -->
         <div class="bg-white px-6 py-3 border-b">
-            <div class="flex items-center gap-3 flex-wrap">
+            <div class="relative w-full">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input
+                    type="text"
+                    wire:model.debounce.300ms="search"
+                    placeholder="Search menu..."
+                    class="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" />
+            </div>
+        </div>
+
+        <!-- CATEGORY CHIPS -->
+        <div class="bg-white px-6 py-2 border-b">
+            <div class="flex items-center gap-2 flex-wrap">
                 <button
                     wire:click="selectCategory(null)"
                     class="px-3 py-1.5 rounded-full text-sm transition {{ !$selectedCategory ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
@@ -109,94 +123,74 @@
                         {{ $category->name }}
                     </button>
                 @endforeach
-                <div class="flex-1 min-w-[200px] flex justify-end">
-                    <div class="relative w-full max-w-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                        </svg>
-                        <input
-                            type="text"
-                            wire:model.debounce.300ms="search"
-                            placeholder="Search menu..."
-                            class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" />
-                    </div>
-                </div>
             </div>
         </div>
 
-        <!-- PRODUCTS (SCROLLABLE TILE GRID) -->
-        <div class="flex-1 overflow-y-auto p-4">
-            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <!-- PRODUCTS (SCROLLABLE TABLE) -->
+        <div class="flex-1 overflow-y-auto px-4 py-2">
+            <table class="w-full text-sm border-collapse border border-gray-300">
+                <thead class="sticky top-0 z-10">
+                    <tr class="bg-blue-600">
+                        <th class="border border-blue-700 px-3 py-2 text-left font-bold text-white">ITEM</th>
+                        <th class="border border-blue-700 px-3 py-2 text-right font-bold text-white">PRICE</th>
+                        <th class="border border-blue-700 px-3 py-2 text-right font-bold text-white">STOCK</th>
+                        <th class="border border-blue-700 px-3 py-2 text-center font-bold text-white">QTY</th>
+                    </tr>
+                </thead>
+                <tbody>
                 @php
                     $cartQuantities = collect($cart)->keyBy('menu_id')->map(fn($r) => $r['quantity']);
                 @endphp
                 @forelse ($menus as $menu)
                     @php
-                        // Use the relationship (already filtered by branch_id) for consistency with admin
                         $stock = (float) ($menu->frontdeskInventory?->number_of_serving ?? 0);
                         $outOfStock = $stock <= 0;
                         $lowStock   = $stock > 0 && $stock < 5;
                         $inCartQty  = (int) ($cartQuantities[$menu->id] ?? 0);
                         $inCart     = $inCartQty > 0;
                     @endphp
-                    <button
-                        type="button"
-                        wire:key="menu-{{ $menu->id }}-{{ $stock }}"
+                    <tr wire:key="menu-{{ $menu->id }}-{{ $stock }}"
                         wire:click="addToCart({{ $menu->id }})"
-                        @if($outOfStock) disabled @endif
-                        class="group relative bg-white rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] transition text-left flex flex-col overflow-hidden
-                               {{ $inCart ? 'ring-2 ring-blue-500 border-blue-500' : 'border border-gray-100 hover:ring-2 hover:ring-blue-400' }}
-                               {{ $outOfStock ? 'opacity-50 cursor-not-allowed' : '' }}">
-
-                        @if ($menu->image)
-                            <img src="{{ asset('storage/' . $menu->image) }}" alt="{{ $menu->name }}"
-                                 class="aspect-square w-full object-cover bg-gray-100">
-                        @else
-                            <div class="aspect-square w-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-6">
-                                <img src="{{ asset('images/homiLogo.png') }}" alt="HOMI"
-                                     class="w-3/4 h-3/4 object-contain opacity-30 group-hover:opacity-50 transition" />
-                            </div>
-                        @endif
-
-                        <!-- in-cart quantity badge (top-left) -->
-                        @if($inCart)
-                            <span class="absolute top-2 left-2 min-w-[24px] h-6 px-1.5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow ring-2 ring-white">
-                                ×{{ $inCartQty }}
-                            </span>
-                        @endif
-
-                        <!-- stock badge (top-right) -->
-                        @if($outOfStock)
-                            <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold uppercase tracking-wide">Unavailable</span>
-                        @elseif($lowStock)
-                            <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">Low: {{ (int) $stock }}</span>
-                        @endif
-
-                        <div class="p-2.5 {{ $outOfStock ? 'grayscale' : '' }}">
-                            <p class="font-semibold text-sm truncate {{ $outOfStock ? 'text-gray-500' : 'text-gray-800' }}" title="{{ $menu->name }}">{{ $menu->name }}</p>
-                            <div class="flex justify-between items-baseline mt-0.5">
-                                <p class="font-bold text-sm {{ $outOfStock ? 'text-gray-400' : 'text-blue-600' }}">&#8369;{{ number_format($menu->price, 2) }}</p>
-                                <p class="text-xs tabular-nums
-                                    {{ $outOfStock ? 'text-gray-400' : ($lowStock ? 'text-amber-700 font-semibold' : 'text-gray-500') }}">
-                                    @if($outOfStock)
-                                        out
-                                    @else
-                                        {{ rtrim(rtrim(number_format((float)$stock, 2, '.', ''), '0'), '.') }} left
-                                    @endif
-                                </p>
-                            </div>
-                        </div>
-                    </button>
+                        @if(!$outOfStock) style="cursor:pointer;" @endif
+                        class="{{ $inCart ? 'bg-blue-50' : '' }}
+                               {{ $outOfStock ? 'bg-gray-50 opacity-50 cursor-not-allowed' : 'hover:bg-gray-50' }}
+                               {{ $lowStock && !$outOfStock ? 'bg-red-50' : '' }}">
+                        <td class="border border-gray-300 px-3 py-2 {{ $outOfStock ? 'text-gray-400' : 'text-gray-800' }}">
+                            {{ $menu->name }}
+                        </td>
+                        <td class="border border-gray-300 px-3 py-2 text-right {{ $outOfStock ? 'text-gray-400' : '' }}">
+                            &#8369;{{ number_format($menu->price, 2) }}
+                        </td>
+                        <td class="border border-gray-300 px-3 py-2 text-right tabular-nums font-semibold
+                            {{ $outOfStock ? 'text-gray-400' : ($lowStock ? 'text-red-600' : 'text-gray-700') }}">
+                            @if($outOfStock)
+                                OUT
+                            @else
+                                {{ rtrim(rtrim(number_format((float)$stock, 2, '.', ''), '0'), '.') }}
+                                @if($lowStock) <span class="text-[10px] font-bold text-red-600 ml-1">LOW</span> @endif
+                            @endif
+                        </td>
+                        <td class="border border-gray-300 px-3 py-2 text-center">
+                            @if($inCart)
+                                <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 bg-blue-600 text-white text-xs font-bold rounded">
+                                    {{ $inCartQty }}
+                                </span>
+                            @endif
+                        </td>
+                    </tr>
                 @empty
-                    <div class="col-span-full text-center py-16 text-gray-400">
+                    <tr>
+                        <td colspan="4" class="border border-gray-300 text-center py-12 text-gray-400">
                         @if($search)
                             No items match "{{ $search }}".
                         @else
                             No menu items in this category.
                         @endif
-                    </div>
+                        </td>
+                    </tr>
                 @endforelse
-            </div>
+                </tbody>
+            </table>
         </div>
     </div>
 

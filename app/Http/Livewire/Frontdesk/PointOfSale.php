@@ -731,7 +731,7 @@ class PointOfSale extends Component
         }
 
         return view('livewire.frontdesk.point-of-sale', [
-            'menus' => $menuQuery->get(),
+            'menus' => $menuQuery->get()->sortBy(fn ($m) => (float) ($m->frontdeskInventory?->number_of_serving ?? 0) <= 0 ? 1 : 0)->values(),
             'categories' => FrontdeskCategory::where('branch_id', auth()->user()->branch_id)->get(),
             'orders' => $orders,
             'receipt' => $receipt,
