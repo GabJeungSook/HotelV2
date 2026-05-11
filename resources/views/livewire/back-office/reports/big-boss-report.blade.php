@@ -303,7 +303,7 @@
                             @endforelse
                             @if(!empty($floorGroup['subtotal']))
                             <tr class="bg-gray-200 font-bold">
-                                <td colspan="7" class="border border-gray-300 px-2 py-1 text-right">SUBTOTAL</td>
+                                <td colspan="8" class="border border-gray-300 px-2 py-1 text-right">SUBTOTAL</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['room_rate'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['room_rate'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['extend'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['extend'], 2) : '' }}</td>
                                 <td class="border border-gray-300 px-2 py-1 text-right">{{ ($floorGroup['subtotal']['foods'] ?? 0) > 0 ? number_format($floorGroup['subtotal']['foods'], 2) : '' }}</td>
