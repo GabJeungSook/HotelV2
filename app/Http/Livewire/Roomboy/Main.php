@@ -307,7 +307,7 @@ class Main extends Component
                 : 'unknown date';
             $this->dialog()->error(
                 'Cannot Finish Cleaning',
-                "Room has unresolved previous guest: {$ghostName} (checked in {$ghostDate}). Front desk must check out first."
+                "Room has unresolved previous guest: {$ghostName} (checked in {$ghostDate}). Please contact admin to fix this unresolved record."
             );
             return;
         }

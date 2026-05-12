@@ -58,8 +58,8 @@
             <div>
                 <h2 class="font-semibold text-blue-800 mb-1">Ghost Record Detection</h2>
                 <p class="text-blue-700 text-sm mb-2">
-                    Records shown below are guests whose <strong>expected checkout was 2+ days ago</strong>
-                    and have not been formally checked out.
+                    Records shown below are guests whose <strong>expected checkout has passed</strong>
+                    and have not been formally checked out. Recent records (less than 48 hours) are marked with a yellow badge.
                 </p>
                 <p class="text-blue-700 text-sm">
                     <strong>These are likely true ghosts</strong> — guests who left without checkout.
@@ -82,7 +82,7 @@
     </div>
     @else
     <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-        <p class="text-green-700 font-medium">✓ All clear — No ghost records found (2+ days overdue).</p>
+        <p class="text-green-700 font-medium">✓ All clear — No ghost records found.</p>
     </div>
     @endif
 
@@ -111,7 +111,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     @foreach($ghostRecords as $record)
-                    <tr class="hover:bg-gray-50 {{ $record['days_overdue'] >= 7 ? 'bg-red-50' : '' }}">
+                    <tr class="hover:bg-gray-50 {{ $record['days_overdue'] >= 7 ? 'bg-red-50' : ($record['is_recent'] ? 'bg-yellow-50' : '') }}">
                         <td class="px-4 py-3 text-gray-400 text-xs">{{ $record['id'] }}</td>
                         <td class="px-4 py-3 font-medium text-gray-900">{{ $record['room_number'] }}</td>
                         <td class="px-4 py-3 text-gray-600">{{ $record['floor_number'] }}</td>
@@ -136,9 +136,16 @@
                         <td class="px-4 py-3 text-gray-600 text-sm">{{ $record['check_in_at'] }}</td>
                         <td class="px-4 py-3 text-gray-600 text-sm">{{ $record['expected_out'] }}</td>
                         <td class="px-4 py-3">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $record['days_overdue'] >= 7 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800' }}">
-                                {{ $record['days_overdue'] }} days
-                            </span>
+                            @if($record['is_recent'])
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    {{ $record['hours_overdue'] }} hrs
+                                </span>
+                                <span class="block text-xs text-yellow-600 mt-0.5">Recent</span>
+                            @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $record['days_overdue'] >= 7 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800' }}">
+                                    {{ $record['days_overdue'] }} days
+                                </span>
+                            @endif
                         </td>
                         <td class="px-4 py-3 text-gray-900 font-medium">₱{{ number_format($record['deposit'], 2) }}</td>
                         <td class="px-4 py-3 text-xs text-gray-500">

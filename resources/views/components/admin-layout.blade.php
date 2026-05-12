@@ -371,10 +371,9 @@
                 Roomboy Designation
               </a>
               @php
-                // Fixed 2026-04-28: Use check_out_at with 48-hour threshold (not number_of_hours)
                 $ghostCount = \App\Models\CheckinDetail::where('is_check_out', 0)
                     ->whereNotNull('check_out_at')
-                    ->where('check_out_at', '<', now()->subHours(48))
+                    ->where('check_out_at', '<', now())
                     ->count();
               @endphp
               @if($ghostCount > 0)
@@ -923,11 +922,10 @@
                 </svg>
                 Reservation
               </a>
-              {{-- 2026-04-28 — Detection query FIXED: Uses check_out_at with 48-hour threshold --}}
               @php
                 $ghostCountDesktop = \App\Models\CheckinDetail::where('is_check_out', 0)
                     ->whereNotNull('check_out_at')
-                    ->where('check_out_at', '<', now()->subHours(48))
+                    ->where('check_out_at', '<', now())
                     ->count();
               @endphp
               @if($ghostCountDesktop > 0)

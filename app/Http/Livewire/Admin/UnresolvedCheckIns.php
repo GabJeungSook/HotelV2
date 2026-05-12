@@ -68,23 +68,19 @@ class UnresolvedCheckIns extends Component
 
     public function getGhostRecordsProperty()
     {
-        // 2026-04-28 — query rewritten. Old query used `number_of_hours` which
-        // is 0 for long-stay/extension guests, falsely flagging active guests
-        // (with future check_out_at) as ghosts. New query uses check_out_at
-        // (the authoritative planned-checkout column) with a 48-hour (2-day) grace window.
-        // 48 hours ensures only true abandoned guests are flagged, not overstays.
-        // See: docs/incidents/2026-04-28-fix-all-unresolved-incident-report.md
-        $cutoff = now()->subHours(48);
-
+        // Show any record whose expected checkout has passed and was never
+        // formally checked out. The per-record safety guard in fixSingleRecord
+        // / fixAllGhostRecords still refuses to close future-dated records.
         return CheckinDetail::where('is_check_out', 0)
             ->whereNotNull('check_out_at')
-            ->where('check_out_at', '<', $cutoff)
+            ->where('check_out_at', '<', now())
             ->with(['room:id,number,status,type_id,floor_id', 'room.type:id,name', 'room.floor:id,number', 'guest:id,name'])
             ->orderBy('check_out_at', 'asc')
             ->get()
             ->map(function ($record) {
                 $expectedOut = Carbon::parse($record->check_out_at);
-                $daysOverdue = round(now()->diffInHours($expectedOut) / 24, 1);
+                $hoursOverdue = now()->diffInHours($expectedOut);
+                $daysOverdue = round($hoursOverdue / 24, 1);
 
                 return [
                     'id' => $record->id,
@@ -95,7 +91,9 @@ class UnresolvedCheckIns extends Component
                     'guest_name' => $record->guest->name ?? 'Unknown',
                     'check_in_at' => Carbon::parse($record->check_in_at)->format('M d, Y H:i'),
                     'expected_out' => $expectedOut->format('M d, Y H:i'),
+                    'hours_overdue' => $hoursOverdue,
                     'days_overdue' => $daysOverdue,
+                    'is_recent' => $hoursOverdue < 48,
                     'deposit' => $record->total_deposit ?? 0,
                     'will_block' => in_array($record->room->status ?? '', ['Available', 'Uncleaned', 'Cleaning']),
                 ];
@@ -247,11 +245,9 @@ class UnresolvedCheckIns extends Component
             return;
         }
 
-        $cutoff = now()->subHours(48);
-
         $ghosts = CheckinDetail::where('is_check_out', 0)
             ->whereNotNull('check_out_at')
-            ->where('check_out_at', '<', $cutoff)
+            ->where('check_out_at', '<', now())
             ->with(['room:id,number,branch_id', 'guest:id,name'])
             ->get();
 
