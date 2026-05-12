@@ -164,6 +164,7 @@
                                 </td>
 
                                 <td class="px-2 py-2 text-center">
+                                    @if($index === 0)
                                     <button
                                         wire:loading.attr="disabled"
                                         wire:target="finishCleaning,startCleaning"
@@ -181,6 +182,15 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
                                     </button>
+                                    @else
+                                    <button disabled
+                                        class="inline-flex items-center gap-1 bg-gray-300 text-white px-2 py-1.5 rounded text-xs font-medium opacity-50 cursor-not-allowed whitespace-nowrap">
+                                        Finish Cleaning
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                                        </svg>
+                                    </button>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

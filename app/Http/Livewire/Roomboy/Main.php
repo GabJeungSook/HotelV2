@@ -265,6 +265,22 @@ class Main extends Component
             return;
         }
 
+        // Enforce sequential finishing: only the room that started cleaning
+        // earliest can be finished first.
+        $firstCleaningRoom = Room::where('cleaning_by_user_id', auth()->id())
+            ->where('status', 'Cleaning')
+            ->orderBy('started_cleaning_at', 'asc')
+            ->first();
+
+        if ($firstCleaningRoom && $firstCleaningRoom->id !== $room->id) {
+            DB::rollBack();
+            $this->dialog()->error(
+                'Cannot Finish Cleaning',
+                'You must finish cleaning Room '.$firstCleaningRoom->number.' first.'
+            );
+            return;
+        }
+
         // If the room is now Occupied, frontdesk took it during cleaning.
         // Bail without flipping to Available — that would erase the live
         // booking from the room status field.

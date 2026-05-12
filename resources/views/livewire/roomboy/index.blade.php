@@ -123,19 +123,32 @@
                 ->get()
                 ->unique('id')
                 ->values();
+            $uncleanedPerFloor = App\Models\Room::whereBranchId(auth()->user()->branch_id)
+                ->where('status', 'Uncleaned')
+                ->whereIn('floor_id', $userFloors->pluck('id'))
+                ->selectRaw('floor_id, COUNT(*) as total')
+                ->groupBy('floor_id')
+                ->pluck('total', 'floor_id');
+            $totalAllFloors = $uncleanedPerFloor->sum();
         @endphp
         <button
             onclick="Livewire.emit('filterByFloor', 'all')"
-            class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
+            class="relative px-4 py-1.5 text-sm font-medium rounded-full transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
             id="floor-tab-all">
             ALL
+            @if($totalAllFloors > 0)
+                <span class="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-red-500 rounded-full">{{ $totalAllFloors }}</span>
+            @endif
         </button>
         @foreach($userFloors as $floor)
             <button
                 onclick="Livewire.emit('filterByFloor', {{ $floor->id }})"
-                class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
+                class="relative px-4 py-1.5 text-sm font-medium rounded-full transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
                 id="floor-tab-{{ $floor->id }}">
                 {{ strtoupper($floor->numberWithFormat()) }}
+                @if(($uncleanedPerFloor[$floor->id] ?? 0) > 0)
+                    <span class="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-red-500 rounded-full">{{ $uncleanedPerFloor[$floor->id] }}</span>
+                @endif
             </button>
         @endforeach
     </div>
