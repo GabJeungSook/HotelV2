@@ -652,18 +652,14 @@ class TransferRoom extends Component
         // Clear the kiosk picked slot for the source room (if any). When a
         // kiosk-checked-in guest is transferred, the source room cycles back
         // toward Available but the picked slot stays orphaned otherwise,
-        // blocking the kiosk from showing other rooms on that floor/type.
-        // refreshFloorSlot deletes the picked slot and refills with the
-        // next-priority clean room on that floor (same logic used by
-        // CheckInFromKiosk after a confirmed kiosk pick).
-        $sourceFloorId = Room::where('id', $check_in_detail->room_id)->value('floor_id');
-        if ($sourceFloorId !== null) {
-            KioskBatchService::refreshFloorSlot(
-                auth()->user()->branch_id,
-                $check_in_detail->type_id,
-                $sourceFloorId,
-            );
-        }
+        // blocking the kiosk from showing other rooms of that type.
+        // refreshSlot deletes the picked slot and refills with the
+        // next-priority clean room (same logic used by CheckInFromKiosk
+        // after a confirmed kiosk pick).
+        KioskBatchService::refreshSlot(
+            auth()->user()->branch_id,
+            $check_in_detail->type_id,
+        );
 
         // Also heal the destination type's batch. The destination room just
         // became Occupied, so any active slot pointing to it is now stale.

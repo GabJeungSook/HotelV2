@@ -267,14 +267,10 @@ class TransferService
             // Clear the kiosk picked slot for the source room (same fix as
             // TransferRoom.php). Without this the slot stays orphaned after
             // the kiosk-checked-in guest is moved away.
-            $sourceRoom = Room::find($request->from_room_id);
-            if ($sourceRoom) {
-                KioskBatchService::refreshFloorSlot(
-                    $request->branch_id,
-                    $check_in_detail->type_id,
-                    $sourceRoom->floor_id,
-                );
-            }
+            KioskBatchService::refreshSlot(
+                $request->branch_id,
+                $check_in_detail->type_id,
+            );
 
             // Heal the destination type's batch — destination room just became
             // Occupied so any active slot pointing to it is stale. Mirrors the

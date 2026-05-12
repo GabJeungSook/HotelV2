@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Floor;
 use App\Models\Guest;
 use App\Models\KioskCurrentBatch;
 use App\Models\Room;
@@ -10,19 +9,17 @@ use App\Models\TemporaryCheckInKiosk;
 use App\Models\TemporaryReserved;
 
 /**
- * Manages the kiosk "batch rotation" system. The kiosk shows a fixed set of
- * rooms (one per floor) for a specific room TYPE. When a room is picked, its
- * floor goes blank until ALL floors in the current batch have been picked, at
- * which point the next batch is "thrown" from the waiting stack.
+ * Manages the kiosk "batch rotation" system. The kiosk shows ONE room at a
+ * time for a specific room TYPE. When that room is picked, the next best
+ * available room (across all floors) is promoted.
  *
  * Scope: per (branch, type). Each room type rotates independently, so a guest
- * who picks "Double" sees a Double batch, and "Single" guests see a Single
- * batch — they don't interfere with each other.
+ * who picks "Double" sees a Double slot, and "Single" guests see a Single
+ * slot — they don't interfere with each other.
  *
- * Rules:
- *  - Floor that NEVER had a room in the current batch → blank can be filled
- *    mid-batch (when a Floor N room of this type gets cleaned, it joins).
- *  - Floor that HAD a room and was picked → stays blank until next batch.
+ * Selection priority:
+ *  1. Never-used rooms (last_checkin_at IS NULL) — natsort tiebreak
+ *  2. Earliest last_cleaned_at (FIFO from roomboy) — natsort tiebreak
  */
 class KioskBatchService
 {
@@ -38,37 +35,32 @@ class KioskBatchService
             ->where('type_id', $typeId)
             ->delete();
 
-        $floors = Floor::where('branch_id', $branchId)->get();
-
         // Same exclusion list the kiosk's render() applies — without it the
         // throw can re-pick rooms that already have an active kiosk hold,
         // which leaves the kiosk stuck (slot says 'active' but render filters
         // it out, showing SORRY).
         $blockedRoomIds = self::roomIdsBlockedFromBatch($branchId);
 
-        foreach ($floors as $floor) {
-            $candidates = Room::where('branch_id', $branchId)
-                ->where('type_id', $typeId)
-                ->where('floor_id', $floor->id)
-                ->whereIn('status', ['Available', 'Cleaned'])
-                ->where('is_priority', 1)
-                ->whereNotIn('id', $blockedRoomIds ?: [0])
-                ->get();
+        $candidates = Room::where('branch_id', $branchId)
+            ->where('type_id', $typeId)
+            ->whereIn('status', ['Available', 'Cleaned'])
+            ->where('is_priority', 1)
+            ->whereNotIn('id', $blockedRoomIds ?: [0])
+            ->get();
 
-            if ($candidates->isEmpty()) {
-                continue;
-            }
-
-            $room = self::pickPreferredRoom($candidates);
-
-            KioskCurrentBatch::create([
-                'branch_id' => $branchId,
-                'type_id' => $typeId,
-                'room_id' => $room->id,
-                'floor_id' => $floor->id,
-                'slot_status' => KioskCurrentBatch::STATUS_ACTIVE,
-            ]);
+        if ($candidates->isEmpty()) {
+            return;
         }
+
+        $room = self::pickPreferredRoom($candidates);
+
+        KioskCurrentBatch::create([
+            'branch_id' => $branchId,
+            'type_id' => $typeId,
+            'room_id' => $room->id,
+            'floor_id' => $room->floor_id,
+            'slot_status' => KioskCurrentBatch::STATUS_ACTIVE,
+        ]);
     }
 
     /**
@@ -102,7 +94,7 @@ class KioskBatchService
     }
 
     /**
-     * Select the next room to release from a candidate set on one floor.
+     * Select the next room to release from a candidate set.
      *
      * Spec balances two goals:
      *   1. "Use unused rooms" — distribute usage so the same low-numbered
@@ -148,16 +140,15 @@ class KioskBatchService
     }
 
     /**
-     * Called when a roomboy finishes cleaning. If the room's floor has no row
-     * in the current batch for that room's type, add the room as an active
-     * slot immediately (fills a floor that started blank). Otherwise the room
-     * waits for the next batch.
+     * Called when a roomboy finishes cleaning. If there is no active slot
+     * in the current batch for this room's type, add the room as the
+     * active slot immediately. Otherwise the room waits for the next batch.
      */
-    public static function maybeFillBlankFloor(Room $room): void
+    public static function maybeFillEmptySlot(Room $room): void
     {
         $exists = KioskCurrentBatch::where('branch_id', $room->branch_id)
             ->where('type_id', $room->type_id)
-            ->where('floor_id', $room->floor_id)
+            ->where('slot_status', KioskCurrentBatch::STATUS_ACTIVE)
             ->exists();
 
         if ($exists) {
@@ -237,35 +228,30 @@ class KioskBatchService
     }
 
     /**
-     * Refresh a single floor's slot for (branch, type) immediately after the
-     * frontdesk confirms a kiosk pick. This replaces the older "wait for the
-     * whole batch to drain" rule that left floors blank for hours.
+     * Refresh the single slot for (branch, type) immediately after the
+     * frontdesk confirms a kiosk pick.
      *
      * Behavior:
-     *  - Delete any 'picked' slot row for this floor (the room is now Occupied).
-     *  - Pick the next-priority available room on the same floor and type
+     *  - Delete any 'picked' slot row (the room is now Occupied).
+     *  - Pick the next-priority available room across all floors
      *    (`pickPreferredRoom` honors "unused first, then FIFO by cleaning").
      *  - Insert it as a new 'active' slot so it shows in the kiosk right away.
-     *  - If no eligible room exists on this floor, leave the slot empty —
-     *    `maybeFillBlankFloor` will promote the next room when a roomboy
-     *    finishes one on this floor.
-     *
-     * Other floors in the batch are NOT touched. The "1 active slot per floor
-     * per type" distribution rule is preserved.
+     *  - If no eligible room exists, leave the slot empty —
+     *    `maybeFillEmptySlot` will promote the next room when a roomboy
+     *    finishes cleaning.
      */
-    public static function refreshFloorSlot(int $branchId, int $typeId, int $floorId): void
+    public static function refreshSlot(int $branchId, int $typeId): void
     {
         KioskCurrentBatch::where('branch_id', $branchId)
             ->where('type_id', $typeId)
-            ->where('floor_id', $floorId)
             ->where('slot_status', KioskCurrentBatch::STATUS_PICKED)
             ->delete();
 
         // Skip refill if the slot was already replaced by another path
-        // (e.g. roomboy `maybeFillBlankFloor` ran first).
+        // (e.g. roomboy `maybeFillEmptySlot` ran first).
         $alreadyHasSlot = KioskCurrentBatch::where('branch_id', $branchId)
             ->where('type_id', $typeId)
-            ->where('floor_id', $floorId)
+            ->where('slot_status', KioskCurrentBatch::STATUS_ACTIVE)
             ->exists();
 
         if ($alreadyHasSlot) {
@@ -282,7 +268,6 @@ class KioskBatchService
 
         $candidates = Room::where('branch_id', $branchId)
             ->where('type_id', $typeId)
-            ->where('floor_id', $floorId)
             ->whereIn('status', ['Available', 'Cleaned'])
             ->where('is_priority', 1)
             ->whereNotIn('id', $excludedRoomIds ?: [0])
@@ -298,17 +283,17 @@ class KioskBatchService
             'branch_id' => $branchId,
             'type_id' => $typeId,
             'room_id' => $room->id,
-            'floor_id' => $floorId,
+            'floor_id' => $room->floor_id,
             'slot_status' => KioskCurrentBatch::STATUS_ACTIVE,
         ]);
     }
 
     /**
      * Flip a picked slot back to active. Called when a kiosk check-in is
-     * cancelled or times out before the frontdesk confirms — the floor's
-     * slot should reappear on the kiosk instead of staying blank until the
-     * next batch. No-op if the slot is not currently picked for this room
-     * (e.g. cleanup runs twice, or the batch has already rotated).
+     * cancelled or times out before the frontdesk confirms — the slot
+     * should reappear on the kiosk. No-op if the slot is not currently
+     * picked for this room (e.g. cleanup runs twice, or the batch has
+     * already rotated).
      */
     public static function returnToBatch(int $branchId, int $roomId): void
     {
@@ -347,22 +332,14 @@ class KioskBatchService
      * "View Kiosk Batch" modal so staff can see what is coming next
      * without walking to the kiosk.
      *
-     * Returns an array of $batchCount batches; each batch is an array
-     * of one entry per floor in branch order:
+     * Returns an array of $batchCount entries, each with one room:
      *   [
-     *     [  // Batch +1 (next throw)
-     *        ['floor_id'=>X, 'floor_number'=>1, 'room_number'=>'7'],
-     *        ['floor_id'=>Y, 'floor_number'=>2, 'room_number'=>'69'],
-     *        ...
-     *     ],
-     *     [  // Batch +2 (after next)
-     *        ['floor_id'=>X, 'floor_number'=>1, 'room_number'=>'9'],
-     *        ...
-     *     ],
+     *     ['room_number'=>'7', 'floor_number'=>1, 'floor_id'=>X],
+     *     ['room_number'=>'69', 'floor_number'=>2, 'floor_id'=>Y],
      *     ...
      *   ]
      *
-     * Floors with no candidate at that depth get room_number=null.
+     * Entries beyond available candidates get room_number=null.
      */
     public static function previewBatches(int $branchId, int $typeId, int $batchCount = 1): array
     {
@@ -377,64 +354,47 @@ class KioskBatchService
             self::roomIdsBlockedFromBatch($branchId),
         )));
 
-        $floors = Floor::where('branch_id', $branchId)
-            ->orderBy('number')
-            ->get();
+        $rooms = Room::where('branch_id', $branchId)
+            ->where('type_id', $typeId)
+            ->whereIn('status', ['Available', 'Cleaned'])
+            ->where('is_priority', 1)
+            ->whereNotIn('id', $excludedRoomIds ?: [0])
+            ->with('floor:id,number')
+            ->get(['id', 'number', 'floor_id', 'last_checkin_at', 'last_cleaned_at']);
 
-        // Pre-fetch all candidates per floor and order them with the same
-        // tiered priority used by throwNextBatch (never-used first, then
-        // least-recently-used, natsort as final tiebreak). This way the
-        // preview matches what an actual sequence of throws would produce.
-        $perFloor = [];
-        foreach ($floors as $floor) {
-            $rooms = Room::where('branch_id', $branchId)
-                ->where('type_id', $typeId)
-                ->where('floor_id', $floor->id)
-                ->whereIn('status', ['Available', 'Cleaned'])
-                ->where('is_priority', 1)
-                ->whereNotIn('id', $excludedRoomIds ?: [0])
-                ->get(['id', 'number', 'last_checkin_at', 'last_cleaned_at']);
-
-            $queue = [];
-            $remaining = $rooms;
-            $maxIterations = $rooms->count() + 1; // Safety limit
-            $iterations = 0;
-            while ($remaining->isNotEmpty() && $iterations < $maxIterations) {
-                $iterations++;
-                $next = self::pickPreferredRoom($remaining);
-                if (! $next) {
-                    break; // No valid room found, exit loop
-                }
-                $queue[] = $next->number;
-                $remaining = $remaining->reject(fn ($r) => $r->id === $next->id);
+        // Build a queue using the same tiered priority as throwNextBatch.
+        $queue = [];
+        $remaining = $rooms;
+        $maxIterations = $rooms->count() + 1;
+        $iterations = 0;
+        while ($remaining->isNotEmpty() && $iterations < $maxIterations && count($queue) < $batchCount) {
+            $iterations++;
+            $next = self::pickPreferredRoom($remaining);
+            if (! $next) {
+                break;
             }
+            $queue[] = [
+                'room_number' => $next->number,
+                'floor_number' => $next->floor->number ?? null,
+                'floor_id' => $next->floor_id,
+            ];
+            $remaining = $remaining->reject(fn ($r) => $r->id === $next->id);
+        }
 
-            $perFloor[$floor->id] = [
-                'floor_number' => $floor->number,
-                'queue' => $queue,
+        // Pad to requested count with nulls.
+        while (count($queue) < $batchCount) {
+            $queue[] = [
+                'room_number' => null,
+                'floor_number' => null,
+                'floor_id' => null,
             ];
         }
 
-        $batches = [];
-        for ($i = 0; $i < $batchCount; $i++) {
-            $batch = [];
-            foreach ($perFloor as $floorId => &$info) {
-                $room = $info['queue'][$i] ?? null;
-                $batch[] = [
-                    'floor_id' => $floorId,
-                    'floor_number' => $info['floor_number'],
-                    'room_number' => $room,
-                ];
-            }
-            unset($info);
-            $batches[] = $batch;
-        }
-
-        return $batches;
+        return $queue;
     }
 
     /**
-     * Backward-compatible single-batch preview (returns the next batch only).
+     * Preview the next single room that would be thrown.
      */
     public static function previewNextBatch(int $branchId, int $typeId): array
     {
@@ -453,11 +413,10 @@ class KioskBatchService
      * though other rooms are available.
      *
      * Strategy:
-     *  1. If EVERY active slot is stale → throwNextBatch() (full refresh).
-     *  2. Otherwise refresh stale slots individually — replace each bad slot's
-     *     room_id with the next-available natsort-lowest room on the same
-     *     floor (excluding rooms already in this batch). If no replacement
-     *     exists for that floor, delete the slot row so `maybeFillBlankFloor`
+     *  1. If the active slot is stale → throwNextBatch() (full refresh).
+     *  2. Otherwise replace the bad slot's room_id with the next-available
+     *     room across all floors (excluding rooms already in this batch).
+     *     If no replacement exists, delete the slot so `maybeFillEmptySlot`
      *     can fill it later when a roomboy cleans.
      *
      * Returns true if any change was made.
@@ -465,14 +424,14 @@ class KioskBatchService
     /**
      * Delete picked slots whose underlying TCK is gone. The TCK is the
      * canonical "kiosk pick in flight" marker — once it is gone no flow can
-     * ever resolve the slot, so leaving it as 'picked' just blocks the floor.
+     * ever resolve the slot, so leaving it as 'picked' just blocks the slot.
      *
      * Earlier this also spared slots whose room was Occupied (in case the
      * frontdesk confirm was mid-flight). That carve-out turned out to mask
      * permanent leftovers: when CheckInFromKiosk::saveCheckIn committed but
-     * its post-commit refreshFloorSlot did not run (PHP timeout / dropped
+     * its post-commit refreshSlot did not run (PHP timeout / dropped
      * connection), the row stayed 'picked' on an Occupied room forever (4F
-     * incident, 2026-04-30). With Layer A moving refreshFloorSlot inside
+     * incident, 2026-04-30). With Layer A moving refreshSlot inside
      * the transaction, the only race left is identical to the cancel race
      * (TCK deleted, slot still picked), which this cleanup is meant to fix.
      */
@@ -513,8 +472,8 @@ class KioskBatchService
         // saveCheckIn flow committed but maybeThrowNextBatch returned false
         // and never fired again). The picked slot is "stale" if its room is
         // no longer Occupied AND there is no temp_check_in_kiosks hold for it.
-        // Once cleaned, the floor is free for a fresh active slot via the
-        // existing throw / maybeFillBlankFloor paths.
+        // Once cleaned, the slot is free for a fresh active room via the
+        // existing throw / maybeFillEmptySlot paths.
         $pickedChanged = self::cleanupStalePickedSlots($branchId, $typeId);
 
         $activeSlots = KioskCurrentBatch::where('branch_id', $branchId)
@@ -523,7 +482,7 @@ class KioskBatchService
             ->get();
 
         // If after picked-slot cleanup the batch is now fully empty, throw a
-        // fresh batch so floors with available rooms get visible immediately.
+        // fresh batch so an available room gets visible immediately.
         if ($activeSlots->isEmpty()) {
             $hasAnySlot = KioskCurrentBatch::where('branch_id', $branchId)
                 ->where('type_id', $typeId)
@@ -553,47 +512,9 @@ class KioskBatchService
             return $pickedChanged;
         }
 
-        // If EVERY slot is stale, fall back to a clean full throw.
-        if ($staleSlots->count() === $activeSlots->count()) {
-            self::throwNextBatch($branchId, $typeId);
-            return true;
-        }
-
-        // Otherwise repair just the bad slots in place. We need to know which
-        // rooms are already booked in the batch so a replacement does not
-        // collide with another active or picked slot on a different floor.
-        // Also skip rooms held by kiosk/frontdesk reservations or recent
-        // orphan guests — same exclusion the kiosk's render() uses.
-        $excludedRoomIds = array_values(array_unique(array_merge(
-            KioskCurrentBatch::where('branch_id', $branchId)
-                ->where('type_id', $typeId)
-                ->pluck('room_id')
-                ->all(),
-            self::roomIdsBlockedFromBatch($branchId),
-        )));
-
-        foreach ($staleSlots as $slot) {
-            $candidates = Room::where('branch_id', $branchId)
-                ->where('type_id', $typeId)
-                ->where('floor_id', $slot->floor_id)
-                ->whereIn('status', ['Available', 'Cleaned'])
-                ->where('is_priority', 1)
-                ->whereNotIn('id', $excludedRoomIds ?: [0])
-                ->get(['id', 'number', 'last_checkin_at', 'last_cleaned_at']);
-
-            if ($candidates->isEmpty()) {
-                // No replacement on this floor — delete the slot so the floor
-                // can be filled by maybeFillBlankFloor when a roomboy cleans.
-                $slot->delete();
-                continue;
-            }
-
-            $replacement = self::pickPreferredRoom($candidates);
-
-            $slot->update(['room_id' => $replacement->id]);
-            $excludedRoomIds[] = $replacement->id;
-        }
-
+        // The single active slot is stale — replace it with the next best
+        // available room across all floors.
+        self::throwNextBatch($branchId, $typeId);
         return true;
     }
 }

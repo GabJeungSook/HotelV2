@@ -27,18 +27,6 @@
     </div>
   </div>
   <div class="mt-5">
-    <div class="flex space-x-2">
-      @foreach ($floors as $floor)
-        @if ($floor->rooms->where('status', 'Available')->where('is_priority', true)->where('type_id', $type_id)->count() > 0)
-          <button>
-            <div wire:click="$set('floor_id', {{ $floor->id }})"
-              class="border-2 py-2 px-4 rounded-full flex items-center justify-center transition-all {{ $floor_id == $floor->id ? 'text-white bg-green-600 border-green-600 shadow-md scale-105' : 'text-gray-600 bg-gray-50 border-blue-500' }}">
-              <h1 class="font-bold text-lg">{{ $floor->numberWithFormat() }}</h1>
-            </div>
-          </button>
-        @endif
-      @endforeach
-    </div>
     <div class="grid lg:grid-cols-5 sm:grid-cols-3 mt-5 gap-5">
 
       @forelse ($rooms as $room)

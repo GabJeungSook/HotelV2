@@ -396,7 +396,7 @@ class RoomMonitoring extends Component
         // Same hook as Admin\GhostRooms::fixRoom + the rooms:fix-ghost cron.
         $room->refresh();
         if ($room->is_priority) {
-            KioskBatchService::maybeFillBlankFloor($room);
+            KioskBatchService::maybeFillEmptySlot($room);
         }
 
         \App\Models\ActivityLog::create([
@@ -1361,15 +1361,14 @@ class RoomMonitoring extends Component
         $this->temporary_checkIn = null;
         DB::commit();
 
-        // Per-floor kiosk refresh after frontdesk confirms a kiosk pick.
+        // Kiosk refresh after frontdesk confirms a kiosk pick.
         // Mirrors the fix already applied in CheckInFromKiosk::saveCheckIn —
-        // without it, the picked slot stays orphaned and blocks the floor.
+        // without it, the picked slot stays orphaned.
         $kioskCheckInRoom = Room::find($kioskCheckInRoomId);
         if ($kioskCheckInRoom) {
-            KioskBatchService::refreshFloorSlot(
+            KioskBatchService::refreshSlot(
                 auth()->user()->branch_id,
                 $kioskCheckInRoom->type_id,
-                $kioskCheckInRoom->floor_id,
             );
         }
 

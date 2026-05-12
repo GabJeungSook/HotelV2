@@ -91,7 +91,7 @@ class Index extends Component
         ]);
 
         // Defensive: heal any stale kiosk slots for this type. Symmetric
-        // with finishCleaning's maybeFillBlankFloor hook.
+        // with finishCleaning's maybeFillEmptySlot hook.
         KioskBatchService::refreshIfStale($room->branch_id, $room->type_id);
 
         $now = \Carbon\Carbon::now();
@@ -262,7 +262,7 @@ class Index extends Component
         // room fills the blank slot immediately. Otherwise it waits for next
         // batch (strict batch rotation per client spec).
         $room->refresh();
-        KioskBatchService::maybeFillBlankFloor($room);
+        KioskBatchService::maybeFillEmptySlot($room);
 
         if ($getlastRecord) {
             $totalMinutes = ceil(

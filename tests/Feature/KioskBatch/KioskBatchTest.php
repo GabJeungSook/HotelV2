@@ -273,7 +273,7 @@ class KioskBatchTest extends TestCase
 
         $floor3Room = Room::where('floor_id', $floors[2]->id)->first();
         $floor3Room->update(['status' => 'Available', 'is_priority' => 1]);
-        KioskBatchService::maybeFillBlankFloor($floor3Room);
+        KioskBatchService::maybeFillEmptySlot($floor3Room);
 
         $this->assertTrue(
             KioskCurrentBatch::where('branch_id', $branch->id)
@@ -299,7 +299,7 @@ class KioskBatchTest extends TestCase
             ->skip(1)
             ->first();
 
-        KioskBatchService::maybeFillBlankFloor($floor1SecondRoom);
+        KioskBatchService::maybeFillEmptySlot($floor1SecondRoom);
 
         $floor1Rows = KioskCurrentBatch::where('branch_id', $branch->id)
             ->where('type_id', $type->id)
@@ -693,7 +693,7 @@ class KioskBatchTest extends TestCase
         Room::where('id', $f1PickedRoomId)->update(['status' => 'Occupied']);
         KioskBatchService::markPicked($branch->id, $f1PickedRoomId);
 
-        KioskBatchService::refreshFloorSlot($branch->id, $type->id, $f1->id);
+        KioskBatchService::refreshSlot($branch->id, $type->id);
 
         $f1Slot = KioskCurrentBatch::where('branch_id', $branch->id)
             ->where('type_id', $type->id)
@@ -714,8 +714,8 @@ class KioskBatchTest extends TestCase
     /** @test */
     public function refresh_floor_slot_leaves_floor_blank_when_no_replacement()
     {
-        // No spare clean room on the floor → slot stays empty so a future
-        // roomboy `maybeFillBlankFloor` can promote the next cleaning.
+        // No spare clean room → slot stays empty so a future
+        // roomboy `maybeFillEmptySlot` can promote the next cleaning.
         $branch = Branch::create(['name' => 'No spare refresh ' . uniqid(), 'kiosk_time_limit' => 10]);
         $type = Type::create(['branch_id' => $branch->id, 'name' => 'Test']);
         $stayingHour = StayingHour::create(['branch_id' => $branch->id, 'number' => 12]);
@@ -730,7 +730,7 @@ class KioskBatchTest extends TestCase
         Room::where('id', $onlyRoom->id)->update(['status' => 'Occupied']);
         KioskBatchService::markPicked($branch->id, $onlyRoom->id);
 
-        KioskBatchService::refreshFloorSlot($branch->id, $type->id, $f1->id);
+        KioskBatchService::refreshSlot($branch->id, $type->id);
 
         $slot = KioskCurrentBatch::where('branch_id', $branch->id)
             ->where('type_id', $type->id)
@@ -854,7 +854,7 @@ class KioskBatchTest extends TestCase
     public function refresh_if_stale_clears_picked_orphan_when_room_occupied_and_no_tck()
     {
         // 4F regression (2026-04-30): a kiosk-pick → frontdesk-confirm finished
-        // (room Occupied, TCK deleted) but the post-commit refreshFloorSlot
+        // (room Occupied, TCK deleted) but the post-commit refreshSlot
         // never ran — leaving a 'picked' batch row pointing at an Occupied
         // room with NO live TCK. Old rule treated this as "in flight" and kept
         // it forever. New rule: no TCK = stale, regardless of room status.

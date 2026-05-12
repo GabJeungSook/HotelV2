@@ -499,11 +499,9 @@ class CheckInFromKiosk extends Component
         // request died between commit and this call (PHP timeout, dropped
         // connection), the picked row was orphaned forever — see 4F incident
         // on 2026-04-30.
-        $floorId = Room::where('id', $this->guest->room_id)->value('floor_id');
-        KioskBatchService::refreshFloorSlot(
+        KioskBatchService::refreshSlot(
             $this->guest->branch_id,
             $this->guest->type_id,
-            $floorId,
         );
 
         DB::commit();

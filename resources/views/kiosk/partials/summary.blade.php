@@ -30,19 +30,27 @@
     <div class="w-full flex flex-col lg:flex-row space-y-5 lg:space-y-0 lg:space-x-5 bg-gray-50 border-2 border-blue-500 bg-opacity-75 rounded-2xl">
       <div class="w-full lg:w-96 border-b-2 lg:border-b-0 lg:border-r-2 border-gray-600 p-5">
         <h1 class="font-medium text-xl text-gray-700">Personal Information</h1>
-        <div class="mt-4 bg-white p-2 py-3 rounded-lg flex flex-col space-y-3">
-          <x-input label="Complete Name" wire:model="name" />
+        <div class="mt-4 bg-white p-4 py-5 rounded-lg flex flex-col space-y-5">
           <div>
-            <label for="company-website" class="block text-sm font-medium text-gray-700">Contact
-              Number(Optional)</label>
-            <div class="mt-1 flex rounded-md shadow-sm">
+            <label class="block text-lg font-semibold text-gray-700 mb-2">Complete Name</label>
+            <input type="text" wire:model="name"
+              class="block w-full rounded-xl border-gray-300 px-5 py-4 text-xl focus:border-green-500 focus:ring-green-500"
+              placeholder="Enter your complete name">
+            @error('name')
+              <span class="text-sm text-red-600 mt-1">{{ $message }}</span>
+            @enderror
+          </div>
+          <div>
+            <label class="block text-lg font-semibold text-gray-700 mb-2">Contact Number <span class="text-gray-400 font-normal text-base">(Optional)</span></label>
+            <div class="flex rounded-xl shadow-sm">
               <span
-                class="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-50 px-3 text-gray-500 sm:text-sm">09</span>
+                class="inline-flex items-center rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 px-4 text-lg text-gray-500">09</span>
               <input type="number" wire:model="contact"
-                class="block w-full min-w-0 flex-1 rounded-none rounded-r-md border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                class="block w-full min-w-0 flex-1 rounded-none rounded-r-xl border-gray-300 px-5 py-4 text-xl focus:border-green-500 focus:ring-green-500"
+                placeholder="XXXXXXXXX">
             </div>
             @error('contact')
-              <span class="text-sm text-red-600">{{ $message }}</span>
+              <span class="text-sm text-red-600 mt-1">{{ $message }}</span>
             @enderror
           </div>
         </div>

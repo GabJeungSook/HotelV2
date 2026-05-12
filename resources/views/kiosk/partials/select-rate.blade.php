@@ -16,7 +16,7 @@
           <span class="font-semibold text-blue-500 uppercase">Back</span>
         </a>
       @else
-        <button x-on:click="step--"
+        <button x-on:click="step = 1"
         class="bg-gray-50 outline-blue-500 border border-blue-500 p-8 px-14 flex space-x-1 rounded-full">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
             stroke="currentColor" class="w-6 text-blue-500 h-6">

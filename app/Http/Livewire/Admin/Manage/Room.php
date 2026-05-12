@@ -262,12 +262,12 @@ class Room extends Component implements Tables\Contracts\HasTable
                     // If the admin moved the room into a kiosk-eligible state,
                     // notify the kiosk batch so the room becomes visible
                     // without waiting for the next roomboy cleaning cycle.
-                    // maybeFillBlankFloor only inserts a slot if the floor
+                    // maybeFillEmptySlot only inserts a slot if the floor
                     // currently has none for that type — safe to call always.
                     $record->refresh();
                     if (in_array($record->status, ['Available', 'Cleaned'], true)
                         && $record->is_priority) {
-                        KioskBatchService::maybeFillBlankFloor($record);
+                        KioskBatchService::maybeFillEmptySlot($record);
                     }
 
                     ActivityLog::create([

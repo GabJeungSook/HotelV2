@@ -22,14 +22,14 @@ use Tests\TestCase;
  *   B4  TerminationInKiosk job — returnToBatch
  *   B6  Roomboy startCleaning — defensive refreshIfStale
  *   B7  PriorityRoom::removePriority — refreshIfStale
- *   B8  RoomMonitoring::saveCheckIn — refreshFloorSlot
+ *   B8  RoomMonitoring::saveCheckIn — refreshSlot
  *
  * The actual UI flows (Livewire components / queued jobs) are large with
  * many dependencies. These tests verify the underlying behaviour the
  * hooks rely on:
  *
  *   • refreshIfStale clears active slot pointing to non-eligible room
- *   • refreshFloorSlot clears picked slot and refills with next FIFO
+ *   • refreshSlot clears picked slot and refills with next FIFO
  *   • returnToBatch flips picked back to active
  *
  * Because the hook calls themselves are 1-line additions, these tests
@@ -116,7 +116,7 @@ class BatchSyncHooksTest extends TestCase
     public function refresh_floor_slot_clears_picked_after_kiosk_walk_in_confirm()
     {
         // After RoomMonitoring::saveCheckIn (Bug B8) commits the kiosk
-        // walk-in confirmation, refreshFloorSlot replaces the picked slot
+        // walk-in confirmation, refreshSlot replaces the picked slot
         // with the next-FIFO clean room — same as CheckInFromKiosk does.
         [$branch, $type, $f1] = $this->seedSmall();
 
@@ -134,7 +134,7 @@ class BatchSyncHooksTest extends TestCase
             'room_id' => $picked->id, 'slot_status' => 'picked',
         ]);
 
-        KioskBatchService::refreshFloorSlot($branch->id, $type->id, $f1->id);
+        KioskBatchService::refreshSlot($branch->id, $type->id);
 
         $slot = KioskCurrentBatch::where('floor_id', $f1->id)->first();
         $this->assertNotNull($slot, 'A new slot should be created.');

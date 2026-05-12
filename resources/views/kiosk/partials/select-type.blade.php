@@ -8,7 +8,8 @@
   <div class="mt-10">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       @foreach ($types as $type)
-      <button wire:key="{{ $type->id }}" wire:click="selectType({{ $type->id }})" type="button" class="transition-all duration-200 {{ $type_id == $type->id ? 'scale-105' : 'opacity-80 hover:opacity-100' }}">
+      @php $assignedRoom = $typeRoomMap[$type->id] ?? null; @endphp
+      <button wire:key="{{ $type->id }}" wire:click="selectType({{ $type->id }}, {{ $assignedRoom ? $assignedRoom->id : 'null' }})" type="button" class="transition-all duration-200 {{ $type_id == $type->id ? 'scale-105' : 'opacity-80 hover:opacity-100' }} {{ !$assignedRoom ? 'opacity-40 cursor-not-allowed' : '' }}">
         <div class="h-72 rounded-2xl overflow-hidden relative grid place-content-center border-4 transition-all duration-200 {{ $type_id == $type->id ? 'border-green-500 bg-green-50 shadow-2xl shadow-green-200 ring-4 ring-green-200' : 'border-gray-200 bg-gray-50' }}">
           @if ($type_id == $type->id)
             <div class="absolute top-3 right-3 bg-green-500 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg">
@@ -101,6 +102,17 @@
            @endswitch
 
                 <h1 class="text-[2rem] font-extrabold uppercase relative {{ $type_id == $type->id ? 'text-green-700' : 'text-gray-700' }}">{{ $type->name }}</h1>
+                @if ($assignedRoom)
+                  <div class="mt-1 relative">
+                    <span class="text-lg font-bold {{ $type_id == $type->id ? 'text-green-600' : 'text-gray-500' }}">
+                        {{ $assignedRoom->numberWithFormat() }}</span>
+                    <span class="text-base {{ $type_id == $type->id ? 'text-green-500' : 'text-gray-400' }}">· {{ $assignedRoom->floor->numberWithFormat() }}</span>
+                  </div>
+                @else
+                  <div class="mt-1 relative">
+                    <span class="text-lg font-semibold text-red-400">No available room</span>
+                  </div>
+                @endif
         </div>
         </button>
       @endforeach
@@ -110,15 +122,15 @@
     <div class="flex justify-center">
       @if ($type_id)
         <button
-          wire:click="$set('steps', 2)"
+          wire:click="$set('steps', 3)"
           class="font-medium px-8 py-3 text-white bg-green-600 rounded-2xl flex items-center gap-2 shadow-xl ring-4 ring-green-200 animate-pulse hover:animate-none hover:bg-green-700 transition-colors">
-          
+
           NEXT
-          
-          <svg xmlns="http://www.w3.org/2000/svg" 
-              class="w-14 h-14" 
-              fill="none" 
-              viewBox="0 0 24 24" 
+
+          <svg xmlns="http://www.w3.org/2000/svg"
+              class="w-14 h-14"
+              fill="none"
+              viewBox="0 0 24 24"
               stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M13 7l5 5m0 0l-5 5m5-5H6" />

@@ -88,7 +88,7 @@ class FixGhostRooms extends Command
                 // Notify the kiosk batch — same hook as the GhostRooms UI.
                 $room->refresh();
                 if ($room->is_priority) {
-                    KioskBatchService::maybeFillBlankFloor($room);
+                    KioskBatchService::maybeFillEmptySlot($room);
                 }
                 $this->line("  ✅ Room #{$room->number} (ID: {$room->id}) → Available");
             }

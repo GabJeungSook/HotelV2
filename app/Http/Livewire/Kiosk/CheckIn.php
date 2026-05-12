@@ -6,7 +6,6 @@ use Livewire\Component;
 use App\Models\Type;
 use App\Models\Room;
 use App\Models\Rate;
-use App\Models\Floor;
 use WireUi\Traits\Actions;
 use App\Models\Guest;
 use App\Models\TemporaryCheckInKiosk;
@@ -26,8 +25,6 @@ class CheckIn extends Component
     public $types = [];
     // public $rooms = [];
     public $rates = [];
-    public $floors = [];
-    public $floor_id;
     public $type_id;
     public $room_id;
     public $rate_id;
@@ -45,70 +42,52 @@ class CheckIn extends Component
     {
         $branchId = auth()->user()->branch_id;
 
-        // The batch is scoped per (branch, type). Without a selected type,
-        // there is nothing to display — the kiosk's type-selection step runs
-        // before this render shows rooms.
-        $rooms = collect();
+        // Build a map of type_id → assigned room for display on the type
+        // selection cards. Each type gets its single batch room shown
+        // directly under the type name (room number + floor).
+        $typeRoomMap = [];
 
-        if ($this->type_id) {
-            // First render for this type (or after every active room was
-            // picked): initialize / throw the next batch for this type.
-            if (KioskBatchService::isEmpty($branchId, $this->type_id)) {
-                KioskBatchService::throwNextBatch($branchId, $this->type_id);
+        $temporaryCheckInKiosk = TemporaryCheckInKiosk::where('branch_id', $branchId)
+            ->pluck('room_id')
+            ->toArray();
+
+        $temporaryReserved = TemporaryReserved::where('branch_id', $branchId)
+            ->pluck('room_id')
+            ->toArray();
+
+        $pendingGuestRooms = Guest::where('branch_id', $branchId)
+            ->whereDoesntHave('checkInDetail')
+            ->where('created_at', '>=', now()->subHours(2))
+            ->pluck('room_id')
+            ->toArray();
+
+        $ghostRoomIds = CheckinDetail::where('is_check_out', false)
+            ->pluck('room_id')
+            ->toArray();
+
+        $excludedIds = array_merge($temporaryCheckInKiosk, $temporaryReserved, $pendingGuestRooms, $ghostRoomIds);
+
+        foreach ($this->types as $type) {
+            if (KioskBatchService::isEmpty($branchId, $type->id)) {
+                KioskBatchService::throwNextBatch($branchId, $type->id);
             }
 
-            // Self-heal: if active slots all point to rooms that became
-            // unusable (Occupied/Maintenance/etc) via non-kiosk paths,
-            // throw the next batch so the waiting stack is promoted.
-            KioskBatchService::refreshIfStale($branchId, $this->type_id);
+            KioskBatchService::refreshIfStale($branchId, $type->id);
 
-            $activeRoomIds = KioskBatchService::activeRoomIds($branchId, $this->type_id);
+            $activeRoomIds = KioskBatchService::activeRoomIds($branchId, $type->id);
 
-            $temporaryCheckInKiosk = TemporaryCheckInKiosk::where('branch_id', $branchId)
-                ->pluck('room_id')
-                ->toArray();
-
-            $temporaryReserved = TemporaryReserved::where('branch_id', $branchId)
-                ->pluck('room_id')
-                ->toArray();
-
-            // Exclude rooms with RECENT orphaned kiosk Guest records (hold
-            // expired but guest never confirmed by frontdesk). Scoped to the
-            // last 2 hours so stale historical orphans (e.g. guests with
-            // transactions but no check-in detail that cleanup skips) do not
-            // silently block all kiosk rooms. The kiosk:cleanup job runs every
-            // minute, so a 2-hour window is far wider than any legitimate race.
-            $pendingGuestRooms = Guest::where('branch_id', $branchId)
-                ->whereDoesntHave('checkInDetail')
-                ->where('created_at', '>=', now()->subHours(2))
-                ->pluck('room_id')
-                ->toArray();
-
-            // Exclude rooms with unresolved check-ins (ghost records) from display
-            $ghostRoomIds = CheckinDetail::where('is_check_out', false)
-                ->pluck('room_id')
-                ->toArray();
-
-            $rooms = Room::where('branch_id', $branchId)
+            $room = Room::where('branch_id', $branchId)
                 ->whereIn('id', $activeRoomIds)
                 ->whereIn('status', ['Available', 'Cleaned'])
-                ->whereNotIn('id', $temporaryCheckInKiosk)
-                ->whereNotIn('id', $temporaryReserved)
-                ->whereNotIn('id', $pendingGuestRooms)
-                ->whereNotIn('id', $ghostRoomIds) // Hide rooms with ghost records
-                ->when($this->floor_id, function ($query) {
-                    return $query->where('floor_id', $this->floor_id);
-                })
-                ->with(['type.rates', 'floor'])
-                ->get()
-                ->sortBy(function ($room) {
-                    return $room->floor->number ?? 0;
-                })
-                ->values();
+                ->whereNotIn('id', $excludedIds ?: [0])
+                ->with('floor')
+                ->first();
+
+            $typeRoomMap[$type->id] = $room;
         }
 
         return view('livewire.kiosk.check-in', [
-            'rooms' => $rooms,
+            'typeRoomMap' => $typeRoomMap,
         ]);
     }
 
@@ -122,66 +101,24 @@ class CheckIn extends Component
     public function mount()
     {
         $this->getTypes();
-        $this->floors = Floor::where('branch_id', auth()->user()->branch_id)->get();
         $this->discountEnabled = false;
         $this->discount_amount = 0;
 
         $this->steps = 1;
     }
 
-    public function selectType($type_id)
+    public function selectType($type_id, $room_id)
     {
-        $branchId = auth()->user()->branch_id;
-
-        // Initialize the batch for this type if it has never been thrown.
-        if (KioskBatchService::isEmpty($branchId, $type_id)) {
-            KioskBatchService::throwNextBatch($branchId, $type_id);
-        }
-
-        // Self-heal stale batch (see KioskBatchService::refreshIfStale).
-        KioskBatchService::refreshIfStale($branchId, $type_id);
-
-        $activeRoomIds = KioskBatchService::activeRoomIds($branchId, $type_id);
-
-        $temporaryCheckInKiosk = TemporaryCheckInKiosk::where('branch_id', $branchId)
-            ->pluck('room_id')
-            ->toArray();
-
-        $temporaryReserved = TemporaryReserved::where('branch_id', $branchId)
-            ->pluck('room_id')
-            ->toArray();
-
-        // Same 2-hour scope as render() — stale historical orphans must not
-        // silently block the type-selection step either.
-        $pendingGuestRooms = Guest::where('branch_id', $branchId)
-            ->whereDoesntHave('checkInDetail')
-            ->where('created_at', '>=', now()->subHours(2))
-            ->pluck('room_id')
-            ->toArray();
-
-        // Exclude rooms with unresolved check-ins (ghost records) from count
-        $ghostRoomIds = CheckinDetail::where('is_check_out', false)
-            ->pluck('room_id')
-            ->toArray();
-
-        $available = Room::where('branch_id', $branchId)
-            ->where('type_id', $type_id)
-            ->whereIn('id', $activeRoomIds)
-            ->whereIn('status', ['Available', 'Cleaned'])
-            ->whereNotIn('id', $temporaryCheckInKiosk)
-            ->whereNotIn('id', $temporaryReserved)
-            ->whereNotIn('id', $pendingGuestRooms)
-            ->whereNotIn('id', $ghostRoomIds) // Hide rooms with ghost records
-            ->count();
-
-        if ($available <= 0) {
+        if (!$room_id) {
             $this->dialog()->error(
                 $title = 'SORRY',
                 $description = 'There is no available room in this type.'
             );
-        } else {
-            $this->type_id = $type_id;
+            return;
         }
+
+        $this->type_id = $type_id;
+        $this->selectRoom($room_id);
     }
 
     public function updatedLongstay()
@@ -434,6 +371,6 @@ class CheckIn extends Component
 
     public function backRoom()
     {
-        $this->floor_id = null;
+        //
     }
 }

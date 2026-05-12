@@ -268,7 +268,7 @@
                                 <th class="border border-gray-300 px-2 py-1 text-left">Check-in</th>
                                 <th class="border border-gray-300 px-2 py-1 text-left">Check-out</th>
                                 <th class="border border-gray-300 px-2 py-1 text-center">Initial Hours</th>
-                                <th class="border border-gray-300 px-2 py-1 text-right">Room Rate</th>
+                                <th class="border border-gray-300 px-2 py-1 text-right">Room</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Foods</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Drinks</th>
                                 <th class="border border-gray-300 px-2 py-1 text-right">Misc.</th>

@@ -46,10 +46,10 @@ class GhostRooms extends Component
         $room->update(['status' => 'Available']);
 
         // Notify the kiosk batch — the just-freed room is now eligible.
-        // maybeFillBlankFloor adds a slot if the floor currently has none.
+        // maybeFillEmptySlot adds a slot if the floor currently has none.
         $room->refresh();
         if ($room->is_priority) {
-            KioskBatchService::maybeFillBlankFloor($room);
+            KioskBatchService::maybeFillEmptySlot($room);
         }
 
         ActivityLog::create([
@@ -78,7 +78,7 @@ class GhostRooms extends Component
             // Notify the kiosk batch (same hook as fixRoom above).
             $room->refresh();
             if ($room->is_priority) {
-                KioskBatchService::maybeFillBlankFloor($room);
+                KioskBatchService::maybeFillEmptySlot($room);
             }
 
             ActivityLog::create([
