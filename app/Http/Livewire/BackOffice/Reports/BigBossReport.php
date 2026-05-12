@@ -381,6 +381,7 @@ class BigBossReport extends Component
                         'check_out' => '',
                         'initial_hours' => '',
                         'is_forwarded' => false,
+                        'has_extend' => false,
                         'rowspan' => 1,
                         'room_rate' => 0,
                         'extend' => 0,
@@ -412,7 +413,9 @@ class BigBossReport extends Component
                             'initial_hours' => $checkin->rate?->stayingHour?->number ?? '',
                             'is_forwarded' => $isForwarded,
                             'rowspan' => $isFirst ? $checkinCount : 0,
-                            'room_rate' => (float) $checkinTxns->where('transaction_type_id', 1)->sum('payable_amount'),
+                            'room_rate' => (float) $checkinTxns->where('transaction_type_id', 1)->sum('payable_amount')
+                                        + (float) $checkinTxns->where('transaction_type_id', 6)->sum('payable_amount'),
+                            'has_extend' => (float) $checkinTxns->where('transaction_type_id', 6)->sum('payable_amount') > 0,
                             'extend' => (float) $checkinTxns->where('transaction_type_id', 6)->sum('payable_amount'),
                             'foods' => (float) $checkinTxns->where('transaction_type_id', 9)->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') !== 'DRINKS')->sum('payable_amount'),
                             'drinks' => (float) $checkinTxns->where('transaction_type_id', 9)->filter(fn ($t) => ($menuParentMap[$t->menu_id] ?? '') === 'DRINKS')->sum('payable_amount'),
