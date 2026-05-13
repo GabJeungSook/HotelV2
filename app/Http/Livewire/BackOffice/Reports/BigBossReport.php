@@ -803,6 +803,18 @@ class BigBossReport extends Component
             ->get()
             ->keyBy('id');
 
+        // Snapshot-based sales totals: sum payable_amount frozen at checkout time,
+        // so historical reports are not retroactively re-priced when menu prices change.
+        $salesByMenuId = Transaction::query()
+            ->where('branch_id', $branchId)
+            ->where('transaction_type_id', 9)
+            ->whereIn('menu_id', $menuIds)
+            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->whereNull('voided_at')
+            ->selectRaw('menu_id, SUM(payable_amount) as total')
+            ->groupBy('menu_id')
+            ->pluck('total', 'menu_id');
+
         $items = [];
 
         foreach ($allInventory as $inv) {
@@ -854,7 +866,7 @@ class BigBossReport extends Component
 
             $price      = (float) $menu->price;
             $stockSold  = $frontdeskOut;
-            $salesTotal = $stockSold * $price;
+            $salesTotal = (float) ($salesByMenuId[$menu->id] ?? 0);
 
             $items[] = [
                 'parent_category' => strtoupper($parentName),
