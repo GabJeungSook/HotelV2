@@ -23,7 +23,27 @@
         <div>Please assign a frontdesk...</div>
       @endforelse
     </ul>
-    <div class="flex justify-between items-center border-t pt-2">
+    <div class="border-t pt-3 mt-2">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm font-semibold text-gray-700">Select Shift</p>
+        <p class="text-xs text-gray-500">Default based on current time — you can override</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button type="button" wire:click="$set('shift', 'AM')"
+          class="flex flex-col items-center justify-center rounded-lg border-2 p-4 transition focus:outline-none
+            {{ $shift === 'AM' ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-300 shadow' : 'border-gray-300 bg-white text-gray-500 hover:border-blue-400 hover:bg-blue-50' }}">
+          <span class="text-2xl font-extrabold tracking-wide">AM</span>
+          <span class="mt-1 text-[11px] font-medium">Morning Shift</span>
+        </button>
+        <button type="button" wire:click="$set('shift', 'PM')"
+          class="flex flex-col items-center justify-center rounded-lg border-2 p-4 transition focus:outline-none
+            {{ $shift === 'PM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-300 shadow' : 'border-gray-300 bg-white text-gray-500 hover:border-indigo-400 hover:bg-indigo-50' }}">
+          <span class="text-2xl font-extrabold tracking-wide">PM</span>
+          <span class="mt-1 text-[11px] font-medium">Evening Shift</span>
+        </button>
+      </div>
+    </div>
+    <div class="flex justify-between items-center border-t pt-2 mt-3">
        <x-native-select wire:model="drawer">
             <option selected hidden>Select Cash Drawer</option>
             @foreach ($cash_drawers as $drawer)

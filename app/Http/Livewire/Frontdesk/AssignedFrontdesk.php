@@ -46,6 +46,17 @@ class AssignedFrontdesk extends Component
         $this->checkShiftCapacity();
     }
 
+    public function updatedShift($value)
+    {
+        if (! in_array($value, ['AM', 'PM'], true)) {
+            $this->shift = 'AM';
+        }
+
+        $this->showExistingSessionModal = false;
+        $this->shiftUsers = [];
+        $this->checkShiftCapacity();
+    }
+
     public function checkShiftCapacity()
     {
         $now = now();
