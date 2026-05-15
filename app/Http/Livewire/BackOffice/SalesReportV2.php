@@ -11,6 +11,7 @@ use App\Models\Expense;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
 use App\Support\ShiftResolver;
+use App\Support\ShiftSessionGrouper;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -109,7 +110,8 @@ class SalesReportV2 extends Component
     }
 
     /**
-     * Load all completed shift sessions (grouped by shift TYPE + DATE).
+     * Load completed shift sessions, grouped by shift type + date,
+     * then split into sub-sessions by interval continuity.
      */
     private function loadAvailableShiftSessions(): void
     {
@@ -118,66 +120,12 @@ class SalesReportV2 extends Component
 
         $shiftLogs = ShiftLog::query()
             ->where('branch_id', auth()->user()->branch_id)
-            ->whereNotNull('time_out') // Completed shifts only
+            ->whereNotNull('time_out')
             ->whereBetween('time_in', [$weekStart, $weekEnd])
             ->with('frontdesk:id,name')
-            ->orderBy('time_in','asc')
             ->get();
 
-        // Group by SHIFT TYPE + DATE (not time proximity)
-        $sessions = [];
-        foreach ($shiftLogs as $log) {
-            $shiftType = $log->shift ?? ShiftResolver::fromClock($log->time_in);
-            $shiftDate = ShiftResolver::deriveShiftDate($log->time_in, $shiftType)->format('Y-m-d');
-            $key = $shiftType . '_' . $shiftDate;
-
-            if (!isset($sessions[$key])) {
-                $sessions[$key] = [
-                    'id' => $log->id,
-                    'logs' => [],
-                    'log_ids' => [],
-                    'time_in' => $log->time_in,
-                    'time_out' => $log->time_out,
-                    'shift_type' => $shiftType,
-                    'shift_date' => $shiftDate,
-                    'frontdesks' => [],
-                ];
-            }
-
-            $sessions[$key]['logs'][] = $log;
-            $sessions[$key]['log_ids'][] = $log->id;
-            $sessions[$key]['frontdesks'][] = $log->frontdesk?->name ?? 'Unknown';
-
-            // Use earliest time_in and latest time_out
-            if ($log->time_in < $sessions[$key]['time_in']) {
-                $sessions[$key]['time_in'] = $log->time_in;
-            }
-            if ($log->time_out > $sessions[$key]['time_out']) {
-                $sessions[$key]['time_out'] = $log->time_out;
-            }
-        }
-
-        // Sort by time_in descending and format labels
-        $this->availableShiftSessions = collect($sessions)
-            ->sortBy('time_in')
-            ->map(function ($s) {
-                $frontdeskNames = implode(', ', array_unique($s['frontdesks']));
-
-                return [
-                    'id' => $s['log_ids'][0], // Primary ID
-                    'log_ids' => $s['log_ids'],
-                    'label' => $s['shift_type'] . ' ' . $s['time_in']->format('M j')
-                             . ' - ' . $frontdeskNames
-                             . ' (' . $s['time_in']->format('g:i A') . ' - ' . $s['time_out']->format('g:i A') . ')',
-                    'frontdesks' => $frontdeskNames,
-                    'time_in' => $s['time_in']->toIso8601String(),
-                    'time_out' => $s['time_out']->toIso8601String(),
-                    'time_in_formatted' => $s['time_in']->format('F d, Y g:i A'),
-                    'time_out_formatted' => $s['time_out']->format('F d, Y g:i A'),
-                ];
-            })
-            ->values()
-            ->toArray();
+        $this->availableShiftSessions = ShiftSessionGrouper::group($shiftLogs);
     }
 
     /**
