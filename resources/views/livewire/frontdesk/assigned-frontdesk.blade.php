@@ -143,6 +143,39 @@
   </div>
   @endif
 
+  {{-- Cross-day shift confirmation modal --}}
+  @if ($crossDayConfirmModal)
+  <div class="fixed inset-0 z-50 overflow-y-auto" x-data>
+    <div class="fixed inset-0 bg-secondary-400 bg-opacity-60 transition-opacity"></div>
+    <div class="w-full min-h-full flex items-center justify-center p-4">
+      <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div class="text-center">
+          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-amber-100 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-amber-600">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirm Shift Date</h3>
+          <p class="text-sm text-gray-600 mb-2">
+            You selected <span class="font-bold">{{ $shift }}</span> but the current time falls outside that shift's window.
+          </p>
+          <p class="text-sm text-gray-800 mb-4">
+            Your shift will be recorded as <span class="font-bold">{{ $shift }} for {{ $crossDayTargetDate }}</span>, starting now.
+          </p>
+          <p class="text-xs text-gray-500">
+            If this is not correct, cancel and re-select the shift.
+          </p>
+        </div>
+
+        <div class="flex justify-center gap-x-3 mt-6">
+          <x-button flat label="Cancel" wire:click="cancelCrossDay" spinner="cancelCrossDay" />
+          <x-button positive label="Continue" right-icon="arrow-right" wire:click="confirmCrossDay" spinner="confirmCrossDay" />
+        </div>
+      </div>
+    </div>
+  </div>
+  @endif
+
   <x-modal wire:model.defer="partner_modal" max-width="sm" align="center">
     <x-card title="Partner's Name">
 

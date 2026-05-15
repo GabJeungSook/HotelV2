@@ -17,6 +17,7 @@ use App\Models\Room;
 use App\Models\ShiftLog;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Support\ShiftResolver;
 use Carbon\Carbon;
 use Livewire\Component;
 
@@ -415,8 +416,8 @@ class BigBossPosReport extends Component
 
         $sessions = [];
         foreach ($shiftLogs as $log) {
-            $shiftType = $this->getShiftType($log->time_in);
-            $shiftDate = $log->time_in->format('Y-m-d');
+            $shiftType = $this->shiftTypeOf($log);
+            $shiftDate = ShiftResolver::deriveShiftDate($log->time_in, $shiftType)->format('Y-m-d');
             $key = $shiftType . '_' . $shiftDate;
 
             if (!isset($sessions[$key])) {
@@ -468,8 +469,12 @@ class BigBossPosReport extends Component
 
     private function getShiftType(Carbon $timeIn): string
     {
-        $hour = $timeIn->hour;
-        return ($hour >= 6 && $hour < 20) ? 'AM' : 'PM';
+        return ShiftResolver::fromClock($timeIn);
+    }
+
+    private function shiftTypeOf(ShiftLog $log): string
+    {
+        return $log->shift ?? ShiftResolver::fromClock($log->time_in);
     }
 
     private function getSelectedSession(): ?array

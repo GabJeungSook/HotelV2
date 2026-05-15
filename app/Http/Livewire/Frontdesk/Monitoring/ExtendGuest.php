@@ -17,6 +17,7 @@ use App\Models\ExtensionRate;
 use App\Models\StayExtension;
 use Illuminate\Support\Facades\DB;
 use App\Models\ExtendedGuestReport;
+use App\Support\ShiftResolver;
 use WireUi\Traits\Actions;
 
 class ExtendGuest extends Component
@@ -247,7 +248,7 @@ class ExtendGuest extends Component
                     'paid_at' => null,
                     'override_at' => null,
                     'remarks' => 'Guest Extension : ' . $rate->hour . ' hours',
-                    'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                    'shift' => ShiftResolver::current(),
                 ]);
                 StayExtension::create([
                     'guest_id' => $check_in_detail->guest_id,

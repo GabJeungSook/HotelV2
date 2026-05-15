@@ -10,11 +10,13 @@ use App\Models\OverrideRequest;
 use App\Models\Rate;
 use App\Models\Room;
 use App\Models\StayingHour;
+use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\TransferedGuestReport;
 use App\Models\Type;
 use App\Models\User;
 use App\Services\KioskBatchService;
+use App\Support\ShiftResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -54,6 +56,12 @@ class TransferService
         DB::beginTransaction();
         try {
             $assigned_frontdesk = $requester->assigned_frontdesks ?? [];
+
+            $requesterShiftLogId = ShiftLog::where('frontdesk_id', $requester->id)
+                ->whereNull('time_out')
+                ->latest('time_in')
+                ->value('id');
+            $requesterShift = ShiftResolver::current($requester);
 
             // Get rate for new room. Long-stay guests have hours_stayed =
             // 24 × number_of_days, which never matches a staying_hours row
@@ -97,7 +105,7 @@ class TransferService
             // Create transfer transaction
             $transaction = Transaction::create([
                 'branch_id' => $request->branch_id,
-                'shift_log_id' => null,
+                'shift_log_id' => $requesterShiftLogId,
                 'checkin_detail_id' => $check_in_detail->id,
                 'cash_drawer_id' => $requester->cash_drawer_id,
                 'room_id' => $request->to_room_id,
@@ -116,7 +124,7 @@ class TransferService
                     ' (' . (optional(Type::find($request->from_type_id))->name ?? 'N/A') . ') to Room #' . $toRoom->number .
                     ' (' . (optional(Type::find($request->to_type_id))->name ?? 'N/A') . ') - Reason: ' . ($request->transferReason->reason ?? 'N/A'),
                 'transfer_reason_id' => $request->transfer_reason_id,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => $requesterShift,
                 'is_override' => true,
                 'override_request_id' => $request->id,
                 'approved_by_user_id' => $approvedByUserId,
@@ -126,7 +134,7 @@ class TransferService
             if ($save_excess && $excess_amount > 0 && $requester->cash_drawer_id) {
                 Transaction::create([
                     'branch_id' => $request->branch_id,
-                    'shift_log_id' => null,
+                    'shift_log_id' => $requesterShiftLogId,
                     'checkin_detail_id' => $check_in_detail->id,
                     'cash_drawer_id' => $requester->cash_drawer_id,
                     'room_id' => $guest->room_id,
@@ -142,7 +150,7 @@ class TransferService
                     'paid_at' => Carbon::now()->toDateTimeString(),
                     'override_at' => null,
                     'remarks' => 'Deposit From Transfer Room (Excess Amount)',
-                    'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                    'shift' => $requesterShift,
                     'is_override' => false,
                 ]);
 
@@ -154,7 +162,7 @@ class TransferService
                         'amount' => $excess_amount,
                         'transaction_date' => now()->toDateString(),
                         'transaction_type' => 'deposit',
-                        'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                        'shift' => $requesterShift,
                     ]);
                 }
 

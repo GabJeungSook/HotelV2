@@ -10,6 +10,7 @@ use App\Models\Floor;
 use App\Models\Expense;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
+use App\Support\ShiftResolver;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -126,8 +127,8 @@ class SalesReportV2 extends Component
         // Group by SHIFT TYPE + DATE (not time proximity)
         $sessions = [];
         foreach ($shiftLogs as $log) {
-            $shiftType = $this->getShiftType($log->time_in);
-            $shiftDate = $log->time_in->format('Y-m-d');
+            $shiftType = $log->shift ?? ShiftResolver::fromClock($log->time_in);
+            $shiftDate = ShiftResolver::deriveShiftDate($log->time_in, $shiftType)->format('Y-m-d');
             $key = $shiftType . '_' . $shiftDate;
 
             if (!isset($sessions[$key])) {
@@ -221,15 +222,9 @@ class SalesReportV2 extends Component
         return ['checkins' => $checkins, 'checkouts' => $checkouts];
     }
 
-    /**
-     * Determine shift type from time_in hour.
-     * AM: 6:00 AM - 7:59 PM (hours 6-19)
-     * PM: 8:00 PM - 5:59 AM (hours 20-23, 0-5)
-     */
     private function getShiftType(Carbon $timeIn): string
     {
-        $hour = $timeIn->hour;
-        return ($hour >= 6 && $hour < 20) ? 'AM' : 'PM';
+        return ShiftResolver::fromClock($timeIn);
     }
 
     /**

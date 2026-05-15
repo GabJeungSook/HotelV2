@@ -23,6 +23,7 @@ use App\Models\TemporaryReserved;
 use App\Models\TemporaryCheckInKiosk;
 use App\Models\KioskCurrentBatch;
 use App\Services\KioskBatchService;
+use App\Support\ShiftResolver;
 
 class RoomMonitoring extends Component
 {
@@ -345,9 +346,7 @@ class RoomMonitoring extends Component
                 'override_at' => null,
                 'remarks' =>
                 'Guest Added Food and Beverages: (Kitchen) (' .$this->food_quantity .')' .' '.$food->name,
-                'shift' => (now()->hour >= 8 && now()->hour < 20)
-                    ? 'AM'
-                    : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
             //update stock
             $new_stock =
@@ -1045,7 +1044,7 @@ class RoomMonitoring extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Guest Checked In at room #' . $room_number,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         $users = User::role('frontdesk')->get();
@@ -1080,7 +1079,7 @@ class RoomMonitoring extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Deposit From Check In (Room Key & TV Remote)',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         if ($this->save_excess) {
@@ -1116,7 +1115,7 @@ class RoomMonitoring extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Deposit From Check In (Excess Amount)',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
         }
         $this->reset(['amountPaid']);
@@ -1233,7 +1232,7 @@ class RoomMonitoring extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Guest Checked In at room #' . $room_number,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         $users = User::role('frontdesk')->get();
@@ -1269,7 +1268,7 @@ class RoomMonitoring extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Deposit From Check In (Room Key & TV Remote)',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         if ($this->save_excess) {
@@ -1304,7 +1303,7 @@ class RoomMonitoring extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Deposit From Check In (Excess Amount)',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
         }
 
@@ -1479,7 +1478,7 @@ class RoomMonitoring extends Component
             'override_at' => null,
             'remarks' => 'Guest Checked In at room #' . $room_number,
             'is_co' => true,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         $users = User::role('frontdesk')->get();
@@ -1518,7 +1517,7 @@ class RoomMonitoring extends Component
             'override_at' => null,
             'remarks' => 'Deposit From Check In (Room Key & TV Remote)',
             'is_co' => true,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         if ($this->save_excess_reserve) {
@@ -1554,7 +1553,7 @@ class RoomMonitoring extends Component
                 'override_at' => null,
                 'remarks' => 'Deposit From Check In (Excess Amount)',
                 'is_co' => true,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
         }
         $shift_date = Carbon::parse(auth()->user()->time_in)->format('F j, Y');

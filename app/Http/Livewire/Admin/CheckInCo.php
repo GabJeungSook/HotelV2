@@ -13,6 +13,7 @@ use App\Models\StayingHour;
 use App\Models\Transaction;
 use App\Models\CheckinDetail;
 use App\Models\NewGuestReport;
+use App\Support\ShiftResolver;
 use Illuminate\Support\Facades\DB;
 use WireUi\Traits\Actions;
 
@@ -169,8 +170,7 @@ class CheckInCo extends Component
           {
               $assigned_frontdesk = auth()->user()->assigned_frontdesks;
           }
-            $currentHour = now()->hour;
-            $shift = ($currentHour >= 8 && $currentHour < 20) ? 'AM' : 'PM';
+            $shift = ShiftResolver::current();
             
 
          Transaction::create([

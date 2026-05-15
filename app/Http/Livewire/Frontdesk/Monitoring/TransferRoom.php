@@ -19,6 +19,7 @@ use App\Models\TransferedGuestReport;
 use App\Models\TransferReason;
 use App\Models\Type;
 use App\Services\KioskBatchService;
+use App\Support\ShiftResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -502,7 +503,7 @@ class TransferRoom extends Component
                 ') - Reason: ' .
                 $reason->reason,
             'transfer_reason_id' => $this->selected_reason,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
             'is_override' => $this->is_override,
             'override_request_id' => $overrideRequestId,
             'approved_by_user_id' => $approvedByUserId,
@@ -541,7 +542,7 @@ class TransferRoom extends Component
                 'paid_at' => Carbon::now()->toDateTimeString(),
                 'override_at' => null,
                 'remarks' => 'Deposit From Transfer Room (Excess Amount)',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
                 'is_override' => false,
             ]);
 
@@ -553,7 +554,7 @@ class TransferRoom extends Component
                 'amount' => $this->excess_amount,
                 'transaction_date' => now()->toDateString(),
                 'transaction_type' => 'deposit',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
              CheckinDetail::where('guest_id', $this->guest->id)->update([

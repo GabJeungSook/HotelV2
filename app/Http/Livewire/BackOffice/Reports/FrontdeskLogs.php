@@ -3,6 +3,7 @@
 namespace App\Http\Livewire\BackOffice\Reports;
 
 use App\Models\ShiftLog;
+use App\Support\ShiftResolver;
 use Carbon\Carbon;
 use Livewire\Component;
 
@@ -26,11 +27,11 @@ class FrontdeskLogs extends Component
             ->orderByDesc('time_in');
 
         $logs = $query->get()->map(function ($log) {
-            $hour = $log->time_in->hour;
-            $shiftType = ($hour >= 6 && $hour < 20) ? 'AM' : 'PM';
+            $shiftType = $log->shift ?? ShiftResolver::fromClock($log->time_in);
+            $shiftDate = ShiftResolver::deriveShiftDate($log->time_in, $shiftType);
 
             return [
-                'shift' => $log->time_in->format('F d, Y') . ' - ' . $shiftType,
+                'shift' => $shiftDate->format('F d, Y') . ' - ' . $shiftType,
                 'frontdesk' => $log->frontdesk?->name ?? '—',
                 'time_in' => $log->time_in->format('h:i A'),
                 'time_out' => $log->time_out ? $log->time_out->format('h:i A') : '—',

@@ -9,6 +9,7 @@ use App\Models\HotelItems;
 use WireUi\Traits\Actions;
 use App\Models\Transaction;
 use App\Models\CheckinDetail;
+use App\Support\ShiftResolver;
 use Illuminate\Support\Facades\DB;
 
 class CheckOutGuest extends Component
@@ -211,7 +212,7 @@ class CheckOutGuest extends Component
                     ')' .
                     ' ' .
                     $damage_charges->name,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
             DB::commit();
             $this->damage_modal = false;
@@ -329,7 +330,7 @@ class CheckOutGuest extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Guest Charged for Damage: Room Key & TV Remote',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
         }
         DB::commit();

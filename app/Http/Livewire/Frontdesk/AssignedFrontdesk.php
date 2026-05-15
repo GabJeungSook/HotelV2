@@ -7,6 +7,7 @@ use App\Models\Frontdesk;
 use App\Models\AssignedFrontdesk as assignFrontdeskModel;
 use App\Models\ShiftLog;
 use App\Models\CashDrawer;
+use App\Support\ShiftResolver;
 use WireUi\Traits\Actions;
 use Illuminate\Support\Facades\Auth;
 use DB;
@@ -24,10 +25,14 @@ class AssignedFrontdesk extends Component
     public $showExistingSessionModal = false;
     public $shiftUsers = [];
 
+    // Cross-day shift confirmation
+    public bool $crossDayConfirmModal = false;
+    public ?string $crossDayTargetDate = null;
+    public bool $crossDayAcknowledged = false;
+
     public function mount()
     {
-        $currentHour = now()->hour;
-        $this->shift = ($currentHour >= 7 && $currentHour < 19) ? 'AM' : 'PM';
+        $this->shift = ShiftResolver::fromClock(now());
 
         $assigned = Frontdesk::where('branch_id', auth()->user()->branch_id)
             ->where('user_id', auth()->user()->id)->get();
@@ -54,7 +59,24 @@ class AssignedFrontdesk extends Component
 
         $this->showExistingSessionModal = false;
         $this->shiftUsers = [];
+        $this->crossDayAcknowledged = false;
+        $this->crossDayConfirmModal = false;
+        $this->crossDayTargetDate = null;
         $this->checkShiftCapacity();
+    }
+
+    public function confirmCrossDay()
+    {
+        $this->crossDayAcknowledged = true;
+        $this->crossDayConfirmModal = false;
+        $this->saveFrontdesk();
+    }
+
+    public function cancelCrossDay()
+    {
+        $this->crossDayConfirmModal = false;
+        $this->crossDayTargetDate = null;
+        $this->crossDayAcknowledged = false;
     }
 
     public function checkShiftCapacity()
@@ -146,6 +168,14 @@ class AssignedFrontdesk extends Component
     {
         // Block if existing session is still open
         if ($this->showExistingSessionModal) {
+            return;
+        }
+
+        // Confirm with the frontdesk when the chosen shift implies a different calendar day
+        $targetDate = ShiftResolver::deriveShiftDate(now(), $this->shift);
+        if (! $targetDate->isToday() && ! $this->crossDayAcknowledged) {
+            $this->crossDayTargetDate = $targetDate->format('F j, Y');
+            $this->crossDayConfirmModal = true;
             return;
         }
 

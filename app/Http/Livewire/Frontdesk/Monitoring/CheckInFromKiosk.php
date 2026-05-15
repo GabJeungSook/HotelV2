@@ -15,6 +15,7 @@ use App\Models\StayingHour;
 use App\Models\TemporaryCheckInKiosk;
 use App\Models\Transaction;
 use App\Services\KioskBatchService;
+use App\Support\ShiftResolver;
 use Carbon\Carbon;
 use DB;
 use Livewire\Component;
@@ -317,7 +318,7 @@ class CheckInFromKiosk extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Guest Checked In at room #' . $room_number,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         //save cash on drawer
@@ -328,7 +329,7 @@ class CheckInFromKiosk extends Component
             'amount' => $this->room_static_amount,
             'transaction_date' => now()->toDateString(),
             'transaction_type' => 'check-in',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
         $users = User::role('frontdesk')->get();
 
@@ -362,7 +363,7 @@ class CheckInFromKiosk extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Deposit From Check In (Room Key & TV Remote)',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         CashOnDrawer::create([
@@ -372,7 +373,7 @@ class CheckInFromKiosk extends Component
             'amount' => $this->additional_charges,
             'transaction_date' => now()->toDateString(),
             'transaction_type' => 'deposit',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         if ($this->save_excess) {
@@ -407,7 +408,7 @@ class CheckInFromKiosk extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Deposit From Check In (Excess Amount)',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
              //save cash on drawer
@@ -418,7 +419,7 @@ class CheckInFromKiosk extends Component
                 'amount' => $this->excess_amount,
                 'transaction_date' => now()->toDateString(),
                 'transaction_type' => 'deposit',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
         }
 

@@ -32,6 +32,7 @@ use App\Models\ExtendedGuestReport;
 use App\Models\TransferReason;
 use App\Models\OverrideRequest;
 use App\Models\TransferedGuestReport;
+use App\Support\ShiftResolver;
 use Filament\Forms\Components\Actions\Modal\Actions\Action;
 
 class GuestTransaction extends Component
@@ -337,7 +338,7 @@ class GuestTransaction extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Guest Deposit: ' . $this->deposit_remarks,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
             $this->check_in_details->update([
                 'total_deposit' => $current_deposit + $this->deposit_amount,
@@ -661,7 +662,7 @@ class GuestTransaction extends Component
                 'paid_at' => null,
                 'override_at' => null,
                 'remarks' => 'Guest Extension : ' . $rate->hour . ' hours',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
             StayExtension::create([
                 'guest_id' => $check_in_detail->guest_id,
@@ -836,7 +837,7 @@ class GuestTransaction extends Component
                     'Guest Deduction of Deposit: ₱' .
                     $this->deduction_amount .
                     ' deducted.',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
             $check_in_detail->update([
@@ -1037,7 +1038,7 @@ class GuestTransaction extends Component
                 'override_at' => null,
                 'remarks' =>
                     'Guest Added Food and Beverages: (Front Desk) (' .$this->food_quantity .')' .' '.$food->name,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
             //update stock
             $new_stock = $inventory->number_of_serving - $this->food_quantity;
@@ -1236,7 +1237,7 @@ class GuestTransaction extends Component
                     ')' .
                     ' ' .
                     $amenities->name,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
             ActivityLog::create([
@@ -1425,7 +1426,7 @@ class GuestTransaction extends Component
                     ')' .
                     ' ' .
                     $damage_charges->name,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
             ActivityLog::create([
@@ -1699,7 +1700,7 @@ class GuestTransaction extends Component
                 ') - Reason: ' .
                 $reason->reason,
             'transfer_reason_id' => $this->reason_id,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         if($this->old_status === "Uncleaned")
@@ -1853,7 +1854,7 @@ class GuestTransaction extends Component
             'amount' => $transaction->payable_amount,
             'transaction_date' => now()->toDateString(),
             'transaction_type' => 'Payment from '.$transaction->description,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         if ($this->saveAsExcess == true) {
@@ -1890,7 +1891,7 @@ class GuestTransaction extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Deposit from paying ' . $transaction->description,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
              CashOnDrawer::create([
@@ -1900,7 +1901,7 @@ class GuestTransaction extends Component
             'amount' => $this->pay_excess,
             'transaction_date' => now()->toDateString(),
             'transaction_type' => 'deposit',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
             $transaction->guest->checkInDetail->update([
@@ -2003,7 +2004,7 @@ class GuestTransaction extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Cashout from paying deposit ('.$transaction->description.')',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
             //save deduction
@@ -2014,7 +2015,7 @@ class GuestTransaction extends Component
                 'deduction' => $this->pay_transaction_amount,
                 'transaction_date' => now()->toDateString(),
                 'transaction_type' => 'Payment from deposit - '.$transaction->description,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
             $transaction->guest->checkInDetail->update([
@@ -2082,7 +2083,7 @@ class GuestTransaction extends Component
             'amount' => $payable,
             'transaction_date' => now()->toDateString(),
             'transaction_type' => 'Paid all unpaid bills',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         ActivityLog::create([
@@ -2171,7 +2172,7 @@ class GuestTransaction extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Cashout from paying all unpaid balances',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         //save deduction
@@ -2182,7 +2183,7 @@ class GuestTransaction extends Component
                 'deduction' => $this->pay_transaction_amount,
                 'transaction_date' => now()->toDateString(),
                 'transaction_type' => 'Payment from deposit - '.$transaction->description,
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
         $transaction->guest->checkInDetail->update([
@@ -2287,7 +2288,7 @@ class GuestTransaction extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Guest Charged for Damage: Room Key & TV Remote',
-                'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
         }
 
@@ -2323,7 +2324,7 @@ class GuestTransaction extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Cashout all deposits',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         ActivityLog::create([
@@ -2480,7 +2481,7 @@ class GuestTransaction extends Component
             'checkin_details_id' => $checkin->id,
             'room_id' => $checkin->room_id,
             'shift_date' => $shift_date,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
             'frontdesk_id' => $decode_frontdesk[0],
             'partner_name' => $decode_frontdesk[1],
         ]);
@@ -2587,7 +2588,7 @@ class GuestTransaction extends Component
             'amount' => $transaction->payable_amount,
             'transaction_date' => now()->toDateString(),
             'transaction_type' => 'Override Payment from '.$transaction->description,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         ActivityLog::create([

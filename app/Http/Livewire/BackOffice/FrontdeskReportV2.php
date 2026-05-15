@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\CheckinDetail;
 use App\Models\Expense;
 use App\Models\Remittance;
+use App\Support\ShiftResolver;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -410,7 +411,7 @@ class FrontdeskReportV2 extends Component
             ->with('frontdesk:id,name')
             ->limit(10)
             ->get()
-            ->reject(fn($l) => $this->getShiftType($l->time_in) === $currentShiftType
+            ->reject(fn($l) => $this->shiftTypeOf($l) === $currentShiftType
                              && $l->time_in->format('Y-m-d') === $currentShiftDate);
 
         if ($nextLogs->isEmpty()) {
@@ -419,11 +420,11 @@ class FrontdeskReportV2 extends Component
 
         // Get the first group (same shift type + date)
         $firstLog = $nextLogs->first();
-        $shiftType = $this->getShiftType($firstLog->time_in);
+        $shiftType = $this->shiftTypeOf($firstLog);
         $shiftDate = $firstLog->time_in->format('Y-m-d');
 
         return $nextLogs
-            ->filter(fn($l) => $this->getShiftType($l->time_in) === $shiftType && $l->time_in->format('Y-m-d') === $shiftDate)
+            ->filter(fn($l) => $this->shiftTypeOf($l) === $shiftType && $l->time_in->format('Y-m-d') === $shiftDate)
             ->map(fn($l) => $l->frontdesk?->name)
             ->filter()
             ->unique()
@@ -515,7 +516,7 @@ class FrontdeskReportV2 extends Component
             ->where('time_in', '<', $currentTimeIn)
             ->orderBy('time_in', 'desc')
             ->get()
-            ->reject(fn($l) => $this->getShiftType($l->time_in) === $currentShiftType
+            ->reject(fn($l) => $this->shiftTypeOf($l) === $currentShiftType
                              && $l->time_in->format('Y-m-d') === $currentShiftDate)
             ->first();
 
@@ -524,7 +525,7 @@ class FrontdeskReportV2 extends Component
         }
 
         // Get all logs in same session (same shift type + date)
-        $shiftType = $this->getShiftType($prevLog->time_in);
+        $shiftType = $this->shiftTypeOf($prevLog);
         $shiftDate = $prevLog->time_in->format('Y-m-d');
 
         $prevLogs = ShiftLog::query()
@@ -532,7 +533,7 @@ class FrontdeskReportV2 extends Component
             ->whereNotNull('time_out')
             ->get()
             ->filter(function ($l) use ($shiftType, $shiftDate) {
-                return $this->getShiftType($l->time_in) === $shiftType
+                return $this->shiftTypeOf($l) === $shiftType
                     && $l->time_in->format('Y-m-d') === $shiftDate;
             });
 
@@ -554,7 +555,7 @@ class FrontdeskReportV2 extends Component
             ->where('time_in', '<', $prevTimeIn)
             ->orderBy('time_in', 'desc')
             ->get()
-            ->reject(fn($l) => $this->getShiftType($l->time_in) === $shiftType
+            ->reject(fn($l) => $this->shiftTypeOf($l) === $shiftType
                              && $l->time_in->format('Y-m-d') === $shiftDate)
             ->first();
         if ($shiftBeforePrev && $shiftBeforePrev->time_out > $prevTimeIn) {
@@ -725,8 +726,8 @@ class FrontdeskReportV2 extends Component
         // Group into sessions by shift type + date
         $sessions = [];
         foreach ($allLogs as $log) {
-            $shiftType = $this->getShiftType($log->time_in);
-            $shiftDate = $log->time_in->format('Y-m-d');
+            $shiftType = $this->shiftTypeOf($log);
+            $shiftDate = ShiftResolver::deriveShiftDate($log->time_in, $shiftType)->format('Y-m-d');
             $key = $shiftType . '_' . $shiftDate;
 
             if (!isset($sessions[$key])) {
@@ -796,8 +797,12 @@ class FrontdeskReportV2 extends Component
 
     private function getShiftType(Carbon $timeIn): string
     {
-        $hour = $timeIn->hour;
-        return ($hour >= 6 && $hour < 20) ? 'AM' : 'PM';
+        return ShiftResolver::fromClock($timeIn);
+    }
+
+    private function shiftTypeOf(ShiftLog $log): string
+    {
+        return $log->shift ?? ShiftResolver::fromClock($log->time_in);
     }
 
     private function loadAvailableShiftSessions(): void
@@ -815,8 +820,8 @@ class FrontdeskReportV2 extends Component
 
         $sessions = [];
         foreach ($shiftLogs as $log) {
-            $shiftType = $this->getShiftType($log->time_in);
-            $shiftDate = $log->time_in->format('Y-m-d');
+            $shiftType = $this->shiftTypeOf($log);
+            $shiftDate = ShiftResolver::deriveShiftDate($log->time_in, $shiftType)->format('Y-m-d');
             $key = $shiftType . '_' . $shiftDate;
 
             if (!isset($sessions[$key])) {

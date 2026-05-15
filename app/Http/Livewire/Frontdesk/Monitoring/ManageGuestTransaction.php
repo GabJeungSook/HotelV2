@@ -21,6 +21,7 @@ use App\Models\AssignedFrontdesk;
 use App\Models\StayExtension;
 use App\Models\TransferedGuestReport;
 use App\Models\CheckOutGuestReport;
+use App\Support\ShiftResolver;
 use Carbon\Carbon;
 use DB;
 
@@ -488,7 +489,7 @@ class ManageGuestTransaction extends Component
                 ')' .
                 ' ' .
                 $food->name,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
         //update stock
         $new_stock =
@@ -569,7 +570,7 @@ class ManageGuestTransaction extends Component
                 ')' .
                 ' ' .
                 $amenities->name,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
         DB::commit();
         $this->amenities_modal = false;
@@ -655,7 +656,7 @@ class ManageGuestTransaction extends Component
                 ')' .
                 ' ' .
                 $damage_charges->name,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
         DB::commit();
         $this->damage_modal = false;
@@ -918,7 +919,7 @@ class ManageGuestTransaction extends Component
             Type::where('id', $this->type_id)->first()->name .
             ') - Reason: ' .
             $this->reason,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         // Snapshot the source room id/amount BEFORE the room status flip
@@ -1009,7 +1010,7 @@ class ManageGuestTransaction extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Guest Deposit: ' . $this->deposit_remarks,
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         Room::where('id', $this->room_id)->update([
@@ -1080,7 +1081,7 @@ class ManageGuestTransaction extends Component
                 'Guest Deduction of Deposit: ₱' .
                 $this->deduction_amount .
                 ' deducted.',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         $check_in_detail->update([
@@ -1304,7 +1305,7 @@ class ManageGuestTransaction extends Component
             'paid_at' => null,
             'override_at' => null,
             'remarks' => 'Guest Extension : ' . $this->get_hour . ' hours',
-            'shift' => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
         StayExtension::create([
             'guest_id' => $check_in_detail->guest_id,
@@ -1423,9 +1424,7 @@ class ManageGuestTransaction extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Deposit from paying ' . $transaction->description,
-                'shift' => (now()->hour >= 8 && now()->hour < 20)
-                    ? 'AM'
-                    : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
             $transaction->guest->checkInDetail->update([
@@ -1523,9 +1522,7 @@ class ManageGuestTransaction extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Cashout from paying deposit',
-                'shift' => (now()->hour >= 8 && now()->hour < 20)
-                    ? 'AM'
-                    : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
 
             $transaction->guest->checkInDetail->update([
@@ -1662,9 +1659,7 @@ class ManageGuestTransaction extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Cashout from paying all unpaid balances',
-            'shift' => (now()->hour >= 8 && now()->hour < 20)
-                ? 'AM'
-                : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         $this->guest->checkInDetail->update([
@@ -1781,9 +1776,7 @@ class ManageGuestTransaction extends Component
                 'paid_at' => now(),
                 'override_at' => null,
                 'remarks' => 'Guest Charged for Damage: Room Key & TV Remote',
-                'shift' => (now()->hour >= 8 && now()->hour < 20)
-                    ? 'AM'
-                    : 'PM',
+                'shift' => ShiftResolver::current(),
             ]);
         }
 
@@ -1819,9 +1812,7 @@ class ManageGuestTransaction extends Component
             'paid_at' => now(),
             'override_at' => null,
             'remarks' => 'Cashout all deposits',
-            'shift' => (now()->hour >= 8 && now()->hour < 20)
-                ? 'AM'
-                : 'PM',
+            'shift' => ShiftResolver::current(),
         ]);
 
         DB::commit();
@@ -1949,7 +1940,7 @@ class ManageGuestTransaction extends Component
             'checkin_details_id' => $checkin->id,
             'room_id'            => $checkin->room_id,
             'shift_date'         => $shift_date,
-            'shift'              => (now()->hour >= 8 && now()->hour < 20) ? 'AM' : 'PM',
+            'shift'              => ShiftResolver::current(),
             'frontdesk_id'       => $assigned[0] ?? auth()->id(),
             'partner_name'       => $assigned[1] ?? 'N/A',
         ]);
