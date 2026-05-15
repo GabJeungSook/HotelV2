@@ -561,6 +561,19 @@ class SalesReportV2 extends Component
     }
 
     /**
+     * Returns the ShiftLog ids for the currently selected session (shift mode only).
+     */
+    private function getSessionLogIds(): array
+    {
+        if ($this->filterMode !== 'shift' || !$this->selectedShiftLogId) {
+            return [];
+        }
+        $session = collect($this->availableShiftSessions)
+            ->firstWhere('id', $this->selectedShiftLogId);
+        return $session['log_ids'] ?? [];
+    }
+
+    /**
      * Find check-in details where guest was OCCUPYING room during the filter period.
      *
      * A guest is considered "occupying" if:
@@ -651,15 +664,21 @@ class SalesReportV2 extends Component
             ->leftJoin('types as t', 't.id', '=', 'r.type_id')
             ->leftJoin('transaction_types as tt', 'tt.id', '=', 'tr.transaction_type_id')
             ->whereIn('tr.checkin_detail_id', $occupyingIds)
-            // Filter transactions by the selected range,
-            // OR include check-in transactions (type 1) for guests whose check_in_at is in range
-            // (ensures room charges match the check-in badge count)
+            // Shift mode: attribute by who actually processed the transaction
+            //   (filter by shift_log_id IN this session's logs).
+            // Date-range mode: filter by created_at window, plus check-ins whose
+            //   check_in_at falls in the window (matches check-in badge count).
             ->where(function ($q) use ($range, $overlapCheckinIds) {
-                $q->whereBetween('tr.created_at', [$range['start'], $range['end']])
-                  ->orWhere(function ($q2) use ($range) {
-                      $q2->where('tr.transaction_type_id', 1)
-                         ->whereBetween('cd.check_in_at', [$range['start'], $range['end']]);
-                  });
+                $sessionLogIds = $this->getSessionLogIds();
+                if (!empty($sessionLogIds)) {
+                    $q->whereIn('tr.shift_log_id', $sessionLogIds);
+                } else {
+                    $q->whereBetween('tr.created_at', [$range['start'], $range['end']])
+                      ->orWhere(function ($q2) use ($range) {
+                          $q2->where('tr.transaction_type_id', 1)
+                             ->whereBetween('cd.check_in_at', [$range['start'], $range['end']]);
+                      });
+                }
                 // Include check-in transactions for overlap guests
                 // (checked in before this shift, checked out during overlap with previous shift)
                 if (!empty($overlapCheckinIds)) {
@@ -1110,10 +1129,14 @@ class SalesReportV2 extends Component
     private function buildExpensesSummary(): void
     {
         $range = $this->getFilterRange();
+        $sessionLogIds = $this->getSessionLogIds();
 
         $rows = Expense::query()
             ->with(['expenseCategory', 'user'])
-            ->whereBetween('created_at', [$range['start'], $range['end']])
+            ->when(!empty($sessionLogIds),
+                fn($q) => $q->whereIn('shift_log_id', $sessionLogIds),
+                fn($q) => $q->whereBetween('created_at', [$range['start'], $range['end']])
+            )
             ->when($this->filterMode === 'date_range' && $this->frontdesk, fn($q) => $q->where('user_id', $this->frontdesk))
             ->orderByDesc('created_at')
             ->get()
@@ -1137,10 +1160,14 @@ class SalesReportV2 extends Component
     private function buildRemittanceSummary(): void
     {
         $range = $this->getFilterRange();
+        $sessionLogIds = $this->getSessionLogIds();
 
         $rows = Remittance::query()
             ->with('user')
-            ->whereBetween('created_at', [$range['start'], $range['end']])
+            ->when(!empty($sessionLogIds),
+                fn($q) => $q->whereIn('shift_log_id', $sessionLogIds),
+                fn($q) => $q->whereBetween('created_at', [$range['start'], $range['end']])
+            )
             ->when($this->filterMode === 'date_range' && $this->frontdesk, fn($q) => $q->where('user_id', $this->frontdesk))
             ->orderByDesc('created_at')
             ->get()
@@ -1178,13 +1205,16 @@ class SalesReportV2 extends Component
         }
 
         $range = $this->getFilterRange();
+        $sessionLogIds = $this->getSessionLogIds();
 
         $transactions = Transaction::query()
             ->with(['room.floor', 'transaction_type'])
             ->whereIn('checkin_detail_id', $occupyingIds)
             ->whereNotIn('transaction_type_id', [2, 5]) // Exclude deposits and cashouts
-            // Filter transactions by range
-            ->whereBetween('created_at', [$range['start'], $range['end']])
+            ->when(!empty($sessionLogIds),
+                fn($q) => $q->whereIn('shift_log_id', $sessionLogIds),
+                fn($q) => $q->whereBetween('created_at', [$range['start'], $range['end']])
+            )
             ->when($this->filterMode === 'date_range' && $this->frontdesk, function ($q) {
                 $q->whereHas('shift_log', fn($q2) => $q2->where('frontdesk_id', $this->frontdesk));
             })

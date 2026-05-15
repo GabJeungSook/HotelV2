@@ -76,9 +76,10 @@ class FrontdeskReportV2 extends Component
             ->pluck('id')
             ->toArray();
 
-        // All transactions for occupying guests within this shift's time range (same as SalesReportV2)
+        // Attribute transactions by who actually processed them (this session's shift logs).
+        // Avoids leaking transactions from a different shift that happens to overlap in calendar time.
         $transactions = Transaction::whereIn('checkin_detail_id', $occupyingIds)
-            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->whereIn('shift_log_id', $logIds)
             ->get();
 
         // Detect overlapping shifts and include overlap guests' room charges
@@ -245,12 +246,12 @@ class FrontdeskReportV2 extends Component
         // Current shift guest deposits minus cashouts
         $currentGuestDeposit = max(0, (float) $guestDeposits->sum('payable_amount') - (float) $cashouts->sum('payable_amount'));
 
-        // Expenses
-        $expenses = Expense::whereBetween('created_at', [$timeIn, $timeOut])->get();
+        // Expenses (attributed to this session's shift logs)
+        $expenses = Expense::whereIn('shift_log_id', $logIds)->get();
         $totalExpenses = (float) $expenses->sum('amount');
 
-        // Remittance
-        $remittances = Remittance::whereBetween('created_at', [$timeIn, $timeOut])->get();
+        // Remittance (attributed to this session's shift logs)
+        $remittances = Remittance::whereIn('shift_log_id', $logIds)->get();
         $totalRemittance = (float) $remittances->sum('total_remittance');
 
         // Net Sales
@@ -788,7 +789,7 @@ class FrontdeskReportV2 extends Component
             $lastNsp = $nsp;
 
             // Compute this session's own net sales using the same logic as generateReport()
-            $prevOwnNs = $this->computeSessionNetSales($ti, $to, $branchId);
+            $prevOwnNs = $this->computeSessionNetSales($ti, $to, $branchId, $session['log_ids'] ?? []);
         }
 
         // Current shift's fb = last session's nsp + last session's fb
@@ -875,7 +876,7 @@ class FrontdeskReportV2 extends Component
      * Compute net sales for a given shift session — shared by generateReport() and calculateForwardedBalance().
      * Uses the same overlap and unclaimed deposit logic as generateReport().
      */
-    private function computeSessionNetSales(Carbon $timeIn, Carbon $timeOut, int $branchId): float
+    private function computeSessionNetSales(Carbon $timeIn, Carbon $timeOut, int $branchId, array $sessionLogIds = []): float
     {
         $occupyingIds = CheckinDetail::query()
             ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
@@ -902,15 +903,19 @@ class FrontdeskReportV2 extends Component
                 ->toArray();
         }
 
-        // Gross sales (same query structure as generateReport)
+        // Gross sales — prefer attribution by this session's shift logs when available.
         $grossSales = (float) DB::table('transactions as tr')
             ->leftJoin('checkin_details as cd', 'cd.id', '=', 'tr.checkin_detail_id')
             ->whereIn('tr.checkin_detail_id', $occupyingIds)
             ->whereNotIn('tr.transaction_type_id', [2, 5])
-            ->where(function ($q) use ($timeIn, $timeOut, $overlapCheckinIds) {
-                $q->whereBetween('tr.created_at', [$timeIn, $timeOut])
-                  ->orWhere(fn($q2) => $q2->where('tr.transaction_type_id', 1)
-                      ->whereBetween('cd.check_in_at', [$timeIn, $timeOut]));
+            ->where(function ($q) use ($timeIn, $timeOut, $overlapCheckinIds, $sessionLogIds) {
+                if (!empty($sessionLogIds)) {
+                    $q->whereIn('tr.shift_log_id', $sessionLogIds);
+                } else {
+                    $q->whereBetween('tr.created_at', [$timeIn, $timeOut])
+                      ->orWhere(fn($q2) => $q2->where('tr.transaction_type_id', 1)
+                          ->whereBetween('cd.check_in_at', [$timeIn, $timeOut]));
+                }
                 if (!empty($overlapCheckinIds)) {
                     $q->orWhere(fn($q3) => $q3->where('tr.transaction_type_id', 1)
                         ->whereIn('tr.checkin_detail_id', $overlapCheckinIds));
@@ -949,7 +954,9 @@ class FrontdeskReportV2 extends Component
             }
         }
 
-        $expenses = (float) Expense::whereBetween('created_at', [$timeIn, $timeOut])->sum('amount');
+        $expenses = !empty($sessionLogIds)
+            ? (float) Expense::whereIn('shift_log_id', $sessionLogIds)->sum('amount')
+            : (float) Expense::whereBetween('created_at', [$timeIn, $timeOut])->sum('amount');
 
         return $grossSales - $expenses;
     }

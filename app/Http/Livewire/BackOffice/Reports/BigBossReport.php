@@ -116,6 +116,7 @@ class BigBossReport extends Component
         $branchId = auth()->user()->branch_id;
         $timeIn = Carbon::parse($session['time_in']);
         $timeOut = Carbon::parse($session['time_out']);
+        $logIds = $session['log_ids'] ?? [];
 
         // Pre-fetch menu_id → parent category name map for splitting FOODS vs DRINKS
         $menuParentMap = FrontdeskMenu::where('branch_id', $branchId)
@@ -155,10 +156,10 @@ class BigBossReport extends Component
         $occupyingIds = $occupyingDetails->pluck('id')->toArray();
         $occupiedRoomIds = $occupyingDetails->pluck('room_id')->unique()->toArray();
 
-        // All transactions for occupying guests in this shift
+        // Attribute transactions by who actually processed them (this session's shift logs).
         $transactions = empty($occupyingIds) ? collect() : Transaction::query()
             ->whereIn('checkin_detail_id', $occupyingIds)
-            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->whereIn('shift_log_id', $logIds)
             ->get();
 
         // POS cash transactions (no room charge) — these have null checkin_detail_id
@@ -166,7 +167,7 @@ class BigBossReport extends Component
             ->where('branch_id', $branchId)
             ->where('transaction_type_id', 9)
             ->whereNull('checkin_detail_id')
-            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->whereIn('shift_log_id', $logIds)
             ->get();
 
         // ===== FRONTDESK CHART (build first so summary can use its subtotals) =====
@@ -202,14 +203,14 @@ class BigBossReport extends Component
             ->sortBy('number')->pluck('number')->implode(', ');
 
         // ===== EXPENSES =====
-        $expenses = Expense::whereBetween('created_at', [$timeIn, $timeOut])
+        $expenses = Expense::whereIn('shift_log_id', $logIds)
             ->with('expenseCategory')
             ->get();
         $expensesTotal = (float) $expenses->sum('amount');
 
         // ===== PAYMENT ON SHORT (ADDITIONALS) =====
         $paymentOnShorts = PaymentOnShort::where('branch_id', $branchId)
-            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->whereIn('shift_log_id', $logIds)
             ->with(['user', 'shiftLog'])
             ->get();
         $paymentOnShortsTotal = (float) $paymentOnShorts->sum('amount');
@@ -221,7 +222,7 @@ class BigBossReport extends Component
         $roomboyLogs = $this->buildRoomboyLogs($cleaningHistories, $occupyingDetails, $timeIn, $timeOut);
 
         // ===== STOCKS INVENTORY =====
-        $stocksData = $this->stocksInventoryRows($timeIn, $timeOut, $branchId);
+        $stocksData = $this->stocksInventoryRows($timeIn, $timeOut, $branchId, $logIds);
 
         return [
             'floors' => $floors,
@@ -789,7 +790,7 @@ class BigBossReport extends Component
         return $logs;
     }
 
-    private function stocksInventoryRows(Carbon $timeIn, Carbon $timeOut, int $branchId): array
+    private function stocksInventoryRows(Carbon $timeIn, Carbon $timeOut, int $branchId, array $sessionLogIds = []): array
     {
         // Load ALL frontdesk inventory items (not just those with movements)
         $allInventory = \App\Models\FrontdeskInventory::where('branch_id', $branchId)->get();
@@ -810,7 +811,10 @@ class BigBossReport extends Component
             ->where('branch_id', $branchId)
             ->where('transaction_type_id', 9)
             ->whereIn('menu_id', $menuIds)
-            ->whereBetween('created_at', [$timeIn, $timeOut])
+            ->when(!empty($sessionLogIds),
+                fn($q) => $q->whereIn('shift_log_id', $sessionLogIds),
+                fn($q) => $q->whereBetween('created_at', [$timeIn, $timeOut])
+            )
             ->whereNull('voided_at')
             ->selectRaw('menu_id, SUM(payable_amount) as total')
             ->groupBy('menu_id')
