@@ -10,6 +10,7 @@ use App\Models\ShiftLog;
 use App\Models\StayingHour;
 use App\Models\User;
 use App\Support\ShiftResolver;
+use App\Support\ShiftSessionGrouper;
 use Carbon\Carbon;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -280,53 +281,9 @@ class RoomBoyReport extends Component
             ->whereNotNull('time_out')
             ->whereBetween('time_in', [$weekStart, $weekEnd])
             ->with('frontdesk:id,name')
-            ->orderBy('time_in', 'asc')
             ->get();
 
-        $sessions = [];
-        foreach ($shiftLogs as $log) {
-            $shiftType = $this->shiftTypeOf($log);
-            $shiftDate = ShiftResolver::deriveShiftDate($log->time_in, $shiftType)->format('Y-m-d');
-            $key = $shiftType . '_' . $shiftDate;
-
-            if (!isset($sessions[$key])) {
-                $sessions[$key] = [
-                    'id' => $log->id,
-                    'log_ids' => [],
-                    'time_in' => $log->time_in,
-                    'time_out' => $log->time_out,
-                    'shift_type' => $shiftType,
-                    'shift_date' => $shiftDate,
-                    'frontdesks' => [],
-                ];
-            }
-
-            $sessions[$key]['log_ids'][] = $log->id;
-            $sessions[$key]['frontdesks'][] = $log->frontdesk?->name ?? 'Unknown';
-
-            if ($log->time_in < $sessions[$key]['time_in']) {
-                $sessions[$key]['time_in'] = $log->time_in;
-            }
-            if ($log->time_out > $sessions[$key]['time_out']) {
-                $sessions[$key]['time_out'] = $log->time_out;
-            }
-        }
-
-        $this->availableShiftSessions = collect($sessions)
-            ->sortBy('time_in')
-            ->map(function ($s) {
-                $frontdeskNames = implode(', ', array_unique($s['frontdesks']));
-                return [
-                    'id' => $s['log_ids'][0],
-                    'label' => $s['shift_type'] . ' ' . $s['time_in']->format('M j')
-                             . ' - ' . $frontdeskNames
-                             . ' (' . $s['time_in']->format('g:i A') . ' - ' . $s['time_out']->format('g:i A') . ')',
-                    'time_in' => $s['time_in']->toIso8601String(),
-                    'time_out' => $s['time_out']->toIso8601String(),
-                ];
-            })
-            ->values()
-            ->toArray();
+        $this->availableShiftSessions = ShiftSessionGrouper::group($shiftLogs);
     }
 
     private function getShiftType(Carbon $timeIn): string
