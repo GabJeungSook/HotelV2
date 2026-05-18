@@ -141,8 +141,10 @@ class KioskBatchService
 
     /**
      * Called when a roomboy finishes cleaning. If there is no active slot
-     * in the current batch for this room's type, add the room as the
-     * active slot immediately. Otherwise the room waits for the next batch.
+     * in the current batch for this room's type, pick the highest-priority
+     * available room (unused first, then FIFO by cleaning time) and add it
+     * as the active slot. The passed $room is the trigger event, but the
+     * selected room may differ if a higher-priority candidate exists.
      */
     public static function maybeFillEmptySlot(Room $room): void
     {
@@ -155,11 +157,32 @@ class KioskBatchService
             return;
         }
 
+        $excludedRoomIds = array_values(array_unique(array_merge(
+            KioskCurrentBatch::where('branch_id', $room->branch_id)
+                ->where('type_id', $room->type_id)
+                ->pluck('room_id')
+                ->all(),
+            self::roomIdsBlockedFromBatch($room->branch_id),
+        )));
+
+        $candidates = Room::where('branch_id', $room->branch_id)
+            ->where('type_id', $room->type_id)
+            ->whereIn('status', ['Available', 'Cleaned'])
+            ->where('is_priority', 1)
+            ->whereNotIn('id', $excludedRoomIds ?: [0])
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return;
+        }
+
+        $best = self::pickPreferredRoom($candidates);
+
         KioskCurrentBatch::create([
-            'branch_id' => $room->branch_id,
-            'type_id' => $room->type_id,
-            'room_id' => $room->id,
-            'floor_id' => $room->floor_id,
+            'branch_id' => $best->branch_id,
+            'type_id' => $best->type_id,
+            'room_id' => $best->id,
+            'floor_id' => $best->floor_id,
             'slot_status' => KioskCurrentBatch::STATUS_ACTIVE,
         ]);
     }
