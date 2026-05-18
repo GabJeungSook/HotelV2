@@ -31,7 +31,7 @@
                 autofocus autocomplete="off" />
         </div>
         <div class="flex justify-center mt-4">
-            <p class="text-4xl font-bold text-red-600">INPUT QR CODE HERE</p>
+            <p class="text-5xl font-bold text-red-600">INPUT QR CODE HERE</p>
         </div>
     </div>
 

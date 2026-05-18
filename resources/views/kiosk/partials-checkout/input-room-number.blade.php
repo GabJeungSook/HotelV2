@@ -19,7 +19,7 @@
                 autofocus autocomplete="off" oninput="this.value = this.value.toUpperCase()" />
         </div>
         <div class="flex justify-center mt-4">
-            <p class="text-4xl font-bold text-red-600">ENTER ROOM NUMBER</p>
+            <p class="text-5xl font-bold text-red-600">ENTER ROOM NUMBER</p>
         </div>
     </div>
 
