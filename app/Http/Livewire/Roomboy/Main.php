@@ -20,19 +20,12 @@ class Main extends Component
     public $user;
     public $floors;
     public $rooms;
-    public $selectedFloorId = 'all'; // Default to 'all' - show all rooms
-
-    protected $listeners = ['filterByFloor', 'showDoneTodayModal', 'showPenaltyModal'];
+    protected $listeners = ['showDoneTodayModal', 'showPenaltyModal'];
 
     public $showDoneTodayModal = false;
     public $showPenaltyModal = false;
     public $doneTodayRooms = [];
     public $penaltyRooms = [];
-
-    public function filterByFloor($floorId)
-    {
-        $this->selectedFloorId = $floorId;
-    }
 
     public function showDoneTodayModal()
     {
@@ -79,12 +72,6 @@ class Main extends Component
             ->get()
             ->unique('id')
             ->values();
-        $this->selectedFloorId = 'all';
-    }
-
-    public function getSelectedFloor($floorId)
-    {
-        $this->selectedFloorId = $floorId;
     }
 
     /**
@@ -398,23 +385,11 @@ class Main extends Component
 
         $urgentThreshold = now()->subHours(2);
 
-        if ($this->selectedFloorId === 'all') {
-            $this->rooms = (clone $baseQuery)
-                ->with(['floor', 'type'])
-                ->orderByRaw('CASE WHEN check_out_time <= ? THEN 0 ELSE 1 END', [$urgentThreshold])
-                ->orderBy('check_out_time', 'asc')
-                ->get();
-        } elseif ($this->selectedFloorId) {
-            $this->rooms = Room::whereBranchId($branchId)
-                ->where('status', 'Uncleaned')
-                ->whereFloorId($this->selectedFloorId)
-                ->with(['floor', 'type'])
-                ->orderByRaw('CASE WHEN check_out_time <= ? THEN 0 ELSE 1 END', [$urgentThreshold])
-                ->orderBy('check_out_time', 'asc')
-                ->get();
-        } else {
-            $this->rooms = collect();
-        }
+        $this->rooms = (clone $baseQuery)
+            ->with(['floor', 'type'])
+            ->orderByRaw('CASE WHEN check_out_time <= ? THEN 0 ELSE 1 END', [$urgentThreshold])
+            ->orderBy('check_out_time', 'asc')
+            ->get();
 
         // Mark rooms that became Uncleaned via a transfer (not a real checkout)
         // by matching the latest TransferedGuestReport.previous_room_id to each
