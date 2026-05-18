@@ -60,7 +60,6 @@ class FrontdeskReportV2 extends Component
         // overlap when shifts haven't fully closed before the next one starts.
         $effectiveTimeOut = $timeOut->copy();
         $nextShiftLog = ShiftLog::where('branch_id', $branchId)
-            ->whereNotNull('time_out')
             ->whereNotIn('id', $logIds)
             ->where('time_in', '>=', $timeIn)
             ->where('time_in', '<', $timeOut)

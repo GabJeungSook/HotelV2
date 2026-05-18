@@ -132,7 +132,6 @@ class BigBossReport extends Component
         // current week's availableShiftSessions.
         $effectiveTimeOut = $timeOut->copy();
         $nextShiftLog = ShiftLog::where('branch_id', $branchId)
-            ->whereNotNull('time_out')
             ->whereNotIn('id', $logIds)
             ->where('time_in', '>=', $timeIn)
             ->where('time_in', '<', $timeOut)
