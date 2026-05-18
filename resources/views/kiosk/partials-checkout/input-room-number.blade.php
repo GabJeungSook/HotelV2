@@ -14,12 +14,12 @@
             </svg>
         </div>
         <div class="flex justify-center mt-16">
-            <input wire:model="room_number" type="text" id="room_number"
-                class="text-center p-4 text-2xl focus:outline-none w-full mx-14 rounded-md border-2 border-gray-300 focus:border-blue-500"
-                autofocus autocomplete="off" />
+            <input wire:model="room_number" type="text" id="room_number" maxlength="3"
+                class="text-center p-4 text-2xl focus:outline-none w-full mx-14 rounded-md border-2 border-gray-300 focus:border-blue-500 uppercase"
+                autofocus autocomplete="off" oninput="this.value = this.value.toUpperCase()" />
         </div>
         <div class="flex justify-center mt-4">
-            <p class="text-2xl font-bold text-red-600">ENTER ROOM NUMBER</p>
+            <p class="text-4xl font-bold text-red-600">ENTER ROOM NUMBER</p>
         </div>
     </div>
 
