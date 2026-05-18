@@ -56,6 +56,21 @@ class FrontdeskReportV2 extends Component
         $timeOut = $primaryShiftLog->time_out;
         $branchId = auth()->user()->branch_id;
 
+        // Cap effective time_out at the next shift log's time_in to prevent
+        // overlap when shifts haven't fully closed before the next one starts.
+        $effectiveTimeOut = $timeOut->copy();
+        $nextShiftLog = ShiftLog::where('branch_id', $branchId)
+            ->whereNotNull('time_out')
+            ->whereNotIn('id', $logIds)
+            ->where('time_in', '>=', $timeIn)
+            ->where('time_in', '<', $timeOut)
+            ->orderBy('time_in')
+            ->first();
+
+        if ($nextShiftLog && $nextShiftLog->time_in->lt($timeOut)) {
+            $effectiveTimeOut = $nextShiftLog->time_in;
+        }
+
         // Opening Cash
         $openingCash = $this->calculateOpeningCash($shiftLogs);
 
@@ -69,7 +84,7 @@ class FrontdeskReportV2 extends Component
         // Use occupying-guest approach (same as SalesReportV2) for accurate counts
         $occupyingIds = CheckinDetail::query()
             ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
-            ->where('check_in_at', '<=', $timeOut)
+            ->where('check_in_at', '<=', $effectiveTimeOut)
             ->where(function ($q) use ($timeIn) {
                 $q->whereNull('check_out_at')
                   ->orWhere('check_out_at', '>=', $timeIn);
@@ -78,9 +93,16 @@ class FrontdeskReportV2 extends Component
             ->toArray();
 
         // Attribute transactions by who actually processed them (this session's shift logs).
-        // Avoids leaking transactions from a different shift that happens to overlap in calendar time.
+        // Also include transactions with NULL shift_log_id (e.g. kiosk check-ins) that
+        // fall within the shift's time window, so deposits are not missed.
         $transactions = Transaction::whereIn('checkin_detail_id', $occupyingIds)
-            ->whereIn('shift_log_id', $logIds)
+            ->where(function ($q) use ($logIds, $timeIn, $effectiveTimeOut) {
+                $q->whereIn('shift_log_id', $logIds)
+                  ->orWhere(function ($q2) use ($timeIn, $effectiveTimeOut) {
+                      $q2->whereNull('shift_log_id')
+                         ->whereBetween('created_at', [$timeIn, $effectiveTimeOut]);
+                  });
+            })
             ->get();
 
         // Detect overlapping shifts and include overlap guests' room charges
