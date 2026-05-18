@@ -41,6 +41,8 @@ class BigBossReport extends Component
 
     public function exportHtml()
     {
+        $this->loadAvailableShiftSessions();
+
         $session = $this->getSelectedSession();
         if (!$session) {
             return;
@@ -79,6 +81,11 @@ class BigBossReport extends Component
 
     public function render()
     {
+        // Reload sessions so Carbon objects survive Livewire dehydration
+        // (Carbon objects in public array properties become strings after
+        // a Livewire request, which can corrupt session data).
+        $this->loadAvailableShiftSessions();
+
         $session = $this->getSelectedSession();
         $reportData = $this->generateReport($session);
 
@@ -115,8 +122,8 @@ class BigBossReport extends Component
         }
 
         $branchId = auth()->user()->branch_id;
-        $timeIn = Carbon::parse($session['time_in']);
-        $timeOut = Carbon::parse($session['time_out']);
+        $timeIn = Carbon::parse($session['time_in'])->copy();
+        $timeOut = Carbon::parse($session['time_out'])->copy();
         $logIds = $session['log_ids'] ?? [];
 
         // Cap effective time_out at the next shift log's time_in to prevent
