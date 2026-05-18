@@ -119,6 +119,23 @@ class BigBossReport extends Component
         $timeOut = Carbon::parse($session['time_out']);
         $logIds = $session['log_ids'] ?? [];
 
+        // Cap effective time_out at the next shift log's time_in to prevent
+        // overlap when shifts haven't fully closed before the next one starts.
+        // Query the database directly since the next session may be outside the
+        // current week's availableShiftSessions.
+        $effectiveTimeOut = $timeOut->copy();
+        $nextShiftLog = ShiftLog::where('branch_id', $branchId)
+            ->whereNotNull('time_out')
+            ->whereNotIn('id', $logIds)
+            ->where('time_in', '>=', $timeIn)
+            ->where('time_in', '<', $timeOut)
+            ->orderBy('time_in')
+            ->first();
+
+        if ($nextShiftLog && $nextShiftLog->time_in->lt($timeOut)) {
+            $effectiveTimeOut = $nextShiftLog->time_in;
+        }
+
         // Pre-fetch menu_id → parent category name map for splitting FOODS vs DRINKS
         $menuParentMap = FrontdeskMenu::where('branch_id', $branchId)
             ->with('frontdeskCategory.parentCategory')
@@ -141,7 +158,7 @@ class BigBossReport extends Component
         // Occupying guest IDs during this shift
         $occupyingDetails = CheckinDetail::query()
             ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
-            ->where('check_in_at', '<=', $timeOut)
+            ->where('check_in_at', '<=', $effectiveTimeOut)
             ->where(function ($q) use ($timeIn) {
                 $q->whereNull('check_out_at')
                   ->orWhere('check_out_at', '>=', $timeIn);
@@ -158,9 +175,17 @@ class BigBossReport extends Component
         $occupiedRoomIds = $occupyingDetails->pluck('room_id')->unique()->toArray();
 
         // Attribute transactions by who actually processed them (this session's shift logs).
+        // Also include transactions with NULL shift_log_id (e.g. kiosk check-ins) that
+        // fall within the shift's time window, so deposits are not missed.
         $transactions = empty($occupyingIds) ? collect() : Transaction::query()
             ->whereIn('checkin_detail_id', $occupyingIds)
-            ->whereIn('shift_log_id', $logIds)
+            ->where(function ($q) use ($logIds, $timeIn, $effectiveTimeOut) {
+                $q->whereIn('shift_log_id', $logIds)
+                  ->orWhere(function ($q2) use ($timeIn, $effectiveTimeOut) {
+                      $q2->whereNull('shift_log_id')
+                         ->whereBetween('created_at', [$timeIn, $effectiveTimeOut]);
+                  });
+            })
             ->get();
 
         // POS cash transactions (no room charge) — these have null checkin_detail_id

@@ -13,6 +13,7 @@ use App\Models\Rate;
 use App\Models\Room;
 use App\Models\StayingHour;
 use App\Models\TemporaryCheckInKiosk;
+use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Services\KioskBatchService;
 use App\Support\ShiftResolver;
@@ -284,19 +285,10 @@ class CheckInFromKiosk extends Component
             'next_extension_is_original' => $next_extension_is_original ? 1 : 0,
         ]);
 
-        $users = User::role('frontdesk')->get();
-
-            $threshold = now()->subMinutes(5)->timestamp;
-
-            $onlineUsers = [];
-
-            foreach ($users as $user) {
-                if ($this->isUserOnline($user, $threshold)) {
-                    $onlineUsers[] = $user->shiftLogs()->whereNull('time_out')->latest()->first();
-                }
-            }
-
-            $shiftLogId = collect($onlineUsers)->where('frontdesk_id', auth()->user()->id)->first()->id ?? null;
+        $shiftLogId = ShiftLog::where('frontdesk_id', auth()->user()->id)
+            ->whereNull('time_out')
+            ->latest('time_in')
+            ->value('id');
 
         //create transaction for check-in
          Transaction::create([
@@ -331,19 +323,6 @@ class CheckInFromKiosk extends Component
             'transaction_type' => 'check-in',
             'shift' => ShiftResolver::current(),
         ]);
-        $users = User::role('frontdesk')->get();
-
-            $threshold = now()->subMinutes(5)->timestamp;
-
-            $onlineUsers = [];
-
-            foreach ($users as $user) {
-                if ($this->isUserOnline($user, $threshold)) {
-                    $onlineUsers[] = $user->shiftLogs()->whereNull('time_out')->latest()->first();
-                }
-            }
-
-            $shiftLogId = collect($onlineUsers)->where('frontdesk_id', auth()->user()->id)->first()->id ?? null;
         Transaction::create([
             'branch_id' => auth()->user()->branch_id,
             'shift_log_id' => $shiftLogId,
@@ -377,19 +356,6 @@ class CheckInFromKiosk extends Component
         ]);
 
         if ($this->save_excess) {
-            $users = User::role('frontdesk')->get();
-
-            $threshold = now()->subMinutes(5)->timestamp;
-
-            $onlineUsers = [];
-
-            foreach ($users as $user) {
-                if ($this->isUserOnline($user, $threshold)) {
-                    $onlineUsers[] = $user->shiftLogs()->whereNull('time_out')->latest()->first();
-                }
-            }
-
-            $shiftLogId = collect($onlineUsers)->where('frontdesk_id', auth()->user()->id)->first()->id ?? null;
             Transaction::create([
                 'branch_id' => auth()->user()->branch_id,
                 'shift_log_id' => $shiftLogId,
