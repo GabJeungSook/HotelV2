@@ -177,6 +177,25 @@ class BigBossReport extends Component
             return $detail->guest_id . '-' . $detail->room_id . '-' . $detail->check_in_at;
         });
 
+        // Exclude non-forwarded guests whose check-in transaction belongs to
+        // a different session (handles bidirectional overlap between shifts).
+        $newCheckinIds = $occupyingDetails
+            ->filter(fn($d) => !Carbon::parse($d->check_in_at)->lt($timeIn))
+            ->pluck('id')
+            ->toArray();
+
+        $foreignCheckinIds = empty($newCheckinIds) ? [] : Transaction::query()
+            ->whereIn('checkin_detail_id', $newCheckinIds)
+            ->where('transaction_type_id', 1)
+            ->whereNotNull('shift_log_id')
+            ->whereNotIn('shift_log_id', $logIds)
+            ->pluck('checkin_detail_id')
+            ->toArray();
+
+        $occupyingDetails = $occupyingDetails->reject(
+            fn($d) => in_array($d->id, $foreignCheckinIds)
+        );
+
         $occupyingIds = $occupyingDetails->pluck('id')->toArray();
         $occupiedRoomIds = $occupyingDetails->pluck('room_id')->unique()->toArray();
 

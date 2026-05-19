@@ -91,6 +91,23 @@ class FrontdeskReportV2 extends Component
             ->pluck('id')
             ->toArray();
 
+        // Exclude non-forwarded guests whose check-in transaction belongs to
+        // a different session (handles bidirectional overlap between shifts).
+        $newCheckinIds = CheckinDetail::whereIn('id', $occupyingIds)
+            ->where('check_in_at', '>=', $timeIn)
+            ->pluck('id')
+            ->toArray();
+
+        $foreignCheckinIds = empty($newCheckinIds) ? [] : Transaction::query()
+            ->whereIn('checkin_detail_id', $newCheckinIds)
+            ->where('transaction_type_id', 1)
+            ->whereNotNull('shift_log_id')
+            ->whereNotIn('shift_log_id', $logIds)
+            ->pluck('checkin_detail_id')
+            ->toArray();
+
+        $occupyingIds = array_values(array_diff($occupyingIds, $foreignCheckinIds));
+
         // Attribute transactions by who actually processed them (this session's shift logs).
         // Also include transactions with NULL shift_log_id (e.g. kiosk check-ins) that
         // fall within the shift's time window, so deposits are not missed.
