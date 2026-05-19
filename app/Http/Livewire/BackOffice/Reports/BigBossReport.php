@@ -444,7 +444,7 @@ class BigBossReport extends Component
                             'guest' => $checkin->guest?->name ?? '',
                             'check_in' => $checkin->check_in_at ? Carbon::parse($checkin->check_in_at)->format('m/d g:iA') : '',
                             'check_out' => $checkin->is_check_out && $checkin->check_out_at && Carbon::parse($checkin->check_out_at)->between($timeIn, $timeOut) ? Carbon::parse($checkin->check_out_at)->format('m/d g:iA') : '',
-                            'initial_hours' => $checkin->rate?->stayingHour?->number ?? '',
+                            'initial_hours' => $checkin->hours_stayed ?: ($checkin->rate?->stayingHour?->number ?? ''),
                             'is_forwarded' => $isForwarded,
                             'rowspan' => $isFirst ? $checkinCount : 0,
                             'room_rate' => (float) $checkinTxns->where('transaction_type_id', 1)->sum('payable_amount')
