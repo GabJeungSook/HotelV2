@@ -7,6 +7,7 @@ use App\Models\Floor;
 use App\Models\Guest;
 use App\Models\Room;
 use App\Models\UnoccupiedRoomReport;
+use App\Support\ShiftResolver;
 use DB;
 use Carbon\Carbon;
 
@@ -60,15 +61,8 @@ class SwitchFrontdesk extends Component
             ->pluck('number')
             ->toArray();
 
-        $shift_date = Carbon::parse(auth()->user()->time_in)->format('F j, Y');
-        $shift = Carbon::parse(auth()->user()->time_in)->format('H:i');
-        $hour = Carbon::parse($shift)->hour;
-
-        if ($hour >= 8 && $hour < 20) {
-            $shift_schedule = 'AM';
-        } else {
-            $shift_schedule = 'PM';
-        }
+        $shift_schedule = ShiftResolver::current();
+        $shift_date = ShiftResolver::deriveShiftDate(now(), $shift_schedule)->format('F j, Y');
 
         DB::beginTransaction();
 

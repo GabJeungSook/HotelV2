@@ -114,7 +114,7 @@
                                 {{ $item->checkinDetail ? ($item->checkinDetail->hours_stayed + $item->checkinDetail->extendedGuestReports->sum('total_hours')) . ' hours' : '—' }}
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
-                                {{ $item->shift }}
+                                {{ $item->checkinDetail?->checkinTransaction?->shift ?? $item->shift }}
                             </td>
                             <td class="border border-gray-300 px-3 py-3 text-sm text-gray-900">
                                 {{ $item->checkinDetail?->frontdesk->name }}

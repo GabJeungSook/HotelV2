@@ -30,6 +30,7 @@ class NewGuestReport extends Component
                 'checkinDetail.guest:id,name',
                 'checkinDetail.frontdesk:id,name',
                 'checkinDetail.extendedGuestReports:id,checkin_details_id,total_hours',
+                'checkinDetail.checkinTransaction',
             ])
             ->when($this->frontdesk_id, fn($q) =>
                 $q->where('frontdesk_id', $this->frontdesk_id)

@@ -215,28 +215,8 @@ class CheckInCo extends Component
             'shift' => $shift,
         ]);
 
-        $now = Carbon::now();
-        $hour = (int) $now->format('H');
-        $shift = $now->format('H:i');
-
-        if ($hour >= 8 && $hour < 20) {
-            $shift_schedule = 'AM';
-            $shift_date = $now->format('F j, Y');
-        } else {
-            $shift_schedule = 'PM';
-            // For times between 00:00 and 07:59 the PM shift started the previous day (8pm)
-            $shift_date = $hour < 8 ? $now->copy()->subDay()->format('F j, Y') : $now->format('F j, Y');
-        }
-
-        // $shift_date = Carbon::parse(auth()->user()->time_in)->format('F j, Y');
-        // $shift = Carbon::parse(auth()->user()->time_in)->format('H:i');
-        // $hour = Carbon::parse($shift)->hour;
-
-        // if ($hour >= 8 && $hour < 20) {
-        //     $shift_schedule = 'AM';
-        // } else {
-        //     $shift_schedule = 'PM';
-        // }
+        $shift_schedule = ShiftResolver::current();
+        $shift_date = ShiftResolver::deriveShiftDate(now(), $shift_schedule)->format('F j, Y');
 
         NewGuestReport::create([
             'branch_id' => auth()->user()->branch_id,

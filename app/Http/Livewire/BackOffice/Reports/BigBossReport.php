@@ -161,10 +161,11 @@ class BigBossReport extends Component
         $floors = Floor::where('branch_id', $branchId)->orderBy('number')->get();
         $allRooms = Room::where('branch_id', $branchId)->with(['floor', 'type'])->get();
 
-        // Occupying guest IDs during this shift
+        // Occupying guest IDs during this shift (use full $timeOut — the post-filter
+        // below handles cross-session attribution via shift_log_id).
         $occupyingDetails = CheckinDetail::query()
             ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
-            ->where('check_in_at', '<=', $effectiveTimeOut)
+            ->where('check_in_at', '<=', $timeOut)
             ->where(function ($q) use ($timeIn) {
                 $q->whereNull('check_out_at')
                   ->orWhere('check_out_at', '>=', $timeIn);

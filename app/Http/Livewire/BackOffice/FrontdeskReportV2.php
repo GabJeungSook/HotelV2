@@ -80,10 +80,10 @@ class FrontdeskReportV2 extends Component
         $outgoingNames = $shiftLogs->map(fn($l) => $l->frontdesk?->name)->filter()->unique()->implode(', ');
         $incomingNames = $this->getIncomingFrontdesks($timeIn, $timeOut, $branchId);
 
-        // Use occupying-guest approach (same as SalesReportV2) for accurate counts
+        // Use full $timeOut — the post-filter below handles cross-session attribution.
         $occupyingIds = CheckinDetail::query()
             ->whereHas('room', fn($q) => $q->where('branch_id', $branchId))
-            ->where('check_in_at', '<=', $effectiveTimeOut)
+            ->where('check_in_at', '<=', $timeOut)
             ->where(function ($q) use ($timeIn) {
                 $q->whereNull('check_out_at')
                   ->orWhere('check_out_at', '>=', $timeIn);

@@ -65,6 +65,12 @@ class CheckinDetail extends Model
         return $this->hasMany(Transaction::class, 'checkin_detail_id');
     }
 
+    public function checkinTransaction()
+    {
+        return $this->hasOne(Transaction::class, 'checkin_detail_id')
+            ->where('transaction_type_id', 1);
+    }
+
     public function transferedGuestReports()
     {
         return $this->hasMany(TransferedGuestReport::class);

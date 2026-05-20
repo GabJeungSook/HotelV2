@@ -12,6 +12,7 @@ use App\Models\RoomBoyReport;
 use App\Models\CleaningHistory;
 use App\Models\TransferedGuestReport;
 use App\Services\KioskBatchService;
+use App\Support\ShiftResolver;
 use Illuminate\Support\Facades\DB;
 
 class Main extends Component
@@ -165,27 +166,8 @@ class Main extends Component
             // paths and is cheap (no-op if no stale slots exist).
         ]);
 
-        $now = \Carbon\Carbon::now();
-            $hour = (int) $now->format('H');
-            $shift = $now->format('H:i');
-
-            if ($hour >= 8 && $hour < 20) {
-                $shift_schedule = 'AM';
-                $shift_date = $now->format('F j, Y');
-            } else {
-                $shift_schedule = 'PM';
-                // For times between 00:00 and 07:59 the PM shift started the previous day (8pm)
-                $shift_date = $hour < 8 ? $now->copy()->subDay()->format('F j, Y') : $now->format('F j, Y');
-            }
-
-            // $shift = \Carbon\Carbon::now()->format('H:i');
-            // $hour = \Carbon\Carbon::parse($shift)->hour;
-
-            // if ($hour >= 8 && $hour < 20) {
-            //     $shift_schedule = 'AM';
-            // } else {
-            //     $shift_schedule = 'PM';
-            // }
+        $shift_schedule = ShiftResolver::current();
+            $shift_date = ShiftResolver::deriveShiftDate(now(), $shift_schedule)->format('F j, Y');
 
             // Defensive: heal any stale kiosk slots for this type. Symmetric
             // with finishCleaning's maybeFillEmptySlot hook below.

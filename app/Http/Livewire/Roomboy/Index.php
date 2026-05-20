@@ -12,6 +12,7 @@ use App\Models\CheckinDetail;
 use App\Models\RoomBoyReport;
 use App\Models\CleaningHistory;
 use App\Services\KioskBatchService;
+use App\Support\ShiftResolver;
 
 class Index extends Component
 {
@@ -94,27 +95,8 @@ class Index extends Component
         // with finishCleaning's maybeFillEmptySlot hook.
         KioskBatchService::refreshIfStale($room->branch_id, $room->type_id);
 
-        $now = \Carbon\Carbon::now();
-            $hour = (int) $now->format('H');
-            $shift = $now->format('H:i');
-
-            if ($hour >= 8 && $hour < 20) {
-                $shift_schedule = 'AM';
-                $shift_date = $now->format('F j, Y');
-            } else {
-                $shift_schedule = 'PM';
-                // For times between 00:00 and 07:59 the PM shift started the previous day (8pm)
-                $shift_date = $hour < 8 ? $now->copy()->subDay()->format('F j, Y') : $now->format('F j, Y');
-            }
-
-            // $shift = \Carbon\Carbon::now()->format('H:i');
-            // $hour = \Carbon\Carbon::parse($shift)->hour;
-
-            // if ($hour >= 8 && $hour < 20) {
-            //     $shift_schedule = 'AM';
-            // } else {
-            //     $shift_schedule = 'PM';
-            // }
+        $shift_schedule = ShiftResolver::current();
+            $shift_date = ShiftResolver::deriveShiftDate(now(), $shift_schedule)->format('F j, Y');
 
             DB::beginTransaction();
             if ($record_count > 0) {
