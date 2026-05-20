@@ -30,9 +30,15 @@ class AssignedFrontdesk extends Component
     public ?string $crossDayTargetDate = null;
     public bool $crossDayAcknowledged = false;
 
+    // Shift override warning
+    public bool $shiftOverrideWarning = false;
+    public bool $shiftOverrideAcknowledged = false;
+    public string $autoDetectedShift = 'AM';
+
     public function mount()
     {
         $this->shift = ShiftResolver::fromClock(now());
+        $this->autoDetectedShift = $this->shift;
 
         $assigned = Frontdesk::where('branch_id', auth()->user()->branch_id)
             ->where('user_id', auth()->user()->id)->get();
@@ -62,6 +68,8 @@ class AssignedFrontdesk extends Component
         $this->crossDayAcknowledged = false;
         $this->crossDayConfirmModal = false;
         $this->crossDayTargetDate = null;
+        $this->shiftOverrideWarning = false;
+        $this->shiftOverrideAcknowledged = false;
         $this->checkShiftCapacity();
     }
 
@@ -77,6 +85,20 @@ class AssignedFrontdesk extends Component
         $this->crossDayConfirmModal = false;
         $this->crossDayTargetDate = null;
         $this->crossDayAcknowledged = false;
+    }
+
+    public function confirmShiftOverride()
+    {
+        $this->shiftOverrideAcknowledged = true;
+        $this->shiftOverrideWarning = false;
+        $this->saveFrontdesk();
+    }
+
+    public function cancelShiftOverride()
+    {
+        $this->shift = $this->autoDetectedShift;
+        $this->shiftOverrideWarning = false;
+        $this->shiftOverrideAcknowledged = false;
     }
 
     public function checkShiftCapacity()
@@ -168,6 +190,12 @@ class AssignedFrontdesk extends Component
     {
         // Block if existing session is still open
         if ($this->showExistingSessionModal) {
+            return;
+        }
+
+        // Warn when the selected shift differs from the auto-detected shift
+        if ($this->shift !== $this->autoDetectedShift && ! $this->shiftOverrideAcknowledged) {
+            $this->shiftOverrideWarning = true;
             return;
         }
 

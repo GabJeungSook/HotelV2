@@ -81,4 +81,8 @@ Route::prefix('admin')
 
         Route::get('/ghost-rooms', \App\Http\Livewire\Admin\GhostRooms::class)
             ->name('admin.ghost-rooms');
+
+        Route::get('/shift-log-correction', function () {
+            return view('admin.shift-log-correction');
+        })->name('admin.shift-log-correction');
     });

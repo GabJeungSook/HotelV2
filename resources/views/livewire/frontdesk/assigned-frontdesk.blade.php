@@ -143,6 +143,36 @@
   </div>
   @endif
 
+  {{-- Shift override warning modal --}}
+  @if ($shiftOverrideWarning)
+  <div class="fixed inset-0 z-50 overflow-y-auto" x-data>
+    <div class="fixed inset-0 bg-secondary-400 bg-opacity-60 transition-opacity"></div>
+    <div class="w-full min-h-full flex items-center justify-center p-4">
+      <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div class="text-center">
+          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-amber-100 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-amber-600">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Shift Override Warning</h3>
+          <p class="text-sm text-gray-600 mb-2">
+            The current time is <span class="font-bold">{{ now()->format('g:i A') }}</span> which normally falls under <span class="font-bold">{{ $autoDetectedShift }}</span> shift.
+          </p>
+          <p class="text-sm text-gray-800 mb-4">
+            You selected <span class="font-bold text-amber-600">{{ $shift }}</span>. Are you sure this is correct?
+          </p>
+        </div>
+
+        <div class="flex justify-center gap-x-3 mt-6">
+          <x-button flat label="Go back to {{ $autoDetectedShift }}" wire:click="cancelShiftOverride" spinner="cancelShiftOverride" />
+          <x-button warning label="Yes, continue with {{ $shift }}" wire:click="confirmShiftOverride" spinner="confirmShiftOverride" />
+        </div>
+      </div>
+    </div>
+  </div>
+  @endif
+
   {{-- Cross-day shift confirmation modal --}}
   @if ($crossDayConfirmModal)
   <div class="fixed inset-0 z-50 overflow-y-auto" x-data>
