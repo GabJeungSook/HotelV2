@@ -30,7 +30,13 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-600">{{ $log->time_in?->format('M d, g:i A') }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600">{{ $log->time_out?->format('M d, g:i A') }}</td>
+                        <td class="px-4 py-3 text-sm">
+                            @if ($log->time_out)
+                                <span class="text-gray-600">{{ $log->time_out->format('M d, g:i A') }}</span>
+                            @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-sm text-gray-600 text-center">{{ $log->transactions_count }}</td>
                         <td class="px-4 py-3 text-center">
                             <x-button xs warning label="Change Shift" wire:click="openEdit({{ $log->id }})" spinner="openEdit" />

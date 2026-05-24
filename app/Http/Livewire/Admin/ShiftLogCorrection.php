@@ -116,10 +116,11 @@ class ShiftLogCorrection extends Component
         }
 
         // 6. Update cash_on_drawers
-        if ($log->time_in && $log->time_out) {
+        if ($log->time_in) {
+            $rangeEnd = $log->time_out ?? now();
             CashOnDrawer::where('frontdesk_id', $log->frontdesk?->id)
                 ->where('branch_id', $log->branch_id)
-                ->whereBetween('created_at', [$log->time_in, $log->time_out])
+                ->whereBetween('created_at', [$log->time_in, $rangeEnd])
                 ->update(['shift' => $this->newShift]);
         }
 
@@ -146,7 +147,6 @@ class ShiftLogCorrection extends Component
         $branchId = auth()->user()->branch_id;
 
         $shiftLogs = ShiftLog::where('branch_id', $branchId)
-            ->whereNotNull('time_out')
             ->when($this->date, fn($q) => $q->whereDate('time_in', $this->date))
             ->with('frontdesk:id,name')
             ->withCount('transactions')
