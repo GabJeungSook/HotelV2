@@ -68,12 +68,11 @@
                                 </td>
 
                                 <td class="px-2 py-2 text-center">
-                                    @if($index === 0)
                                     <button
                                         wire:loading.attr="disabled"
                                         wire:target="startCleaning,finishCleaning"
                                         wire:loading.class="opacity-50 cursor-not-allowed"
-                                        class="inline-flex items-center gap-1 bg-[#009EF5] text-white hover:bg-[#0080cc] px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap"
+                                        class="inline-flex items-center gap-1 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap {{ $index === 0 ? 'bg-[#009EF5] hover:bg-[#0080cc] ring-2 ring-[#009EF5]/50' : 'bg-[#009EF5]/70 hover:bg-[#0080cc]/70' }}"
                                         x-on:confirm="{
                                             title: 'Start cleaning Room {{ $room->number }}?',
                                             icon: 'question',
@@ -86,14 +85,8 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
                                     </button>
-                                    @else
-                                    <button disabled
-                                        class="inline-flex items-center gap-1 bg-gray-300 text-white px-2 py-1.5 rounded text-xs font-medium opacity-50 cursor-not-allowed whitespace-nowrap">
-                                        Start Cleaning
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-                                        </svg>
-                                    </button>
+                                    @if($index === 0)
+                                        <div class="text-[9px] text-[#009EF5] font-semibold mt-0.5 uppercase">Recommended</div>
                                     @endif
                                 </td>
                             </tr>
@@ -164,12 +157,11 @@
                                 </td>
 
                                 <td class="px-2 py-2 text-center">
-                                    @if($index === 0)
                                     <button
                                         wire:loading.attr="disabled"
                                         wire:target="finishCleaning,startCleaning"
                                         wire:loading.class="opacity-50 cursor-not-allowed"
-                                        class="inline-flex items-center gap-1 bg-green-500 text-white hover:bg-green-600 px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap"
+                                        class="inline-flex items-center gap-1 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap {{ $index === 0 ? 'bg-green-500 hover:bg-green-600 ring-2 ring-green-500/50' : 'bg-green-500/70 hover:bg-green-600/70' }}"
                                         x-on:confirm="{
                                             title: 'Finish cleaning Room {{ $cleaning_room->number }}?',
                                             icon: 'question',
@@ -182,14 +174,8 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
                                     </button>
-                                    @else
-                                    <button disabled
-                                        class="inline-flex items-center gap-1 bg-gray-300 text-white px-2 py-1.5 rounded text-xs font-medium opacity-50 cursor-not-allowed whitespace-nowrap">
-                                        Finish Cleaning
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-                                        </svg>
-                                    </button>
+                                    @if($index === 0)
+                                        <div class="text-[9px] text-green-600 font-semibold mt-0.5 uppercase">Next</div>
                                     @endif
                                 </td>
                             </tr>
@@ -206,6 +192,35 @@
         </div>
 
     </div>
+
+    {{-- Other Roomboys: Rooms being cleaned by colleagues on shared floors --}}
+    @if($otherCleaningRooms->isNotEmpty())
+    <div class="mt-3 bg-white rounded shadow-sm overflow-hidden">
+        <div class="bg-gray-500 px-4 py-2">
+            <h3 class="text-sm font-semibold text-white uppercase">Other Roomboys Cleaning</h3>
+        </div>
+        <div class="overflow-x-auto" style="max-height: 200px; overflow-y: auto;">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 text-gray-600 border-b border-gray-200 sticky top-0">
+                    <tr>
+                        <th class="px-2 py-1.5 text-center font-medium text-xs">ROOM</th>
+                        <th class="px-2 py-1.5 text-center font-medium text-xs">FLOOR</th>
+                        <th class="px-2 py-1.5 text-center font-medium text-xs">ROOMBOY</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach($otherCleaningRooms as $otherRoom)
+                    <tr class="bg-gray-50/50">
+                        <td class="px-2 py-1.5 text-center font-bold text-gray-700 text-xs">{{ $otherRoom->number }}</td>
+                        <td class="px-2 py-1.5 text-center text-gray-600 text-xs">{{ $otherRoom->floor->number ?? $otherRoom->floor_id }}</td>
+                        <td class="px-2 py-1.5 text-center text-gray-600 text-xs">{{ $otherRoom->cleaningBy->name ?? 'Unknown' }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
 
     {{-- Done Today Modal --}}
     @if($showDoneTodayModal)

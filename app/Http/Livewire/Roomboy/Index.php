@@ -41,16 +41,29 @@ class Index extends Component
 
     public function startCleaning($room_id)
     {
+        DB::beginTransaction();
 
         // Multi-tenant safety: a roomboy can only start cleaning a room in
         // their own branch. Without the branch filter, knowing a foreign
         // room_id would let them touch another branch's room.
         $room = Room::where('id', $room_id)
             ->where('branch_id', auth()->user()->branch_id)
+            ->lockForUpdate()
             ->first();
 
         if (! $room) {
+            DB::rollBack();
             $this->dialog()->error('Room Not Found', 'This room is not in your branch.');
+            return;
+        }
+
+        // Race condition protection: room may have been taken by another room boy
+        if ($room->status !== 'Uncleaned') {
+            DB::rollBack();
+            $this->dialog()->error(
+                'Error',
+                'This room is already being cleaned by another room boy.'
+            );
             return;
         }
 
@@ -98,7 +111,6 @@ class Index extends Component
         $shift_schedule = ShiftResolver::current();
             $shift_date = ShiftResolver::deriveShiftDate(now(), $shift_schedule)->format('F j, Y');
 
-            DB::beginTransaction();
             if ($record_count > 0) {
                 $last_cleaned = $getlastRecord->cleaning_end;
 

@@ -106,10 +106,19 @@ class Main extends Component
 
     public function startCleaning($room_id)
     {
-        $room = Room::where('id', $room_id)->first();
+        DB::beginTransaction();
+
+        $room = Room::where('id', $room_id)->lockForUpdate()->first();
+
+        if (! $room) {
+            DB::rollBack();
+            $this->dialog()->error('Room Not Found', 'This room is no longer accessible.');
+            return;
+        }
 
         // Race condition protection: room may have been taken by another room boy
         if ($room->status !== 'Uncleaned') {
+            DB::rollBack();
             $this->dialog()->error(
                 $title = 'Error',
                 $message = 'This room is already being cleaned by another room boy'
@@ -146,6 +155,7 @@ class Main extends Component
         }
 
         if ($checkinDetail_id === null) {
+            DB::rollBack();
             $this->dialog()->error(
                 $title = 'Cannot start cleaning',
                 $message = 'Room '.$room->number.' has no check-in record. Contact front desk.'
@@ -173,7 +183,6 @@ class Main extends Component
             // with finishCleaning's maybeFillEmptySlot hook below.
             KioskBatchService::refreshIfStale($room->branch_id, $room->type_id);
 
-            DB::beginTransaction();
             if ($record_count > 0) {
                 $last_cleaned = $getlastRecord->cleaning_end;
 
@@ -417,11 +426,20 @@ class Main extends Component
             ->whereDate('end_time', today())
             ->count();
 
+        $otherCleaningRooms = Room::where('branch_id', $branchId)
+            ->where('status', 'Cleaning')
+            ->whereIn('floor_id', $floorIds)
+            ->where('cleaning_by_user_id', '!=', auth()->id())
+            ->with(['floor', 'cleaningBy:id,name'])
+            ->orderBy('started_cleaning_at', 'asc')
+            ->get();
+
         return view('livewire.roomboy.main', [
             'floorCounts' => $floorCounts,
             'totalUncleaned' => $totalUncleaned,
             'cleaningRooms' => $cleaningRooms,
             'cleanedToday' => $cleanedToday,
+            'otherCleaningRooms' => $otherCleaningRooms,
         ]);
     }
 }
