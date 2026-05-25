@@ -67,6 +67,22 @@ class Index extends Component
             return;
         }
 
+        // Enforce FIFO: only the room with the earliest check_out_time can be started
+        $firstUncleanedRoom = Room::where('branch_id', auth()->user()->branch_id)
+            ->where('status', 'Uncleaned')
+            ->where('floor_id', auth()->user()->roomboy_assigned_floor_id)
+            ->orderBy('check_out_time', 'asc')
+            ->first();
+
+        if ($firstUncleanedRoom && $firstUncleanedRoom->id !== $room->id) {
+            DB::rollBack();
+            $this->dialog()->error(
+                'Cannot Start Cleaning',
+                'You must start cleaning Room '.$firstUncleanedRoom->number.' first (earliest checkout).'
+            );
+            return;
+        }
+
         $record_count = RoomBoyReport::where('roomboy_id', auth()->user()->id)
             ->whereDate('created_at', now())
             ->count();

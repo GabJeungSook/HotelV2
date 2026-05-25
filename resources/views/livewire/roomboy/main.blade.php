@@ -68,11 +68,12 @@
                                 </td>
 
                                 <td class="px-2 py-2 text-center">
+                                    @if($index === 0)
                                     <button
                                         wire:loading.attr="disabled"
                                         wire:target="startCleaning,finishCleaning"
                                         wire:loading.class="opacity-50 cursor-not-allowed"
-                                        class="inline-flex items-center gap-1 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap {{ $index === 0 ? 'bg-[#009EF5] hover:bg-[#0080cc] ring-2 ring-[#009EF5]/50' : 'bg-[#009EF5]/70 hover:bg-[#0080cc]/70' }}"
+                                        class="inline-flex items-center gap-1 bg-[#009EF5] text-white hover:bg-[#0080cc] px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap"
                                         x-on:confirm="{
                                             title: 'Start cleaning Room {{ $room->number }}?',
                                             icon: 'question',
@@ -85,8 +86,14 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
                                     </button>
-                                    @if($index === 0)
-                                        <div class="text-[9px] text-[#009EF5] font-semibold mt-0.5 uppercase">Recommended</div>
+                                    @else
+                                    <button disabled
+                                        class="inline-flex items-center gap-1 bg-gray-300 text-white px-2 py-1.5 rounded text-xs font-medium opacity-50 cursor-not-allowed whitespace-nowrap">
+                                        Start Cleaning
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                                        </svg>
+                                    </button>
                                     @endif
                                 </td>
                             </tr>
@@ -157,11 +164,12 @@
                                 </td>
 
                                 <td class="px-2 py-2 text-center">
+                                    @if($index === 0)
                                     <button
                                         wire:loading.attr="disabled"
                                         wire:target="finishCleaning,startCleaning"
                                         wire:loading.class="opacity-50 cursor-not-allowed"
-                                        class="inline-flex items-center gap-1 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap {{ $index === 0 ? 'bg-green-500 hover:bg-green-600 ring-2 ring-green-500/50' : 'bg-green-500/70 hover:bg-green-600/70' }}"
+                                        class="inline-flex items-center gap-1 bg-green-500 text-white hover:bg-green-600 px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 whitespace-nowrap"
                                         x-on:confirm="{
                                             title: 'Finish cleaning Room {{ $cleaning_room->number }}?',
                                             icon: 'question',
@@ -174,8 +182,14 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
                                     </button>
-                                    @if($index === 0)
-                                        <div class="text-[9px] text-green-600 font-semibold mt-0.5 uppercase">Next</div>
+                                    @else
+                                    <button disabled
+                                        class="inline-flex items-center gap-1 bg-gray-300 text-white px-2 py-1.5 rounded text-xs font-medium opacity-50 cursor-not-allowed whitespace-nowrap">
+                                        Finish Cleaning
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                                        </svg>
+                                    </button>
                                     @endif
                                 </td>
                             </tr>

@@ -126,6 +126,23 @@ class Main extends Component
             return;
         }
 
+        // Enforce FIFO: only the room with the earliest check_out_time can be started
+        $floorIds = $this->floors->pluck('id')->toArray();
+        $firstUncleanedRoom = Room::where('branch_id', auth()->user()->branch_id)
+            ->where('status', 'Uncleaned')
+            ->whereIn('floor_id', $floorIds)
+            ->orderBy('check_out_time', 'asc')
+            ->first();
+
+        if ($firstUncleanedRoom && $firstUncleanedRoom->id !== $room->id) {
+            DB::rollBack();
+            $this->dialog()->error(
+                'Cannot Start Cleaning',
+                'You must start cleaning Room '.$firstUncleanedRoom->number.' first (earliest checkout).'
+            );
+            return;
+        }
+
         $record_count = RoomBoyReport::where('roomboy_id', auth()->user()->id)
             ->whereDate('created_at', now())
             ->count();
