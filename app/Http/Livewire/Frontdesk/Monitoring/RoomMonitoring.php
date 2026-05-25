@@ -177,7 +177,14 @@ class RoomMonitoring extends Component
                 ->toArray();
 
             // Show 2 upcoming batches (Batch +1 and Batch +2) on top of current.
-            $upcoming = KioskBatchService::previewBatches($branchId, $type->id, 2);
+            // previewBatches returns a flat list of rooms — chunk it into batches
+            // matching the current batch size so the view can iterate nested batches.
+            $batchSize = max(1, count($current));
+            $upcomingFlat = collect(KioskBatchService::previewBatches($branchId, $type->id, $batchSize * 2))
+                ->filter(fn($r) => $r['room_number'] !== null)
+                ->values()
+                ->toArray();
+            $upcoming = array_chunk($upcomingFlat, $batchSize) ?: [];
 
             // Total available rooms of this type across the whole branch
             // (not just inside the current batch). This is the figure
