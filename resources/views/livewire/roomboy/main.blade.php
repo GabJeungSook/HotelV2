@@ -68,7 +68,7 @@
                                 </td>
 
                                 <td class="px-2 py-2 text-center">
-                                    @if($index === 0)
+                                    @if($index < $roomboyCount)
                                     <button
                                         wire:loading.attr="disabled"
                                         wire:target="startCleaning,finishCleaning"

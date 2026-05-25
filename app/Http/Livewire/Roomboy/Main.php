@@ -126,19 +126,28 @@ class Main extends Component
             return;
         }
 
-        // Enforce FIFO: only the room with the earliest check_out_time can be started
+        // Enforce FIFO: room must be within the first N uncleaned rooms,
+        // where N = number of roomboys assigned to overlapping floors.
         $floorIds = $this->floors->pluck('id')->toArray();
-        $firstUncleanedRoom = Room::where('branch_id', auth()->user()->branch_id)
+        $roomboyCount = DB::table('floor_user')
+            ->whereIn('floor_id', $floorIds)
+            ->distinct()
+            ->count('user_id');
+        $roomboyCount = max($roomboyCount, 1);
+
+        $allowedRoomIds = Room::where('branch_id', auth()->user()->branch_id)
             ->where('status', 'Uncleaned')
             ->whereIn('floor_id', $floorIds)
             ->orderBy('check_out_time', 'asc')
-            ->first();
+            ->limit($roomboyCount)
+            ->pluck('id')
+            ->toArray();
 
-        if ($firstUncleanedRoom && $firstUncleanedRoom->id !== $room->id) {
+        if (! in_array($room->id, $allowedRoomIds)) {
             DB::rollBack();
             $this->dialog()->error(
                 'Cannot Start Cleaning',
-                'You must start cleaning Room '.$firstUncleanedRoom->number.' first (earliest checkout).'
+                'Please wait — rooms ahead in the queue must be started first.'
             );
             return;
         }
@@ -451,12 +460,19 @@ class Main extends Component
             ->orderBy('started_cleaning_at', 'asc')
             ->get();
 
+        $roomboyCount = DB::table('floor_user')
+            ->whereIn('floor_id', $floorIds)
+            ->distinct()
+            ->count('user_id');
+        $roomboyCount = max($roomboyCount, 1);
+
         return view('livewire.roomboy.main', [
             'floorCounts' => $floorCounts,
             'totalUncleaned' => $totalUncleaned,
             'cleaningRooms' => $cleaningRooms,
             'cleanedToday' => $cleanedToday,
             'otherCleaningRooms' => $otherCleaningRooms,
+            'roomboyCount' => $roomboyCount,
         ]);
     }
 }

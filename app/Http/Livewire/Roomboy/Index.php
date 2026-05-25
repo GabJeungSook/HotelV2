@@ -67,18 +67,28 @@ class Index extends Component
             return;
         }
 
-        // Enforce FIFO: only the room with the earliest check_out_time can be started
-        $firstUncleanedRoom = Room::where('branch_id', auth()->user()->branch_id)
-            ->where('status', 'Uncleaned')
-            ->where('floor_id', auth()->user()->roomboy_assigned_floor_id)
-            ->orderBy('check_out_time', 'asc')
-            ->first();
+        // Enforce FIFO: room must be within the first N uncleaned rooms,
+        // where N = number of roomboys assigned to this floor.
+        $assignedFloorId = auth()->user()->roomboy_assigned_floor_id;
+        $roomboyCount = DB::table('floor_user')
+            ->where('floor_id', $assignedFloorId)
+            ->distinct()
+            ->count('user_id');
+        $roomboyCount = max($roomboyCount, 1);
 
-        if ($firstUncleanedRoom && $firstUncleanedRoom->id !== $room->id) {
+        $allowedRoomIds = Room::where('branch_id', auth()->user()->branch_id)
+            ->where('status', 'Uncleaned')
+            ->where('floor_id', $assignedFloorId)
+            ->orderBy('check_out_time', 'asc')
+            ->limit($roomboyCount)
+            ->pluck('id')
+            ->toArray();
+
+        if (! in_array($room->id, $allowedRoomIds)) {
             DB::rollBack();
             $this->dialog()->error(
                 'Cannot Start Cleaning',
-                'You must start cleaning Room '.$firstUncleanedRoom->number.' first (earliest checkout).'
+                'Please wait — rooms ahead in the queue must be started first.'
             );
             return;
         }
