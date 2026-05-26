@@ -36,14 +36,7 @@
             @error('price')@enderror
 
           </div>
-          {{-- <div class="mt-4  border-t ">
-            <h1 class="py-2 bg-gray-50">Inventory</h1>
-            <div class="grid pt-2 grid-cols-1 border-t gap-4">
-              <x-input label="Stock" wire:model="stock" />
-            </div>
-
-
-          </div> --}}
+          @include('livewire.partials.ingredient-manager')
           <x-slot name="footer">
             <div class="flex justify-end gap-x-4">
               <x-button flat label="Cancel" x-on:click="close" />
@@ -54,7 +47,7 @@
       </x-modal>
 
       <x-modal wire:model.defer="edit_modal" max-width="xl">
-        <x-card title="Add New Menu">
+        <x-card title="Edit Menu">
           <div class="grid grid-cols-2 gap-4">
             <x-input label="Name" wire:model="name" />
             @error('name')@enderror
@@ -71,15 +64,7 @@
               @error('category_id')@enderror
             </div>
           </div>
-          {{-- <div class="mt-4  border-t ">
-            <h1 class="py-2 bg-gray-50">Inventory</h1>
-            <div class="grid pt-2 grid-cols-2 border-t gap-4">
-              <x-input label="Stock" wire:model="stock" />
-              <x-input label="default serving" wire:model="default_serving" />
-            </div>
-
-
-          </div> --}}
+          @include('livewire.partials.ingredient-manager')
           <x-slot name="footer">
             <div class="flex justify-end gap-x-4">
               <x-button flat label="Cancel" x-on:click="close" />

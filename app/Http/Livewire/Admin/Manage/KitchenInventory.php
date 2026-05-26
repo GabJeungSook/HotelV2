@@ -8,8 +8,10 @@ use WireUi\Traits\Actions;
 use App\Models\FrontdeskMenu;
 use App\Models\FrontdeskCategory;
 use App\Models\FrontdeskInventory;
+use App\Models\MenuIngredient;
 use App\Models\StockMovement;
 use App\Services\Pos\StockService;
+use App\Http\Livewire\Traits\ManagesIngredients;
 use Illuminate\Support\Facades\DB;
 use Livewire\WithFileUploads;
 
@@ -36,6 +38,7 @@ class KitchenInventory extends Component
 
     use Actions;
     use WithFileUploads;
+    use ManagesIngredients;
 
     public function mount()
     {
@@ -73,6 +76,7 @@ class KitchenInventory extends Component
      public function addMenu()
     {
         $this->reset(['item_code','name', 'price', 'image']);
+        $this->resetIngredients();
         $this->add_modal = true;
     }
 
@@ -117,6 +121,9 @@ class KitchenInventory extends Component
             'frontdesk_menu_id' => $menu->id,
             'number_of_serving' => 0,
         ]);
+
+        $this->saveIngredients('frontdesk', $menu->id);
+
         DB::commit();
 
         $this->add_modal = false;
@@ -126,6 +133,7 @@ class KitchenInventory extends Component
             'price',
             'image',
         );
+        $this->resetIngredients();
 
         $this->dialog()->success(
             $title = 'Success',
@@ -185,6 +193,7 @@ class KitchenInventory extends Component
         $this->item_code = $this->selectedMenu->item_code;
         $this->name = $this->selectedMenu->name;
         $this->price = $this->selectedMenu->price;
+        $this->loadIngredients('frontdesk', $id);
     }
 
     public function updateMenu(){
@@ -212,6 +221,8 @@ class KitchenInventory extends Component
 
         $this->selectedMenu->save();
 
+        $this->saveIngredients('frontdesk', $this->selectedMenu->id);
+
         ActivityLog::create([
             'branch_id' => auth()->user()->hasRole('superadmin') ? $this->branch_id : auth()->user()->branch_id,
             'user_id' => auth()->user()->id,
@@ -221,6 +232,7 @@ class KitchenInventory extends Component
 
         $this->edit_modal = false;
         $this->reset('name', 'price', 'image');
+        $this->resetIngredients();
 
         $this->dialog()->success(
             $title = 'Success',

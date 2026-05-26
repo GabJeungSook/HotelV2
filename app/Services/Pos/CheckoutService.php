@@ -140,7 +140,7 @@ class CheckoutService
                 // StockService::out throws InsufficientStockException on race
                 // with another writer; the surrounding DB transaction rolls
                 // back the order header + any prior line transactions.
-                $this->stock->out(
+                $this->stock->smartOut(
                     $sourceType,
                     (int) $line['menu_id'],
                     (float) $line['quantity'],
@@ -195,7 +195,7 @@ class CheckoutService
                 // Reverse the stock — IN movement of the original quantity,
                 // referenced back to the original transaction for audit.
                 if ($tx->menu_id !== null && $tx->source_type !== null && $tx->quantity !== null) {
-                    $this->stock->void(
+                    $this->stock->smartVoid(
                         $tx->source_type,
                         (int) $tx->menu_id,
                         (float) $tx->quantity,

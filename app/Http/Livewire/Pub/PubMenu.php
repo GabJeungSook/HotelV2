@@ -5,7 +5,9 @@ namespace App\Http\Livewire\Pub;
 use Livewire\Component;
 use App\Models\PubCategory;
 use App\Models\PubMenu as menuModel;
+use App\Models\MenuIngredient;
 use App\Models\PubInventory;
+use App\Http\Livewire\Traits\ManagesIngredients;
 use DB;
 use WireUi\Traits\Actions;
 use Filament\Tables;
@@ -20,6 +22,7 @@ class PubMenu extends Component implements Tables\Contracts\HasTable
 {
     use Tables\Concerns\InteractsWithTable;
     use Actions;
+    use ManagesIngredients;
     public $add_modal = false;
     public $edit_modal = false;
     public $menu_id;
@@ -84,11 +87,8 @@ class PubMenu extends Component implements Tables\Contracts\HasTable
             'pub_category_id' => $this->category_id,
         ]);
 
-        // Inventory::create([
-        //     'branch_id' => auth()->user()->branch_id,
-        //     'menu_id' => $menu->id,
-        //     'number_of_serving' => $this->stock,
-        // ]);
+        $this->saveIngredients('pub', $menu->id);
+
         DB::commit();
 
         $this->add_modal = false;
@@ -97,6 +97,7 @@ class PubMenu extends Component implements Tables\Contracts\HasTable
             'price',
             'category_id',
         );
+        $this->resetIngredients();
 
         $this->dialog()->success(
             $title = 'Success',
@@ -143,8 +144,7 @@ class PubMenu extends Component implements Tables\Contracts\HasTable
         $this->name = $menu->name;
         $this->price = $menu->price;
         $this->category_id = $menu->pub_category_id;
-        // $this->stock = $menu->inventory->stock;
-        // $this->default_serving = $menu->inventory->default_serving;
+        $this->loadIngredients('pub', $menu->id);
         $this->edit_modal = true;
     }
 
@@ -157,11 +157,7 @@ class PubMenu extends Component implements Tables\Contracts\HasTable
             'pub_category_id' => $this->category_id,
         ]);
 
-        // $menu->inventory->update([
-        //     'stock' => $this->stock,
-        //     'default_serving' => $this->default_serving,
-        //     'number_of_serving' => $this->stock / $this->default_serving,
-        // ]);
+        $this->saveIngredients('pub', $this->menu_id);
 
         $this->edit_modal = false;
         $this->reset(
@@ -169,6 +165,7 @@ class PubMenu extends Component implements Tables\Contracts\HasTable
             'price',
             'category_id',
         );
+        $this->resetIngredients();
         $this->dialog()->success(
             $title = 'Success',
             $description = 'Menu has been Updated'
@@ -178,9 +175,12 @@ class PubMenu extends Component implements Tables\Contracts\HasTable
     public function deleteMenu($menu_id)
     {
         $menu = menuModel::where('id', $menu_id)->first();
+
+        MenuIngredient::where('menu_type', 'pub')->where('menu_id', $menu_id)->delete();
+
         $menu->delete();
 
-        $menu->pubInventory->delete();
+        $menu->pubInventory?->delete();
 
         $this->dialog()->success(
             $title = 'Success',

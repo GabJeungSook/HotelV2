@@ -149,13 +149,8 @@
                 @endif
             <x-input label="Image" type="file" wire:model="image" />
             @error('image') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-
-            {{-- @if ($image)
-                <div class="mt-2">
-                    <img src="{{ $image->temporaryUrl() }}" alt="Preview" class="h-32 rounded-md object-cover">
-                </div>
-            @endif --}}
           </div>
+          @include('livewire.partials.ingredient-manager')
           <x-slot name="footer">
             <div class="flex justify-end gap-x-4">
               <x-button flat label="Cancel" x-on:click="close" />
@@ -198,6 +193,8 @@
                 @endif
                 <x-input label="{{ $selectedMenu && $selectedMenu->image ? 'Change Image' : 'Add Image' }}" type="file" wire:model="image" />
                 @error('image') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+          </div>
+          @include('livewire.partials.ingredient-manager')
           <x-slot name="footer">
             <div class="flex justify-end gap-x-4">
               <x-button flat label="Cancel" x-on:click="close" />

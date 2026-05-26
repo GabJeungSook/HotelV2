@@ -34,6 +34,12 @@ class FrontdeskMenu extends Model
             ->where('branch_id', auth()->user()->branch_id ?? 0);
     }
 
+    public function ingredients()
+    {
+        return $this->hasMany(MenuIngredient::class, 'menu_id')
+            ->where('menu_type', 'frontdesk');
+    }
+
     protected static function booted(): void
     {
         static::observe(\App\Observers\MenuPriceObserver::class);

@@ -2,6 +2,7 @@
 
 namespace App\Services\Pos;
 
+use App\Models\MenuIngredient;
 use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 
@@ -222,6 +223,165 @@ class StockService
                 'shift_log_id' => $context['shift_log_id'] ?? null,
             ]);
         });
+    }
+
+    /**
+     * Smart stock-out: deducts the item AND its ingredients (if any).
+     * Drop-in replacement for out() at all sale call sites.
+     */
+    public function smartOut(string $sourceType, int $menuId, float $qty, array $context = []): StockMovement|array
+    {
+        $hasIngredients = MenuIngredient::where('menu_type', $sourceType)
+            ->where('menu_id', $menuId)
+            ->exists();
+
+        if ($hasIngredients) {
+            return $this->outWithIngredients($sourceType, $menuId, $qty, $context);
+        }
+
+        return $this->out($sourceType, $menuId, $qty, $context);
+    }
+
+    /**
+     * Smart void: reverses the item AND its ingredients (if any).
+     * Drop-in replacement for void() at all void call sites.
+     */
+    public function smartVoid(string $sourceType, int $menuId, float $qty, array $context = []): StockMovement|array
+    {
+        $hasIngredients = MenuIngredient::where('menu_type', $sourceType)
+            ->where('menu_id', $menuId)
+            ->exists();
+
+        if ($hasIngredients) {
+            return $this->voidWithIngredients($sourceType, $menuId, $qty, $context);
+        }
+
+        return $this->void($sourceType, $menuId, $qty, $context);
+    }
+
+    /**
+     * Deduct stock for a composite item: validates ALL ingredient stock,
+     * then deducts the parent AND each ingredient atomically.
+     */
+    public function outWithIngredients(string $sourceType, int $menuId, float $qty, array $context = []): array
+    {
+        return DB::transaction(function () use ($sourceType, $menuId, $qty, $context) {
+            $ingredients = MenuIngredient::where('menu_type', $sourceType)
+                ->where('menu_id', $menuId)
+                ->get();
+
+            $branchId = $context['branch_id'] ?? auth()->user()?->branch_id;
+
+            // Pre-validate all ingredient stock with row locking
+            foreach ($ingredients as $ingredient) {
+                $ingredientQty = $ingredient->quantity * $qty;
+                $this->validateStock(
+                    $ingredient->ingredient_type,
+                    (int) $ingredient->ingredient_menu_id,
+                    $ingredientQty,
+                    $branchId
+                );
+            }
+
+            // Deduct parent item stock
+            $parentMovement = $this->out($sourceType, $menuId, $qty, $context);
+
+            // Deduct each ingredient's stock
+            $ingredientMovements = [];
+            foreach ($ingredients as $ingredient) {
+                $ingredientQty = $ingredient->quantity * $qty;
+                $ingredientMovements[] = $this->out(
+                    $ingredient->ingredient_type,
+                    (int) $ingredient->ingredient_menu_id,
+                    $ingredientQty,
+                    array_merge($context, [
+                        'ref_type' => 'ingredient_deduction',
+                        'reason'   => "Ingredient for {$sourceType}#{$menuId}",
+                    ])
+                );
+            }
+
+            return ['parent' => $parentMovement, 'ingredients' => $ingredientMovements];
+        });
+    }
+
+    /**
+     * Reverse stock for a composite item: restores parent AND each ingredient.
+     */
+    public function voidWithIngredients(string $sourceType, int $menuId, float $qty, array $context = []): array
+    {
+        return DB::transaction(function () use ($sourceType, $menuId, $qty, $context) {
+            $ingredients = MenuIngredient::where('menu_type', $sourceType)
+                ->where('menu_id', $menuId)
+                ->get();
+
+            $parentMovement = $this->void($sourceType, $menuId, $qty, $context);
+
+            $ingredientMovements = [];
+            foreach ($ingredients as $ingredient) {
+                $ingredientQty = $ingredient->quantity * $qty;
+                $ingredientMovements[] = $this->void(
+                    $ingredient->ingredient_type,
+                    (int) $ingredient->ingredient_menu_id,
+                    $ingredientQty,
+                    array_merge($context, [
+                        'ref_type' => 'ingredient_void',
+                        'reason'   => "Void ingredient for {$sourceType}#{$menuId}",
+                    ])
+                );
+            }
+
+            return ['parent' => $parentMovement, 'ingredients' => $ingredientMovements];
+        });
+    }
+
+    /**
+     * Non-locking pre-check for UI feedback. Returns array of insufficient ingredients.
+     * NOT authoritative — the real check happens inside smartOut() with locks.
+     */
+    public function checkIngredientAvailability(string $sourceType, int $menuId, float $qty, ?int $branchId = null): array
+    {
+        $branchId = $branchId ?? auth()->user()?->branch_id;
+        $insufficient = [];
+        $ingredients = MenuIngredient::where('menu_type', $sourceType)
+            ->where('menu_id', $menuId)
+            ->get();
+
+        foreach ($ingredients as $ing) {
+            $needed = $ing->quantity * $qty;
+            $inv = $this->resolver->findInventory($ing->ingredient_type, (int) $ing->ingredient_menu_id, $branchId);
+            $available = $inv ? (float) $inv->number_of_serving : 0.0;
+            if ($available < $needed) {
+                $ingredientMenu = $ing->ingredientMenu();
+                $insufficient[] = [
+                    'ingredient_type'    => $ing->ingredient_type,
+                    'ingredient_menu_id' => $ing->ingredient_menu_id,
+                    'name'               => $ingredientMenu?->name ?? 'Unknown',
+                    'needed'             => $needed,
+                    'available'          => $available,
+                ];
+            }
+        }
+
+        return $insufficient;
+    }
+
+    private function validateStock(string $sourceType, int $menuId, float $qty, ?int $branchId): void
+    {
+        $modelClass = $this->resolver->modelFor($sourceType);
+        $menuFk = $this->resolver->menuForeignKey($sourceType);
+
+        $inventory = $modelClass::query()
+            ->where($menuFk, $menuId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->lockForUpdate()
+            ->first();
+
+        $available = $inventory ? (float) $inventory->number_of_serving : 0.0;
+
+        if ($available < $qty) {
+            throw new InsufficientStockException($sourceType, $menuId, $available, $qty);
+        }
     }
 
     private function apply(string $sourceType, int $menuId, float $qty, string $type, array $context): StockMovement
