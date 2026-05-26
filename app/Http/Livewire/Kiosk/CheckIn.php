@@ -351,6 +351,13 @@ class CheckIn extends Component
             // active slot, the service auto-throws the next batch.
             KioskBatchService::markPicked(auth()->user()->branch_id, $this->room_id);
 
+            // Immediately promote the next available room so the kiosk doesn't
+            // go blank while frontdesk processes the current pick.
+            $pickedRoom = Room::find($this->room_id);
+            if ($pickedRoom) {
+                KioskBatchService::maybeFillEmptySlot($pickedRoom);
+            }
+
             $this->steps = 5;
     }
 
