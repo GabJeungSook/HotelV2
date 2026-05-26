@@ -75,6 +75,11 @@ class ShiftLogCorrection extends Component
         // 1. Update shift_logs
         $log->update(['shift' => $this->newShift]);
 
+        // 1b. Update the frontdesk user's shift column
+        if ($log->frontdesk) {
+            $log->frontdesk->update(['shift' => $this->newShift]);
+        }
+
         // 2. Update transactions
         Transaction::where('shift_log_id', $log->id)
             ->update(['shift' => $this->newShift]);

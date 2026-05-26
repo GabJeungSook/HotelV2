@@ -317,7 +317,7 @@
                   <div class="flex items-center">
                     <x-avatar md label="AB" class="mr-3" />
                     <div>
-                      <p class="text-sm text-white leading-4 mb-1">{{ auth()->user()->name }} - ({{ auth()->user()->shift }} Shift)</p>
+                      <p class="text-sm text-white leading-4 mb-1">{{ auth()->user()->name }} - ({{ \App\Support\ShiftResolver::current() }} Shift)</p>
                       <p class="text-xs text-gray-400 uppercase leading-4">{{ auth()->user()->roles->first()->name }} - ({{ auth()->user()->cash_drawer?->name }})
                       </p>
                     </div>
