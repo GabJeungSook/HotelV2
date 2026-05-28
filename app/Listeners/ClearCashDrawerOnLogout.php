@@ -36,6 +36,19 @@ class ClearCashDrawerOnLogout
                 ->update(['is_active' => false]);
         }
 
+        // Release any drawer the user is still holding via an open shift_logs row
+        // (covers cases where users.cash_drawer_id was overwritten without releasing the previous drawer)
+        $openDrawerIds = \App\Models\ShiftLog::where('frontdesk_id', $event->user->id)
+            ->whereNull('time_out')
+            ->whereNotNull('cash_drawer_id')
+            ->pluck('cash_drawer_id')
+            ->unique();
+
+        if ($openDrawerIds->isNotEmpty()) {
+            \App\Models\CashDrawer::whereIn('id', $openDrawerIds)
+                ->update(['is_active' => false]);
+        }
+
         $event->user->forceFill([
             'cash_drawer_id' => null,
         ])->save();

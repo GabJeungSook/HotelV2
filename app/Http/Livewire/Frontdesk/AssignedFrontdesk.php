@@ -7,6 +7,7 @@ use App\Models\Frontdesk;
 use App\Models\AssignedFrontdesk as assignFrontdeskModel;
 use App\Models\ShiftLog;
 use App\Models\CashDrawer;
+use App\Models\User;
 use App\Support\ShiftResolver;
 use WireUi\Traits\Actions;
 use Illuminate\Support\Facades\Auth;
@@ -212,12 +213,26 @@ class AssignedFrontdesk extends Component
          DB::beginTransaction();
 
             // Auto-close any stale shifts open longer than 14 hours (forgotten clock-outs)
-            ShiftLog::whereNull('time_out')
+            $staleLogs = ShiftLog::whereNull('time_out')
                 ->where('time_in', '<', now()->subHours(14))
-                ->update([
+                ->get(['id', 'frontdesk_id', 'cash_drawer_id']);
+
+            if ($staleLogs->isNotEmpty()) {
+                ShiftLog::whereIn('id', $staleLogs->pluck('id'))->update([
                     'time_out' => DB::raw('DATE_ADD(time_in, INTERVAL 14 HOUR)'),
                     'end_cash' => DB::raw('COALESCE(NULLIF(end_cash, 0), 1.00)'),
                 ]);
+
+                $staleDrawerIds = $staleLogs->pluck('cash_drawer_id')->filter()->unique();
+                if ($staleDrawerIds->isNotEmpty()) {
+                    CashDrawer::whereIn('id', $staleDrawerIds)->update(['is_active' => false]);
+                }
+
+                $staleUserIds = $staleLogs->pluck('frontdesk_id')->filter()->unique();
+                if ($staleUserIds->isNotEmpty()) {
+                    User::whereIn('id', $staleUserIds)->update(['cash_drawer_id' => null]);
+                }
+            }
 
             // Auto-close any existing open shift for this user
             $openShift = ShiftLog::where('frontdesk_id', auth()->user()->id)
@@ -225,6 +240,11 @@ class AssignedFrontdesk extends Component
                 ->first();
 
             if ($openShift) {
+                // Release the prior drawer unless the user is re-selecting the same one
+                if ($openShift->cash_drawer_id && $openShift->cash_drawer_id != $this->drawer) {
+                    CashDrawer::where('id', $openShift->cash_drawer_id)
+                        ->update(['is_active' => false]);
+                }
                 $openShift->update([
                     'time_out' => now(),
                     'end_cash' => $openShift->end_cash ?: 1.00,
