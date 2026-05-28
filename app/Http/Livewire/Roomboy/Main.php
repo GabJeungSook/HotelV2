@@ -462,13 +462,18 @@ class Main extends Component
 
     private function onlineRoomboyCount(array $floorIds): int
     {
-        $threshold = now()->subMinutes(5)->timestamp;
+        // The current roomboy is by definition logged in (they're running this request),
+        // so always count them. Count OTHERS via Laravel's session-alive window — matches
+        // the SESSION_LIFETIME so a roomboy with a backgrounded tab still counts as
+        // "logged in" until Laravel itself would expire the session.
+        $threshold = now()->subMinutes((int) config('session.lifetime', 120))->timestamp;
 
-        $count = User::role('roomboy')
+        $others = User::role('roomboy')
+            ->where('id', '!=', auth()->id())
             ->whereHas('floors', fn ($q) => $q->whereIn('floors.id', $floorIds))
             ->whereHas('sessions', fn ($q) => $q->where('last_activity', '>=', $threshold))
             ->count();
 
-        return max($count, 1);
+        return 1 + $others;
     }
 }
