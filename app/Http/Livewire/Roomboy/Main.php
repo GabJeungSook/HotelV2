@@ -3,6 +3,7 @@
 namespace App\Http\Livewire\Roomboy;
 
 use App\Models\Room;
+use App\Models\User;
 use App\Models\Floor;
 use App\Models\Guest;
 use Livewire\Component;
@@ -127,13 +128,9 @@ class Main extends Component
         }
 
         // Enforce FIFO: room must be within the first N uncleaned rooms,
-        // where N = number of roomboys assigned to overlapping floors.
+        // where N = number of roomboys currently online on overlapping floors.
         $floorIds = $this->floors->pluck('id')->toArray();
-        $roomboyCount = DB::table('floor_user')
-            ->whereIn('floor_id', $floorIds)
-            ->distinct()
-            ->count('user_id');
-        $roomboyCount = max($roomboyCount, 1);
+        $roomboyCount = $this->onlineRoomboyCount($floorIds);
 
         $allowedRoomIds = Room::where('branch_id', auth()->user()->branch_id)
             ->where('status', 'Uncleaned')
@@ -452,27 +449,26 @@ class Main extends Component
             ->whereDate('end_time', today())
             ->count();
 
-        $otherCleaningRooms = Room::where('branch_id', $branchId)
-            ->where('status', 'Cleaning')
-            ->whereIn('floor_id', $floorIds)
-            ->where('cleaning_by_user_id', '!=', auth()->id())
-            ->with(['floor', 'cleaningBy:id,name'])
-            ->orderBy('started_cleaning_at', 'asc')
-            ->get();
-
-        $roomboyCount = DB::table('floor_user')
-            ->whereIn('floor_id', $floorIds)
-            ->distinct()
-            ->count('user_id');
-        $roomboyCount = max($roomboyCount, 1);
+        $roomboyCount = $this->onlineRoomboyCount($floorIds);
 
         return view('livewire.roomboy.main', [
             'floorCounts' => $floorCounts,
             'totalUncleaned' => $totalUncleaned,
             'cleaningRooms' => $cleaningRooms,
             'cleanedToday' => $cleanedToday,
-            'otherCleaningRooms' => $otherCleaningRooms,
             'roomboyCount' => $roomboyCount,
         ]);
+    }
+
+    private function onlineRoomboyCount(array $floorIds): int
+    {
+        $threshold = now()->subMinutes(5)->timestamp;
+
+        $count = User::role('roomboy')
+            ->whereHas('floors', fn ($q) => $q->whereIn('floors.id', $floorIds))
+            ->whereHas('sessions', fn ($q) => $q->where('last_activity', '>=', $threshold))
+            ->count();
+
+        return max($count, 1);
     }
 }

@@ -207,35 +207,6 @@
 
     </div>
 
-    {{-- Other Roomboys: Rooms being cleaned by colleagues on shared floors --}}
-    @if($otherCleaningRooms->isNotEmpty())
-    <div class="mt-3 bg-white rounded shadow-sm overflow-hidden">
-        <div class="bg-gray-500 px-4 py-2">
-            <h3 class="text-sm font-semibold text-white uppercase">Other Roomboys Cleaning</h3>
-        </div>
-        <div class="overflow-x-auto" style="max-height: 200px; overflow-y: auto;">
-            <table class="min-w-full text-sm">
-                <thead class="bg-gray-100 text-gray-600 border-b border-gray-200 sticky top-0">
-                    <tr>
-                        <th class="px-2 py-1.5 text-center font-medium text-xs">ROOM</th>
-                        <th class="px-2 py-1.5 text-center font-medium text-xs">FLOOR</th>
-                        <th class="px-2 py-1.5 text-center font-medium text-xs">ROOMBOY</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    @foreach($otherCleaningRooms as $otherRoom)
-                    <tr class="bg-gray-50/50">
-                        <td class="px-2 py-1.5 text-center font-bold text-gray-700 text-xs">{{ $otherRoom->number }}</td>
-                        <td class="px-2 py-1.5 text-center text-gray-600 text-xs">{{ $otherRoom->floor->number ?? $otherRoom->floor_id }}</td>
-                        <td class="px-2 py-1.5 text-center text-gray-600 text-xs">{{ $otherRoom->cleaningBy->name ?? 'Unknown' }}</td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
-    @endif
-
     {{-- Done Today Modal --}}
     @if($showDoneTodayModal)
     <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
