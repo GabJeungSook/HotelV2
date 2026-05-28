@@ -52,6 +52,30 @@ class AssignedFrontdesk extends Component
 
         $branchId = $assigned->first()->branch_id;
 
+        // Auto-close abandoned shifts older than 14 hours and free their drawers
+        // and users, so the next frontdesk isn't blocked by a session that
+        // ended without firing the Logout listener.
+        $staleLogs = ShiftLog::whereNull('time_out')
+            ->where('time_in', '<', now()->subHours(14))
+            ->get(['id', 'frontdesk_id', 'cash_drawer_id']);
+
+        if ($staleLogs->isNotEmpty()) {
+            ShiftLog::whereIn('id', $staleLogs->pluck('id'))->update([
+                'time_out' => DB::raw('DATE_ADD(time_in, INTERVAL 14 HOUR)'),
+                'end_cash' => DB::raw('COALESCE(NULLIF(end_cash, 0), 1.00)'),
+            ]);
+
+            $staleDrawerIds = $staleLogs->pluck('cash_drawer_id')->filter()->unique();
+            if ($staleDrawerIds->isNotEmpty()) {
+                CashDrawer::whereIn('id', $staleDrawerIds)->update(['is_active' => false]);
+            }
+
+            $staleUserIds = $staleLogs->pluck('frontdesk_id')->filter()->unique();
+            if ($staleUserIds->isNotEmpty()) {
+                User::whereIn('id', $staleUserIds)->update(['cash_drawer_id' => null]);
+            }
+        }
+
         // Self-heal orphaned drawers: any drawer flagged active but not actually
         // held by a user and not referenced by an open shift_log is a leftover
         // from a session that ended without firing the Logout listener.
