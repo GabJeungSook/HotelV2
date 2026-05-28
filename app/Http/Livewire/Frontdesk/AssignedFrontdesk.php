@@ -50,7 +50,30 @@ class AssignedFrontdesk extends Component
             $query->where('branch_id', auth()->user()->branch_id);
         })->get();
 
-        $this->cash_drawers = CashDrawer::where('branch_id', $assigned->first()->branch_id)
+        $branchId = $assigned->first()->branch_id;
+
+        // Self-heal orphaned drawers: any drawer flagged active but not actually
+        // held by a user and not referenced by an open shift_log is a leftover
+        // from a session that ended without firing the Logout listener.
+        $heldDrawerIds = User::where('branch_id', $branchId)
+            ->whereNotNull('cash_drawer_id')
+            ->pluck('cash_drawer_id')
+            ->merge(
+                ShiftLog::where('branch_id', $branchId)
+                    ->whereNull('time_out')
+                    ->whereNotNull('cash_drawer_id')
+                    ->pluck('cash_drawer_id')
+            )
+            ->unique()
+            ->values()
+            ->all();
+
+        CashDrawer::where('branch_id', $branchId)
+            ->where('is_active', 1)
+            ->whereNotIn('id', $heldDrawerIds)
+            ->update(['is_active' => false]);
+
+        $this->cash_drawers = CashDrawer::where('branch_id', $branchId)
             ->where('is_active', 0)
             ->get();
 
