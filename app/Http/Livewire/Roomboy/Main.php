@@ -14,7 +14,6 @@ use App\Models\CleaningHistory;
 use App\Models\TransferedGuestReport;
 use App\Services\KioskBatchService;
 use App\Support\ShiftResolver;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class Main extends Component
@@ -75,6 +74,11 @@ class Main extends Component
             ->get()
             ->unique('id')
             ->values();
+
+        // Seed the heartbeat immediately on initial page load so other roomboys'
+        // dashboards count us on their very next poll, instead of waiting up to
+        // 5 seconds for our own first render() to fire the heartbeat.
+        DB::table('users')->where('id', auth()->id())->update(['last_seen_at' => now()]);
     }
 
     /**
@@ -451,10 +455,10 @@ class Main extends Component
             ->count();
 
         // Heartbeat: mark this roomboy as actively online. wire:poll.5s on the
-        // dashboard refreshes this on every poll, so the entry stays warm while
-        // the tab is open. Doing this in render() guarantees the request that
-        // counts other online roomboys has also just refreshed its own slot.
-        Cache::put('roomboy_online:'.auth()->id(), true, 120);
+        // dashboard refreshes this on every poll, so the timestamp stays fresh
+        // while the tab is open. Direct DB write (no Eloquent) so it does not
+        // touch updated_at or fire model events.
+        DB::table('users')->where('id', auth()->id())->update(['last_seen_at' => now()]);
 
         $roomboyCount = $this->onlineRoomboyCount($floorIds);
 
@@ -469,20 +473,16 @@ class Main extends Component
 
     private function onlineRoomboyCount(array $floorIds): int
     {
-        // Self is always counted — we're handling their request right now.
-        // For others, use cache heartbeats written from render() rather than
-        // the sessions table: in this app the sessions table does not reliably
-        // store user_id for logged-in users, so it is not a trustworthy
-        // presence source. The cache key is refreshed every wire:poll tick.
-        $selfId = auth()->id();
+        // Self is always counted — we're handling their request right now and
+        // render() has just refreshed our own last_seen_at. For others, count
+        // roomboys on overlapping floors whose heartbeat is within the window.
+        // Single SQL query keeps this snappy (no per-user lookups).
+        $threshold = now()->subSeconds(120);
 
-        $candidateIds = User::role('roomboy')
-            ->where('id', '!=', $selfId)
+        $otherOnline = User::role('roomboy')
+            ->where('id', '!=', auth()->id())
             ->whereHas('floors', fn ($q) => $q->whereIn('floors.id', $floorIds))
-            ->pluck('id');
-
-        $otherOnline = $candidateIds
-            ->filter(fn ($id) => Cache::has('roomboy_online:'.$id))
+            ->where('last_seen_at', '>=', $threshold)
             ->count();
 
         return 1 + $otherOnline;
