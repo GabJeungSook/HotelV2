@@ -14,6 +14,7 @@ use App\Models\CleaningHistory;
 use App\Models\TransferedGuestReport;
 use App\Services\KioskBatchService;
 use App\Support\ShiftResolver;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class Main extends Component
@@ -449,6 +450,12 @@ class Main extends Component
             ->whereDate('end_time', today())
             ->count();
 
+        // Heartbeat: mark this roomboy as actively online. wire:poll.5s on the
+        // dashboard refreshes this on every poll, so the entry stays warm while
+        // the tab is open. Doing this in render() guarantees the request that
+        // counts other online roomboys has also just refreshed its own slot.
+        Cache::put('roomboy_online:'.auth()->id(), true, 120);
+
         $roomboyCount = $this->onlineRoomboyCount($floorIds);
 
         return view('livewire.roomboy.main', [
@@ -462,46 +469,22 @@ class Main extends Component
 
     private function onlineRoomboyCount(array $floorIds): int
     {
-        // The current roomboy is by definition logged in (they're running this request),
-        // so always count them. Count OTHERS via Laravel's session-alive window — matches
-        // the SESSION_LIFETIME so a roomboy with a backgrounded tab still counts as
-        // "logged in" until Laravel itself would expire the session.
-        $threshold = now()->subMinutes((int) config('session.lifetime', 120))->timestamp;
+        // Self is always counted — we're handling their request right now.
+        // For others, use cache heartbeats written from render() rather than
+        // the sessions table: in this app the sessions table does not reliably
+        // store user_id for logged-in users, so it is not a trustworthy
+        // presence source. The cache key is refreshed every wire:poll tick.
+        $selfId = auth()->id();
 
-        $others = User::role('roomboy')
-            ->where('id', '!=', auth()->id())
+        $candidateIds = User::role('roomboy')
+            ->where('id', '!=', $selfId)
             ->whereHas('floors', fn ($q) => $q->whereIn('floors.id', $floorIds))
-            ->whereHas('sessions', fn ($q) => $q->where('last_activity', '>=', $threshold))
+            ->pluck('id');
+
+        $otherOnline = $candidateIds
+            ->filter(fn ($id) => Cache::has('roomboy_online:'.$id))
             ->count();
 
-        // TEMP DIAGNOSTIC — remove after debugging button count
-        try {
-            $rbIds = User::role('roomboy')->pluck('id');
-            \Log::info('[roomboy_count_debug]', [
-                'self_id' => auth()->id(),
-                'my_floor_ids' => $floorIds,
-                'threshold_ts' => $threshold,
-                'threshold_human' => date('Y-m-d H:i:s', $threshold),
-                'now_ts' => time(),
-                'others_count' => $others,
-                'final_count' => 1 + $others,
-                'all_roomboy_ids' => $rbIds->all(),
-                'roomboys_in_my_floors' => User::role('roomboy')
-                    ->whereHas('floors', fn ($q) => $q->whereIn('floors.id', $floorIds))
-                    ->pluck('id')->all(),
-                'sessions_for_roomboys' => \DB::table('sessions')
-                    ->whereIn('user_id', $rbIds)
-                    ->get(['user_id', 'last_activity'])
-                    ->map(fn ($s) => [
-                        'user_id' => $s->user_id,
-                        'last_activity' => $s->last_activity,
-                        'ago_sec' => time() - $s->last_activity,
-                    ])->all(),
-            ]);
-        } catch (\Throwable $e) {
-            \Log::warning('[roomboy_count_debug] logging failed: '.$e->getMessage());
-        }
-
-        return 1 + $others;
+        return 1 + $otherOnline;
     }
 }
