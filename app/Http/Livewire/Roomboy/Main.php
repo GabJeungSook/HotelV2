@@ -474,6 +474,34 @@ class Main extends Component
             ->whereHas('sessions', fn ($q) => $q->where('last_activity', '>=', $threshold))
             ->count();
 
+        // TEMP DIAGNOSTIC — remove after debugging button count
+        try {
+            $rbIds = User::role('roomboy')->pluck('id');
+            \Log::info('[roomboy_count_debug]', [
+                'self_id' => auth()->id(),
+                'my_floor_ids' => $floorIds,
+                'threshold_ts' => $threshold,
+                'threshold_human' => date('Y-m-d H:i:s', $threshold),
+                'now_ts' => time(),
+                'others_count' => $others,
+                'final_count' => 1 + $others,
+                'all_roomboy_ids' => $rbIds->all(),
+                'roomboys_in_my_floors' => User::role('roomboy')
+                    ->whereHas('floors', fn ($q) => $q->whereIn('floors.id', $floorIds))
+                    ->pluck('id')->all(),
+                'sessions_for_roomboys' => \DB::table('sessions')
+                    ->whereIn('user_id', $rbIds)
+                    ->get(['user_id', 'last_activity'])
+                    ->map(fn ($s) => [
+                        'user_id' => $s->user_id,
+                        'last_activity' => $s->last_activity,
+                        'ago_sec' => time() - $s->last_activity,
+                    ])->all(),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('[roomboy_count_debug] logging failed: '.$e->getMessage());
+        }
+
         return 1 + $others;
     }
 }
