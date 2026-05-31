@@ -270,34 +270,23 @@ class StockService
                 ->where('menu_id', $menuId)
                 ->get();
 
-            $branchId = $context['branch_id'] ?? auth()->user()?->branch_id;
-
-            // Pre-validate all ingredient stock with row locking
-            foreach ($ingredients as $ingredient) {
-                $ingredientQty = $ingredient->quantity * $qty;
-                $this->validateStock(
-                    $ingredient->ingredient_type,
-                    (int) $ingredient->ingredient_menu_id,
-                    $ingredientQty,
-                    $branchId
-                );
-            }
-
-            // Deduct parent item stock
+            // Deduct parent item stock (still enforces >= 0)
             $parentMovement = $this->out($sourceType, $menuId, $qty, $context);
 
-            // Deduct each ingredient's stock
+            // Deduct each ingredient's stock (allow negative)
             $ingredientMovements = [];
             foreach ($ingredients as $ingredient) {
                 $ingredientQty = $ingredient->quantity * $qty;
-                $ingredientMovements[] = $this->out(
+                $ingredientMovements[] = $this->apply(
                     $ingredient->ingredient_type,
                     (int) $ingredient->ingredient_menu_id,
                     $ingredientQty,
+                    StockMovement::TYPE_OUT,
                     array_merge($context, [
                         'ref_type' => 'ingredient_deduction',
                         'reason'   => "Ingredient for {$sourceType}#{$menuId}",
-                    ])
+                    ]),
+                    allowNegative: true
                 );
             }
 
@@ -384,7 +373,7 @@ class StockService
         }
     }
 
-    private function apply(string $sourceType, int $menuId, float $qty, string $type, array $context): StockMovement
+    private function apply(string $sourceType, int $menuId, float $qty, string $type, array $context, bool $allowNegative = false): StockMovement
     {
         return DB::transaction(function () use ($sourceType, $menuId, $qty, $type, $context) {
             $shadow = ($context['shadow'] ?? false) === true;
@@ -427,7 +416,7 @@ class StockService
                 ]);
             }
 
-            if ($type === StockMovement::TYPE_OUT && ($inventory === null || $available < $qty)) {
+            if (!$allowNegative && $type === StockMovement::TYPE_OUT && ($inventory === null || $available < $qty)) {
                 throw new InsufficientStockException($sourceType, $menuId, $available, $qty);
             }
 

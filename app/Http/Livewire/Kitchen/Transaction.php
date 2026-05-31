@@ -116,21 +116,6 @@ class Transaction extends Component
             return;
         }
 
-        // Pre-check ingredient stock (non-locking, for UX feedback)
-        $insufficientIngredients = app(StockService::class)->checkIngredientAvailability(
-            StockMovement::SOURCE_KITCHEN,
-            (int) $this->food_id,
-            (float) $this->food_quantity
-        );
-        if (!empty($insufficientIngredients)) {
-            $names = collect($insufficientIngredients)->pluck('name')->implode(', ');
-            $this->dialog()->error(
-                $title = 'Ingredient Out Of Stock',
-                $description = "Insufficient stock for ingredients: {$names}",
-            );
-            return;
-        }
-
         DB::beginTransaction();
         try {
             $transaction = TransactionModel::create([
