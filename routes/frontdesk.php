@@ -17,6 +17,13 @@ Route::prefix('frontdesk')
                 return view('frontdesk.select-frontdesk');
             }
         })->name('frontdesk.room-monitoring');
+        Route::get('/kiosk-batch', function () {
+            if (auth()->user()->cash_drawer_id != null) {
+                return view('frontdesk.monitoring.kiosk-batch-monitor');
+            } else {
+                return view('frontdesk.select-frontdesk');
+            }
+        })->name('frontdesk.kiosk-batch');
         Route::get('/check-in-from-kiosk/{record}', function ($record) {
             if (auth()->user()->cash_drawer_id != null) {
             return view('frontdesk.monitoring.check-in-from-kiosk', ['record' => $record]);

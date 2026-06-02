@@ -21,7 +21,6 @@ use App\Models\NewGuestReport;
 use App\Models\AssignedFrontdesk;
 use App\Models\TemporaryReserved;
 use App\Models\TemporaryCheckInKiosk;
-use App\Models\KioskCurrentBatch;
 use App\Services\KioskBatchService;
 use App\Support\ShiftResolver;
 
@@ -76,11 +75,6 @@ class RoomMonitoring extends Component
     public $checkInDetails = [];
 
     public $temporary_checkInKiosk;
-
-    // Kiosk batch viewer (modal triggered from this page).
-    public $kioskBatchModal = false;
-    public $kioskBatchData = [];
-    public $kioskBatchTotals = [];
 
     // Ghost records modal (show frontdesk which rooms have unresolved check-ins)
     public $ghostRecordsModal = false;
@@ -155,86 +149,7 @@ class RoomMonitoring extends Component
      */
     public function showKioskBatch()
     {
-        $branchId = auth()->user()->branch_id;
-        $types = Type::where('branch_id', $branchId)->orderBy('id')->get();
-
-        $data = [];
-        foreach ($types as $type) {
-            $current = KioskCurrentBatch::where('branch_id', $branchId)
-                ->where('type_id', $type->id)
-                ->with(['room:id,number,status', 'floor:id,number'])
-                ->get()
-                ->sortBy(fn ($b) => $b->floor->number ?? 0)
-                ->values()
-                ->map(function ($b) {
-                    return [
-                        'floor_number' => $b->floor->number ?? '?',
-                        'room_number' => $b->room->number ?? '?',
-                        'slot_status' => $b->slot_status,
-                        'room_status' => $b->room->status ?? '?',
-                    ];
-                })
-                ->toArray();
-
-            // Show 2 upcoming batches (Batch +1 and Batch +2) on top of current.
-            // previewBatches returns a flat list of rooms — chunk it into batches
-            // matching the current batch size so the view can iterate nested batches.
-            $batchSize = max(1, count($current));
-            $upcomingFlat = collect(KioskBatchService::previewBatches($branchId, $type->id, $batchSize * 2))
-                ->filter(fn($r) => $r['room_number'] !== null)
-                ->values()
-                ->toArray();
-            $upcoming = array_chunk($upcomingFlat, $batchSize) ?: [];
-
-            // Total available rooms of this type across the whole branch
-            // (not just inside the current batch). This is the figure
-            // frontdesk usually wants to know — "how many Singles do we
-            // actually have ready right now?".
-            $totalAvailable = Room::where('branch_id', $branchId)
-                ->where('type_id', $type->id)
-                ->whereIn('status', ['Available', 'Cleaned'])
-                ->where('is_priority', 1)
-                ->count();
-
-            $batchRoomIds = collect($current)->pluck('floor_number'); // not used, kept for clarity
-            $waitingCount = max(0, $totalAvailable - collect($current)
-                ->where('slot_status', 'active')
-                ->count());
-
-            $data[] = [
-                'type_id' => $type->id,
-                'type_name' => $type->name,
-                'current' => $current,
-                'upcoming' => $upcoming,
-                'total_available' => $totalAvailable,
-                'waiting_count' => $waitingCount,
-            ];
-        }
-
-        // Branch-wide grand totals.
-        $grandAvailable = Room::where('branch_id', $branchId)
-            ->whereIn('status', ['Available', 'Cleaned'])
-            ->where('is_priority', 1)
-            ->count();
-        $grandOccupied = Room::where('branch_id', $branchId)
-            ->where('status', 'Occupied')
-            ->count();
-        $grandTotal = Room::where('branch_id', $branchId)->count();
-
-        $this->kioskBatchTotals = [
-            'available' => $grandAvailable,
-            'occupied' => $grandOccupied,
-            'total' => $grandTotal,
-        ];
-
-        $this->kioskBatchData = $data;
-        $this->kioskBatchModal = true;
-    }
-
-    public function closeKioskBatchModal()
-    {
-        $this->kioskBatchModal = false;
-        $this->kioskBatchData = [];
+        return redirect()->route('frontdesk.kiosk-batch');
     }
 
     public function redirectToCheckinFromKiosk($id)
@@ -479,8 +394,6 @@ class RoomMonitoring extends Component
             'foods' => $this->food_beverages_modal
                 ? Menu::where('branch_id', auth()->user()->branch_id)->get()
                 : collect(),
-            'kioskBatchData' => $this->kioskBatchData,
-            'kioskBatchTotals' => $this->kioskBatchTotals,
             'gracePeriodCount' => $this->gracePeriodCount,
             'ghostRoomIds' => $ghostRoomIds, // For ghost record warning indicator
             'ghostCount' => $ghostCount, // Count for header display
