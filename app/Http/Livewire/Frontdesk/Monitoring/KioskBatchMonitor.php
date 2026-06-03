@@ -64,23 +64,32 @@ class KioskBatchMonitor extends Component
 
             $sortedQueue = $this->sortByBatchPriority($allEligible);
 
-            // Split into NEXT (Available only) and CLEANED (Cleaned status)
-            // NEXT: first 5 Available rooms in priority order
+            // Identify "newly cleaned" rooms: rooms that were cleaned today
+            // (last_cleaned_at is today). These are least priority and go to the
+            // CLEANED tier. The roomboy's finishCleaning sets status='Available'
+            // and last_cleaned_at=now(), so we cannot rely on status='Cleaned'.
+            $todayStart = now()->startOfDay();
+            $cleanedIds = $sortedQueue
+                ->filter(fn ($r) => $r->last_cleaned_at !== null && $r->last_cleaned_at >= $todayStart)
+                ->pluck('id')
+                ->all();
+
+            // NEXT: first 5 non-cleaned rooms in priority order
+            // AFTER: remaining non-cleaned rooms, grouped by floor
             $nextRooms = collect();
             $afterRooms = collect();
-            $availableCount = 0;
+            $nextCount = 0;
 
             foreach ($sortedQueue as $room) {
-                if ($room->status === 'Cleaned') {
-                    continue; // Cleaned rooms skip NEXT/AFTER — go to CLEANED tier
+                if (in_array($room->id, $cleanedIds, true)) {
+                    continue; // Skip — goes to CLEANED tier
                 }
-                // status === 'Available'
-                if ($availableCount < 5) {
+                if ($nextCount < 5) {
                     $nextRooms->push($room);
                 } else {
                     $afterRooms->push($room);
                 }
-                $availableCount++;
+                $nextCount++;
             }
 
             $next = $nextRooms->map(fn ($r) => [
@@ -88,7 +97,7 @@ class KioskBatchMonitor extends Component
                 'floor_number' => $r->floor->number ?? '?',
             ])->values()->toArray();
 
-            // AFTER: remaining Available rooms, grouped by floor, maintaining priority order within each floor
+            // AFTER: grouped by floor, maintaining priority order within each floor
             $after = $afterRooms->groupBy(fn ($r) => $r->floor->number ?? '?')
                 ->sortKeys()
                 ->map(fn ($rooms, $floor) => [
@@ -96,8 +105,8 @@ class KioskBatchMonitor extends Component
                     'rooms' => $rooms->map(fn ($r) => ['number' => $r->number])->values()->toArray(),
                 ])->values()->toArray();
 
-            // CLEANED: all rooms with status='Cleaned' from the queue, in priority order
-            $cleanedRooms = $sortedQueue->filter(fn ($r) => $r->status === 'Cleaned');
+            // CLEANED: rooms cleaned today, in priority order (least priority)
+            $cleanedRooms = $sortedQueue->filter(fn ($r) => in_array($r->id, $cleanedIds, true));
             $cleaned = $cleanedRooms->map(fn ($r) => [
                 'room_number' => $r->number,
                 'floor_number' => $r->floor->number ?? '?',
